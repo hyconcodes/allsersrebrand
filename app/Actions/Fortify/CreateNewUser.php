@@ -29,6 +29,8 @@ class CreateNewUser implements CreatesNewUsers
                 Rule::unique(User::class),
             ],
             'role' => ['required', 'string', Rule::in(['guest', 'artisan'])],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'password' => $this->passwordRules(),
         ])->validate();
 
@@ -37,6 +39,8 @@ class CreateNewUser implements CreatesNewUsers
             'username' => $input['username'],
             'email' => $input['email'],
             'role' => $input['role'],
+            'latitude' => $input['latitude'] ?? null,
+            'longitude' => $input['longitude'] ?? null,
             'password' => $input['password'],
         ]);
     }

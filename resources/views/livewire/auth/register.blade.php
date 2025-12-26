@@ -12,9 +12,28 @@
         <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
 
-        <form method="POST" action="{{ route('register.store') }}" class="flex flex-col gap-6"
-            x-data="{ password: '' }">
+        <form method="POST" action="{{ route('register.store') }}" class="flex flex-col gap-6" x-data="{ 
+                password: '',
+                latitude: null,
+                longitude: null,
+                init() {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                this.latitude = position.coords.latitude;
+                                this.longitude = position.coords.longitude;
+                            },
+                            (error) => {
+                                console.error('Error getting location:', error);
+                            }
+                        );
+                    }
+                }
+            }" x-init="init()">
             @csrf
+
+            <input type="hidden" name="latitude" x-model="latitude">
+            <input type="hidden" name="longitude" x-model="longitude">
             <!-- Name -->
             <flux:input name="name" :label="__('Full Name')" :value="old('name')" type="text" required autofocus
                 autocomplete="name" :placeholder="__('Full name')" />
