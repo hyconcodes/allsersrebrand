@@ -23,8 +23,12 @@
             <flux:navlist.group :heading="__('Apps')" class="grid mt-4">
                 <flux:navlist.item icon="magnifying-glass" href="#">{{ __('Finder') }}</flux:navlist.item>
                 <flux:navlist.item icon="chat-bubble-left-right" href="#">{{ __('Chat') }}</flux:navlist.item>
-                <flux:navlist.item icon="bell" href="#" badge="12">{{ __('Notifications') }}</flux:navlist.item>
-                <flux:navlist.item icon="bookmark" :href="route('bookmarks')" wire:navigate>{{ __('Bookmarks') }}</flux:navlist.item>
+                <flux:navlist.item icon="bell" :href="route('notifications')"
+                    :badge="auth()->user()->unreadNotifications->count() ?: null" wire:navigate>
+                    {{ __('Notifications') }}
+                </flux:navlist.item>
+                <flux:navlist.item icon="bookmark" :href="route('bookmarks')" wire:navigate>{{ __('Bookmarks') }}
+                </flux:navlist.item>
                 <flux:navlist.item icon="user" :href="route('profile.edit')" wire:navigate>{{ __('Profile') }}
                 </flux:navlist.item>
             </flux:navlist.group>
@@ -171,6 +175,8 @@
     </flux:header>
 
     {{ $slot }}
+
+    <x-ui.toast />
 
     @fluxScripts
 </body>

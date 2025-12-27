@@ -160,6 +160,10 @@ new class extends Component {
                             <path d="M5 4c0-1.1.9-2 2-2h10a2 2-2v18l-7-3-7 3V4z" />
                         </svg>
                     </button>
+                    <a href="{{ route('user.profile', $post->user) }}" wire:navigate
+                        class="border border-[var(--color-brand-purple)] text-[var(--color-brand-purple)] px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-[var(--color-brand-purple)] hover:text-white transition-all">
+                        {{ __('Contact') }}
+                    </a>
                 </div>
             </div>
         </div>
@@ -171,7 +175,8 @@ new class extends Component {
             </div>
             <h3 class="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">{{ __('No bookmarks yet') }}</h3>
             <p class="text-zinc-500 max-w-xs mx-auto text-sm">
-                {{ __('Posts you save will appear here. Start exploring and bookmark your favorite inspirations!') }}</p>
+                {{ __('Posts you save will appear here. Start exploring and bookmark your favorite inspirations!') }}
+            </p>
             <a href="{{ route('dashboard') }}"
                 class="inline-block mt-6 px-6 py-2 bg-[var(--color-brand-purple)] text-white rounded-full text-sm font-bold">
                 {{ __('Explore Feed') }}

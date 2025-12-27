@@ -33,12 +33,23 @@ new class extends Component {
         if (empty(trim($this->commentContent)))
             return;
 
-        Comment::create([
+        $comment = Comment::create([
             'user_id' => auth()->id(),
             'post_id' => $this->post->id,
             'parent_id' => $this->replyToId,
             'content' => $this->commentContent,
         ]);
+
+        // Notify
+        $user = auth()->user();
+        if ($this->replyToId) {
+            $parentComment = Comment::find($this->replyToId);
+            if ($parentComment && $parentComment->user_id !== $user->id) {
+                $parentComment->user->notify(new \App\Notifications\NewReply($parentComment, $user, $comment));
+            }
+        } elseif ($this->post->user_id !== $user->id) {
+            $this->post->user->notify(new \App\Notifications\CommentAdded($this->post, $user, $comment));
+        }
 
         $this->commentContent = '';
         $this->replyToId = null;
@@ -88,6 +99,11 @@ new class extends Component {
             $existingLike->delete();
         } else {
             $this->post->likes()->create(['user_id' => $user->id]);
+
+            // Notify post owner
+            if ($this->post->user_id !== $user->id) {
+                $this->post->user->notify(new \App\Notifications\PostLiked($this->post, $user));
+            }
         }
 
         $this->loadPost($this->post->id);

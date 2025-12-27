@@ -149,6 +149,11 @@ new class extends Component {
             $post->likes()->create([
                 'user_id' => $user->id,
             ]);
+
+            // Notify post owner
+            if ($post->user_id !== $user->id) {
+                $post->user->notify(new \App\Notifications\PostLiked($post, $user));
+            }
         }
 
         // Reload posts to update counts
@@ -332,24 +337,24 @@ new class extends Component {
                             <span class="text-sm font-medium">{{ $post->all_comments_count ?? 0 }}</span>
                         </button>
                         <button x-data="{ 
-                                                copied: false,
-                                                share() {
-                                                    const shareData = {
-                                                        title: 'Post by {{ $post->user->name }}',
-                                                        text: 'Check out this post on Allsers: {{ Str::limit($post->content, 50) }}',
-                                                        url: window.location.origin + '/dashboard?post={{ $post->post_id }}'
-                                                    };
+                                                        copied: false,
+                                                        share() {
+                                                            const shareData = {
+                                                                title: 'Post by {{ $post->user->name }}',
+                                                                text: 'Check out this post on Allsers: {{ Str::limit($post->content, 50) }}',
+                                                                url: window.location.origin + '/dashboard?post={{ $post->post_id }}'
+                                                            };
 
-                                                    if (navigator.share) {
-                                                        navigator.share(shareData).catch(console.error);
-                                                    } else {
-                                                        navigator.clipboard.writeText(shareData.url).then(() => {
-                                                            this.copied = true;
-                                                            setTimeout(() => this.copied = false, 2000);
-                                                        });
-                                                    }
-                                                }
-                                            }" @click.stop="share()"
+                                                            if (navigator.share) {
+                                                                navigator.share(shareData).catch(console.error);
+                                                            } else {
+                                                                navigator.clipboard.writeText(shareData.url).then(() => {
+                                                                    this.copied = true;
+                                                                    setTimeout(() => this.copied = false, 2000);
+                                                                });
+                                                            }
+                                                        }
+                                                    }" @click.stop="share()"
                             class="flex items-center gap-1.5 transition-colors relative"
                             :class="copied ? 'text-green-500' : 'text-zinc-500 hover:text-green-500'">
                             <flux:icon name="share" class="size-5" />
@@ -371,10 +376,10 @@ new class extends Component {
                                 <flux:icon name="bookmark" class="size-5" />
                             @endif
                         </button>
-                        <button
+                        <a href="{{ route('user.profile', $post->user) }}" wire:navigate
                             class="border border-[var(--color-brand-purple)] text-[var(--color-brand-purple)] px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-[var(--color-brand-purple)] hover:text-white transition-all">
                             {{ __('Contact') }}
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>

@@ -16,6 +16,12 @@ Route::view('bookmarks', 'bookmarks')
     ->middleware(['auth', 'verified'])
     ->name('bookmarks');
 
+Route::view('notifications', 'notifications')
+    ->middleware(['auth', 'verified'])
+    ->name('notifications');
+
+Volt::route('user/{user}', 'pages.user-profile')->name('user.profile')->middleware(['auth']);
+
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
 
