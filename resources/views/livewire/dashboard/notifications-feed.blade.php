@@ -62,10 +62,10 @@ new class extends Component {
                 <!-- Notification Icon/Avatar -->
                 <div class="shrink-0 relative">
                     <div class="size-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold text-sm">
-                        {{ strtoupper(substr($data['liker_name'] ?? $data['commenter_name'] ?? $data['replier_name'] ?? $data['sender_name'] ?? 'A', 0, 1)) }}
+                        {{ strtoupper(substr($data['liker_name'] ?? $data['commenter_name'] ?? $data['replier_name'] ?? $data['sender_name'] ?? $data['tagger_name'] ?? 'A', 0, 1)) }}
                     </div>
                     <div class="absolute -bottom-1 -right-1 size-5 rounded-full border-2 border-white dark:border-zinc-900 flex items-center justify-center text-white
-                        @if($type === 'like') bg-red-500 @elseif($type === 'comment') bg-blue-500 @elseif($type === 'inquiry') bg-green-500 @elseif($type === 'message') bg-purple-500 @else bg-zinc-500 @endif
+                        @if($type === 'like') bg-red-500 @elseif($type === 'comment') bg-blue-500 @elseif($type === 'inquiry') bg-green-500 @elseif($type === 'message') bg-purple-500 @elseif($type === 'user_tagged') bg-pink-500 @else bg-zinc-500 @endif
                     ">
                         @if($type === 'like')
                             <flux:icon name="heart" class="size-3 fill-current" />
@@ -77,6 +77,8 @@ new class extends Component {
                             <flux:icon name="paper-airplane" class="size-3" />
                         @elseif($type === 'message')
                             <flux:icon name="chat-bubble-left-right" class="size-3" />
+                        @elseif($type === 'user_tagged')
+                            <flux:icon name="at-symbol" class="size-3" />
                         @else
                             <flux:icon name="bell" class="size-3" />
                         @endif
@@ -88,7 +90,7 @@ new class extends Component {
                     <div class="flex flex-col">
                         <p class="text-sm text-zinc-600 dark:text-zinc-400">
                             <span class="font-bold text-zinc-900 dark:text-zinc-100">
-                                {{ $data['liker_name'] ?? $data['commenter_name'] ?? $data['replier_name'] ?? $data['sender_name'] ?? __('Someone') }}
+                                {{ $data['liker_name'] ?? $data['commenter_name'] ?? $data['replier_name'] ?? $data['sender_name'] ?? $data['tagger_name'] ?? __('Someone') }}
                             </span>
                             {{ $data['message'] ?? __('interacted with you') }}
                         </p>

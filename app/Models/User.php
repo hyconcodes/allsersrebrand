@@ -25,6 +25,7 @@ class User extends Authenticatable //implements MustVerifyEmail
         'email',
         'password',
         'role',
+        'is_admin',
         'username',
         'profile_picture',
         'gender',
@@ -38,6 +39,7 @@ class User extends Authenticatable //implements MustVerifyEmail
         'longitude',
         'status',
         'last_activity',
+        'banned_until',
     ];
 
     /**
@@ -65,6 +67,8 @@ class User extends Authenticatable //implements MustVerifyEmail
             'latitude' => 'decimal:8',
             'longitude' => 'decimal:8',
             'last_activity' => 'datetime',
+            'banned_until' => 'datetime',
+            'is_admin' => 'boolean',
         ];
     }
 
@@ -155,5 +159,29 @@ class User extends Authenticatable //implements MustVerifyEmail
             ->where('user_id', '!=', $this->id)
             ->whereNull('read_at')
             ->count();
+    }
+
+    /**
+     * Check if the user is an admin.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->is_admin === true;
+    }
+
+    /**
+     * Check if the user is currently banned.
+     */
+    public function isBanned(): bool
+    {
+        return $this->banned_until && $this->banned_until->isFuture();
+    }
+
+    /**
+     * Get the user's reports.
+     */
+    public function reports()
+    {
+        return $this->hasMany(Report::class);
     }
 }

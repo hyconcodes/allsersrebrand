@@ -1,6 +1,9 @@
 <?php
 
+
 use App\Models\Post;
+use App\Models\User;
+use App\Notifications\UserTagged;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Validate;
@@ -51,6 +54,7 @@ new class extends Component {
     #[Livewire\Attributes\On('comment-added')]
     #[Livewire\Attributes\On('post-liked')]
     #[Livewire\Attributes\On('post-bookmarked')]
+    #[Livewire\Attributes\On('post-deleted')]
     public function refreshFeed()
     {
         $this->loadPosts();
@@ -80,13 +84,15 @@ new class extends Component {
         $imagePath = $this->repostImage ? $this->repostImage->store('posts/images', 'public') : null;
         $videoPath = $this->repostVideo ? $this->repostVideo->store('posts/videos', 'public') : null;
 
-        Post::create([
+        $post = Post::create([
             'user_id' => auth()->id(),
             'repost_of_id' => $this->repostingPostId,
             'content' => $this->repostContent,
             'images' => $imagePath,
             'video' => $videoPath,
         ]);
+
+        $this->notifyMentionedUsers($post);
 
         $this->showRepostModal = false;
         $this->loadPosts();
@@ -153,6 +159,8 @@ new class extends Component {
 
         $post->save();
 
+        $this->notifyMentionedUsers($post);
+
         // Reset form
         $this->reset(['content', 'images', 'video']);
 
@@ -163,10 +171,45 @@ new class extends Component {
         $this->dispatch('post-created');
     }
 
+    protected function notifyMentionedUsers(Post $post)
+    {
+        if (empty($post->content)) {
+            return;
+        }
+
+        preg_match_all('/(?:^|\s)@([a-zA-Z0-9_]+)/', $post->content, $matches);
+        $usernames = array_unique($matches[1]);
+
+        if (empty($usernames)) {
+            return;
+        }
+
+        $users = User::whereIn('username', $usernames)->get();
+
+        foreach ($users as $user) {
+            if ($user->id !== auth()->id()) {
+                $user->notify(new UserTagged($post, auth()->user()));
+            }
+        }
+    }
+
     public function removeImage($index)
     {
         unset($this->images[$index]);
         $this->images = array_values($this->images);
+    }
+
+    public function deletePost($postId)
+    {
+        $post = Post::find($postId);
+
+        if ($post && $post->user_id === auth()->id()) {
+            $post->delete();
+            $this->loadPosts();
+            $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Post has been deleted.');
+        } else {
+            $this->dispatch('toast', type: 'error', title: 'Error', message: 'You cannot delete this post.');
+        }
     }
 
     public function removeVideo()
@@ -203,9 +246,39 @@ new class extends Component {
         // Reload posts to update counts
         $this->loadPosts();
     }
+
+    public $showReportModal = false;
+    public $reportPostId = null;
+    public $reportReason = '';
+
+    public function openReportModal($postId)
+    {
+        $this->reportPostId = $postId;
+        $this->showReportModal = true;
+        $this->reportReason = '';
+    }
+
+    public function submitReport()
+    {
+        $this->validate([
+            'reportReason' => 'required|string|min:10|max:500',
+        ]);
+
+        \App\Models\Report::create([
+            'user_id' => auth()->id(),
+            'post_id' => $this->reportPostId,
+            'reason' => $this->reportReason,
+            'status' => 'pending',
+        ]);
+
+        $this->showReportModal = false;
+        $this->dispatch('toast', type: 'success', title: 'Report Submitted', message: 'Thank you for reporting. We will review this post.');
+    }
 }; ?>
 
 <div class="space-y-6">
+    <livewire:global-search />
+
     @if(auth()->user()->isArtisan())
         <!-- Create Post Widget -->
         <div class="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -331,7 +404,7 @@ new class extends Component {
                                         </div>
                                     @else
                                         <span
-                                            class="bg-purple-100 text-[var(--color-brand-purple)] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                            class="bg-purple-100 text-[var(--color-brand-purple)] text-[8px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
                                             {{ $post->user->work ?? __('Artisan') }}
                                         </span>
                                     @endif
@@ -339,15 +412,43 @@ new class extends Component {
                                 <p class="text-xs text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
                             </div>
                         </div>
-                        <button class="text-zinc-400 hover:text-zinc-600">
-                            <flux:icon name="ellipsis-horizontal" class="size-5" />
-                        </button>
+                        <flux:dropdown>
+                            <button class="text-zinc-400 hover:text-zinc-600">
+                                <flux:icon name="ellipsis-horizontal" class="size-5" />
+                            </button>
+
+                            <flux:menu>
+                                @if($post->user_id === auth()->id())
+                                    <flux:menu.item wire:click="deletePost({{ $post->id }})"
+                                        wire:confirm="{{ __('Are you sure you want to delete this post?') }}" icon="trash"
+                                        variant="danger">{{ __('Delete') }}</flux:menu.item>
+                                @else
+                                    <flux:menu.item wire:click="openReportModal({{ $post->id }})" icon="flag">{{ __('Report') }}
+                                    </flux:menu.item>
+                                @endif
+                            </flux:menu>
+                        </flux:dropdown>
                     </div>
 
                     @if($post->content)
-                        <p class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed">
-                            {{ $post->content }}
-                        </p>
+                        @if(Str::length($post->content) > 300)
+                            <div x-data="{ expanded: false }">
+                                <p x-show="!expanded"
+                                    class="text-zinc-700 dark:text-zinc-300 mb-2 text-sm leading-relaxed whitespace-pre-line">
+                                    {!! $post->formatted_content_summary !!}
+                                </p>
+                                <p x-show="expanded"
+                                    class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
+                                    {!! $post->formatted_content !!}
+                                </p>
+                                <button x-show="!expanded" @click.stop="expanded = true"
+                                    class="text-sm font-medium text-[var(--color-brand-purple)] hover:underline mb-4">{{ __('See More') }}</button>
+                            </div>
+                        @else
+                            <p class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
+                                {!! $post->formatted_content !!}
+                            </p>
+                        @endif
                     @endif
 
                     <!-- Images -->
@@ -403,8 +504,8 @@ new class extends Component {
                                 <span class="text-[10px] text-zinc-400">•
                                     {{ $post->repostOf->created_at->diffForHumans() }}</span>
                             </div>
-                            <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2">
-                                {{ $post->repostOf->content }}
+                            <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2 whitespace-pre-wrap">
+                                {!! $post->repostOf->formatted_content !!}
                             </p>
                             @if($post->repostOf->images)
                                 @php $originImages = array_filter(explode(',', $post->repostOf->images)); @endphp
@@ -453,25 +554,26 @@ new class extends Component {
                                 <flux:icon name="arrow-path-rounded-square" class="size-5" />
                             </button>
                         @endif
-                        <button x-data="{ 
-                                                                                                                copied: false,
-                                                                                                                share() {
-                                                                                                                    const shareData = {
-                                                                                                                        title: 'Post by {{ $post->user->name }}',
-                                                                                                                        text: 'Check out this post on Allsers: {{ Str::limit($post->content, 50) }}',
-                                                                                                                        url: window.location.origin + '/dashboard?post={{ $post->post_id }}'
-                                                                                                                    };
+                        <button
+                            x-data="{ 
+                                                                                                                                                                        copied: false,
+                                                                                                                                                                        share() {
+                                                                                                                                                                            const shareData = {
+                                                                                                                                                                                title: 'Post by {{ $post->user->name }}',
+                                                                                                                                                                                text: 'Check out this post on Allsers: {{ Str::limit($post->content, 50) }}',
+                                                                                                                                                                                url: window.location.origin + '/dashboard?post={{ $post->post_id }}'
+                                                                                                                                                                            };
 
-                                                                                                                    if (navigator.share) {
-                                                                                                                        navigator.share(shareData).catch(console.error);
-                                                                                                                    } else {
-                                                                                                                        navigator.clipboard.writeText(shareData.url).then(() => {
-                                                                                                                            this.copied = true;
-                                                                                                                            setTimeout(() => this.copied = false, 2000);
-                                                                                                                        });
-                                                                                                                    }
-                                                                                                                }
-                                                                                                            }"
+                                                                                                                                                                            if (navigator.share) {
+                                                                                                                                                                                navigator.share(shareData).catch(console.error);
+                                                                                                                                                                            } else {
+                                                                                                                                                                                navigator.clipboard.writeText(shareData.url).then(() => {
+                                                                                                                                                                                    this.copied = true;
+                                                                                                                                                                                    setTimeout(() => this.copied = false, 2000);
+                                                                                                                                                                                });
+                                                                                                                                                                            }
+                                                                                                                                                                        }
+                                                                                                                                                                    }"
                             @click.stop="share()" class="flex items-center gap-1.5 transition-colors relative"
                             :class="copied ? 'text-green-500' : 'text-zinc-500 hover:text-green-500'">
                             <flux:icon name="share" class="size-5" />
@@ -575,6 +677,45 @@ new class extends Component {
                         {{ __('Publishing...') }}
                     </span>
                 </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    <!-- Report Post Modal -->
+    <flux:modal name="report-post-modal" wire:model="showReportModal" class="sm:max-w-lg">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Report Post</flux:heading>
+                <flux:subheading>Help us understand what's wrong with this post</flux:subheading>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <flux:label>Reason for Report *</flux:label>
+                    <flux:textarea wire:model="reportReason" rows="4"
+                        placeholder="Please describe why you're reporting this post (minimum 10 characters)..." />
+                    @error('reportReason')
+                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div class="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 text-sm text-zinc-600 dark:text-zinc-400">
+                    <p class="font-medium mb-2">Common reasons for reporting:</p>
+                    <ul class="list-disc list-inside space-y-1 text-xs">
+                        <li>Spam or misleading content</li>
+                        <li>Harassment or hate speech</li>
+                        <li>Violence or dangerous content</li>
+                        <li>Inappropriate or offensive material</li>
+                        <li>Copyright infringement</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="flex gap-2 justify-end">
+                <flux:modal.close>
+                    <flux:button variant="ghost">Cancel</flux:button>
+                </flux:modal.close>
+                <flux:button variant="danger" wire:click="submitReport">Submit Report</flux:button>
             </div>
         </div>
     </flux:modal>

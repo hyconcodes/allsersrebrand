@@ -97,4 +97,51 @@ class Post extends Model
     {
         return $this->all_comments_count ?? $this->allComments()->count();
     }
+
+    /**
+     * Get the formatted content with clickable links.
+     */
+    public function getFormattedContentAttribute(): string
+    {
+        return $this->formatContent($this->content);
+    }
+
+    /**
+     * Get the formatted content summary (truncated) with clickable links.
+     */
+    public function getFormattedContentSummaryAttribute(): string
+    {
+        return $this->formatContent(\Illuminate\Support\Str::limit($this->content, 300));
+    }
+
+    /**
+     * Helper to format content: trim, escape, and autolink.
+     */
+    private function formatContent(?string $content): string
+    {
+        if (empty($content)) {
+            return '';
+        }
+
+        $escaped = e(trim($content));
+
+        // 1. Convert URLs to links
+        $urlPattern = '/(https?:\/\/[^\s<]+)/i';
+        $urlReplacement = '<a href="$1" target="_blank" class="text-blue-500 hover:underline break-all">$1</a>';
+        $escaped = preg_replace($urlPattern, $urlReplacement, $escaped);
+
+        // 2. Convert @mentions to links
+        // Matches @username at start of string or after whitespace
+        $mentionPattern = '/(^|\s)@([a-zA-Z0-9_]+)/';
+
+        // We use a callback to generate the route properly
+        $escaped = preg_replace_callback($mentionPattern, function ($matches) {
+            $whitespace = $matches[1];
+            $username = $matches[2];
+            $url = route('artisan.profile', $username);
+            return $whitespace . '<a href="' . $url . '" class="text-[var(--color-brand-purple)] font-bold hover:underline">@' . $username . '</a>';
+        }, $escaped);
+
+        return $escaped;
+    }
 }

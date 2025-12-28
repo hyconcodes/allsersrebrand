@@ -1,13 +1,16 @@
 <?php
 
 use App\Models\Post;
+use App\Models\User;
+use App\Notifications\UserTagged;
 use Livewire\Volt\Component;
-use Livewire\Attributes\On;
+use Livewire\WithFileUploads;
+use Livewire\Attributes\Validate;
 
 new class extends Component {
-    public $posts = [];
+    use WithFileUploads;
 
-    use \Livewire\WithFileUploads;
+    public $posts = [];
 
     public $repostingPostId = null;
     public $repostContent = '';
@@ -22,29 +25,29 @@ new class extends Component {
 
     public function loadPosts()
     {
-        $userId = auth()->id();
-        $this->posts = Post::whereHas('bookmarks', function ($query) use ($userId) {
-            $query->where('user_id', $userId);
-        })
-            ->with([
-                'user',
-                'repostOf.user',
-                'likes' => function ($query) use ($userId) {
-                    $query->where('user_id', $userId);
-                },
-                'bookmarks' => function ($query) use ($userId) {
-                    $query->where('user_id', $userId);
-                }
-            ])
+        $this->posts = Post::with([
+            'user',
+            'repostOf.user',
+            'likes' => function ($query) {
+                $query->where('user_id', auth()->id());
+            },
+            'bookmarks' => function ($query) {
+                $query->where('user_id', auth()->id());
+            }
+        ])
+            ->whereHas('bookmarks', function ($query) {
+                $query->where('user_id', auth()->id());
+            })
             ->withCount(['likes', 'allComments'])
-            ->latest()
+            ->latest('created_at') // Get latest bookmarks
+            ->take(20)
             ->get();
     }
 
-    #[On('comment-added')]
-    #[On('post-liked')]
-    #[On('post-bookmarked')]
-    public function refreshFeed()
+    #[Livewire\Attributes\On('comment-added')]
+    #[Livewire\Attributes\On('post-liked')]
+    #[Livewire\Attributes\On('post-bookmarked')]
+    public function refreshBookmarks()
     {
         $this->loadPosts();
     }
@@ -62,9 +65,15 @@ new class extends Component {
             $existingLike->delete();
         } else {
             $post->likes()->create(['user_id' => $user->id]);
+
+            // Notify post owner
+            if ($post->user_id !== $user->id) {
+                $post->user->notify(new \App\Notifications\PostLiked($post, $user));
+            }
         }
 
         $this->loadPosts();
+        $this->dispatch('post-liked'); // Sync with other feeds
     }
 
     public function toggleBookmark($postId)
@@ -83,6 +92,7 @@ new class extends Component {
         }
 
         $this->loadPosts();
+        $this->dispatch('post-bookmarked'); // Sync with other feeds
     }
 
     public function openRepostModal($postId)
@@ -109,7 +119,7 @@ new class extends Component {
         $imagePath = $this->repostImage ? $this->repostImage->store('posts/images', 'public') : null;
         $videoPath = $this->repostVideo ? $this->repostVideo->store('posts/videos', 'public') : null;
 
-        Post::create([
+        $post = Post::create([
             'user_id' => auth()->id(),
             'repost_of_id' => $this->repostingPostId,
             'content' => $this->repostContent,
@@ -117,9 +127,33 @@ new class extends Component {
             'video' => $videoPath,
         ]);
 
+        $this->notifyMentionedUsers($post);
+
         $this->showRepostModal = false;
         $this->loadPosts();
         $this->dispatch('toast', type: 'success', title: 'Reposted!', message: 'Your repost has been published.');
+    }
+
+    protected function notifyMentionedUsers(Post $post)
+    {
+        if (empty($post->content)) {
+            return;
+        }
+
+        preg_match_all('/(?:^|\s)@([a-zA-Z0-9_]+)/', $post->content, $matches);
+        $usernames = array_unique($matches[1]);
+
+        if (empty($usernames)) {
+            return;
+        }
+
+        $users = User::whereIn('username', $usernames)->get();
+
+        foreach ($users as $user) {
+            if ($user->id !== auth()->id()) {
+                $user->notify(new UserTagged($post, auth()->user()));
+            }
+        }
     }
 }; ?>
 
@@ -173,9 +207,21 @@ new class extends Component {
                 </div>
 
                 @if($post->content)
-                    <p class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed">
-                        {{ $post->content }}
-                    </p>
+                    @if(Str::length($post->content) > 300)
+                        <div x-data="{ expanded: false }">
+                            <p x-show="!expanded"
+                                class="text-zinc-700 dark:text-zinc-300 mb-2 text-sm leading-relaxed whitespace-pre-line">
+                                {!! $post->formatted_content_summary !!}</p>
+                            <p x-show="expanded"
+                                class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
+                                {!! $post->formatted_content !!}</p>
+                            <button x-show="!expanded" @click.stop="expanded = true"
+                                class="text-sm font-medium text-[var(--color-brand-purple)] hover:underline mb-4">{{ __('See More') }}</button>
+                        </div>
+                    @else
+                        <p class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
+                            {!! $post->formatted_content !!}</p>
+                    @endif
                 @endif
 
                 <!-- Images/Video Logic (Reused from Feed) -->
@@ -215,8 +261,8 @@ new class extends Component {
                                 class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ $post->repostOf->user->name }}</span>
                             <span class="text-[10px] text-zinc-400">• {{ $post->repostOf->created_at->diffForHumans() }}</span>
                         </div>
-                        <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2">
-                            {{ $post->repostOf->content }}
+                        <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2 whitespace-pre-wrap">
+                            {!! $post->repostOf->formatted_content !!}
                         </p>
                         @if($post->repostOf->images)
                             @php $originImages = array_filter(explode(',', $post->repostOf->images)); @endphp

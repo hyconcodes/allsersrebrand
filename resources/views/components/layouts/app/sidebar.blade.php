@@ -17,13 +17,13 @@
             </a>
 
             <flux:navlist variant="outline">
+
                 <flux:navlist.group :heading="__('Platform')" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')"
                         wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
                 </flux:navlist.group>
 
                 <flux:navlist.group :heading="__('Apps')" class="grid mt-4">
-                    <flux:navlist.item icon="magnifying-glass" href="#">{{ __('Finder') }}</flux:navlist.item>
                     <flux:navlist.item icon="chat-bubble-left-right" :href="route('chat')"
                         :current="request()->routeIs('chat*')" :badge="auth()->user()->unreadMessagesCount() ?: null"
                         wire:navigate>{{ __('Chat') }}</flux:navlist.item>
@@ -37,6 +37,15 @@
                         {{ __('Profile') }}
                     </flux:navlist.item>
                 </flux:navlist.group>
+
+                @if(auth()->user()->isAdmin())
+                    <flux:navlist.group :heading="__('Admin')" class="grid mt-4">
+                        <flux:navlist.item icon="shield-check" :href="route('admin.reports')"
+                            :current="request()->routeIs('admin.reports')" wire:navigate>
+                            {{ __('Reports') }}
+                        </flux:navlist.item>
+                    </flux:navlist.group>
+                @endif
             </flux:navlist>
 
             <div class="px-2 mt-6">
@@ -216,7 +225,7 @@
     @endauth
 
     <!-- <div class="@auth lg:ml-0 @endauth"> -->
-        {{ $slot }}
+    {{ $slot }}
     <!-- </div> -->
 
     <x-ui.toast />

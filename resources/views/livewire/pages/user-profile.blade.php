@@ -88,6 +88,18 @@ new class extends Component {
 
         return $this->redirect(route('chat', $conversation->id), navigate: true);
     }
+
+    public function deletePost($postId)
+    {
+        $post = Post::find($postId);
+        if ($post && $post->user_id === auth()->id()) {
+            $post->delete();
+            $this->loadPosts();
+            $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Post has been deleted.');
+        } else {
+             $this->dispatch('toast', type: 'error', title: 'Error', message: 'Unauthorized action.');
+        }
+    }
 }; ?>
 
 <div class="max-w-4xl mx-auto px-4 py-8">
@@ -134,7 +146,8 @@ new class extends Component {
                             </button>
                         @endif
                     @endif
-                    <flux:button @click="copy('{{ route('artisan.profile', $user->username ?? $user->id) }}')" variant="outline" icon="share" class="rounded-full shadow-none">
+                    <flux:button @click="copy('{{ route('artisan.profile', $user->username ?? $user->id) }}')"
+                        variant="outline" icon="share" class="rounded-full shadow-none">
                         {{ __('Share') }}
                     </flux:button>
                 </div>
@@ -180,39 +193,68 @@ new class extends Component {
         <h2 class="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-4 px-2">{{ __('Portfolio & Posts') }}</h2>
 
         @forelse($posts as $post)
-            <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 relative">
+            <div
+                class="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 relative">
                 @if($post->repost_of_id)
                     <div class="absolute left-[10px] top-[70px] bottom-[50px] w-0.5 bg-[#6a11cb] opacity-50 z-0"></div>
                 @endif
-                <div @click="$dispatch('open-post-detail', { postId: {{ $post->id }} })" class="cursor-pointer relative z-10">
-                    <div class="flex items-center gap-2 mb-4">
-                        <div
-                            class="size-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-xs overflow-hidden">
-                            @if($post->user->profile_picture_url)
-                                <img src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
-                            @else
-                                {{ $post->user->initials() }}
-                            @endif
-                        </div>
-                        <div>
-                            <div class="flex items-center gap-2 text-sm">
-                                <h3 class="font-bold text-zinc-900 dark:text-zinc-100">{{ $post->user->name }}</h3>
-                                @if($post->repost_of_id)
-                                    <div
-                                        class="flex items-center gap-1 text-[10px] text-zinc-500 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
-                                        <flux:icon name="arrow-path-rounded-square" class="size-3" />
-                                        <span>reposted work</span>
-                                    </div>
+                <div @click="$dispatch('open-post-detail', { postId: {{ $post->id }} })"
+                    class="cursor-pointer relative z-10">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="size-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-xs overflow-hidden">
+                                @if($post->user->profile_picture_url)
+                                    <img src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
+                                @else
+                                    {{ $post->user->initials() }}
                                 @endif
                             </div>
-                            <p class="text-[10px] text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
+                            <div>
+                                <div class="flex items-center gap-2 text-sm">
+                                    <h3 class="font-bold text-zinc-900 dark:text-zinc-100">{{ $post->user->name }}</h3>
+                                    @if($post->repost_of_id)
+                                        <div
+                                            class="flex items-center gap-1 text-[10px] text-zinc-500 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
+                                            <flux:icon name="arrow-path-rounded-square" class="size-3" />
+                                            <span>reposted work</span>
+                                        </div>
+                                    @endif
+                                </div>
+                                <p class="text-[10px] text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
+                            </div>
                         </div>
+
+                        <flux:dropdown>
+                            <button class="text-zinc-400 hover:text-zinc-600">
+                                <flux:icon name="ellipsis-horizontal" class="size-5" />
+                            </button>
+                            <flux:menu>
+                                @if($post->user_id === auth()->id())
+                                    <flux:menu.item wire:click="deletePost({{ $post->id }})" wire:confirm="{{ __('Are you sure?') }}" icon="trash" variant="danger">{{ __('Delete') }}</flux:menu.item>
+                                @else
+                                    <flux:menu.item icon="flag">{{ __('Report') }}</flux:menu.item>
+                                @endif
+                            </flux:menu>
+                        </flux:dropdown>
                     </div>
 
                     @if($post->content)
-                        <p class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed">
-                            {{ $post->content }}
-                        </p>
+                        @if(Str::length($post->content) > 300)
+                            <div x-data="{ expanded: false }">
+                                <p x-show="!expanded"
+                                    class="text-zinc-700 dark:text-zinc-300 mb-2 text-sm leading-relaxed whitespace-pre-line">
+                                    {!! $post->formatted_content_summary !!}</p>
+                                <p x-show="expanded"
+                                    class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
+                                    {!! $post->formatted_content !!}</p>
+                                <button x-show="!expanded" @click.stop="expanded = true"
+                                    class="text-sm font-medium text-[var(--color-brand-purple)] hover:underline mb-4">{{ __('See More') }}</button>
+                            </div>
+                        @else
+                            <p class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
+                                {!! $post->formatted_content !!}</p>
+                        @endif
                     @endif
 
                     @if($post->images)
@@ -247,12 +289,13 @@ new class extends Component {
                                         {{ $post->repostOf->user->initials() }}
                                     @endif
                                 </div>
-                                <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ $post->repostOf->user->name }}</span>
-                                <span class="text-[10px] text-zinc-400">• {{ $post->repostOf->created_at->diffForHumans() }}</span>
+                                <span
+                                    class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ $post->repostOf->user->name }}</span>
+                                <span class="text-[10px] text-zinc-400">•
+                                    {{ $post->repostOf->created_at->diffForHumans() }}</span>
                             </div>
-                            <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2">
-                                {{ $post->repostOf->content }}
-                            </p>
+                            <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2 whitespace-pre-wrap">
+                                {!! $post->repostOf->formatted_content !!}</p>
                             @if($post->repostOf->images)
                                 @php $originImages = array_filter(explode(',', $post->repostOf->images)); @endphp
                                 @if(count($originImages) > 0)

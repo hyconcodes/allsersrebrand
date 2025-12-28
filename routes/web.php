@@ -24,6 +24,7 @@ Volt::route('chat/{conversation?}', 'pages.chat')->name('chat')->middleware(['au
 
 Volt::route('user/{user}', 'pages.user-profile')->name('user.profile')->middleware(['auth']);
 Volt::route('artisan/{user:username}', 'pages.artisan-profile')->name('artisan.profile');
+// Volt::route('clips', 'pages.clips')->name('clips')->middleware(['auth', 'verified']);
 
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
@@ -42,6 +43,9 @@ Route::middleware(['auth'])->group(function () {
             ),
         )
         ->name('two-factor.show');
+
+    // Admin routes
+    Volt::route('admin/reports', 'admin.reports')->name('admin.reports');
 });
 
 Route::get('/images/{path}', function ($path) {

@@ -196,6 +196,7 @@ new class extends Component {
                         <flux:icon name="check-badge" class="size-6 text-blue-500 fill-current" />
                     @endif
                 </h1>
+                <p>{{ '@' . $user->username }}</p>
                 <p class="text-[var(--color-brand-purple)] font-bold uppercase tracking-wide text-xs">
                     {{ $user->work ?? __('Artisan') }}
                 </p>
@@ -243,13 +244,39 @@ new class extends Component {
                             @endif
                         </div>
                         <div>
-                            <h3 class="text-sm font-bold text-zinc-900 dark:text-zinc-100">{{ $post->user->name }}</h3>
+                            <div class="flex items-center gap-2 text-sm">
+                                <h3 class="font-bold text-zinc-900 dark:text-zinc-100">{{ $post->user->name }}</h3>
+                                @if($post->repost_of_id)
+                                    <div
+                                        class="flex items-center gap-1 text-[10px] text-zinc-500 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
+                                        <flux:icon name="arrow-path-rounded-square" class="size-3" />
+                                        <span>reposted work</span>
+                                    </div>
+                                @endif
+                            </div>
                             <p class="text-[10px] text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
                         </div>
                     </div>
 
                     @if($post->content)
-                        <p class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed">{{ $post->content }}</p>
+                        @if(Str::length($post->content) > 300)
+                            <div x-data="{ expanded: false }">
+                                <p x-show="!expanded"
+                                    class="text-zinc-700 dark:text-zinc-300 mb-2 text-sm leading-relaxed whitespace-pre-line">
+                                    {!! $post->formatted_content_summary !!}
+                                </p>
+                                <p x-show="expanded"
+                                    class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
+                                    {!! $post->formatted_content !!}
+                                </p>
+                                <button x-show="!expanded" @click.stop="expanded = true"
+                                    class="text-sm font-medium text-[var(--color-brand-purple)] hover:underline mb-4">{{ __('See More') }}</button>
+                            </div>
+                        @else
+                            <p class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
+                                {!! $post->formatted_content !!}
+                            </p>
+                        @endif
                     @endif
 
                     @if($post->images)
@@ -271,6 +298,45 @@ new class extends Component {
                                 controls></video>
                         </div>
                     @endif
+
+                    <!-- Original Post Preview (Repost) -->
+                    @if($post->repostOf)
+                        <div @click.stop="$dispatch('open-post-detail', { postId: {{ $post->repost_of_id }} })"
+                            class="mb-4 p-4 border border-zinc-100 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer ring-1 ring-transparent hover:ring-[var(--color-brand-purple)]/30">
+                            <div class="flex items-center gap-2 mb-2">
+                                <div
+                                    class="size-6 rounded-full bg-purple-50 flex items-center justify-center text-[10px] overflow-hidden">
+                                    @if($post->repostOf->user->profile_picture_url)
+                                        <img src="{{ $post->repostOf->user->profile_picture_url }}" class="size-full object-cover">
+                                    @else
+                                        {{ $post->repostOf->user->initials() }}
+                                    @endif
+                                </div>
+                                <span
+                                    class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ $post->repostOf->user->name }}</span>
+                                <span class="text-[10px] text-zinc-400">•
+                                    {{ $post->repostOf->created_at->diffForHumans() }}</span>
+                            </div>
+                            <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2 whitespace-pre-wrap">
+                                {!! $post->repostOf->formatted_content !!}
+                            </p>
+                            @if($post->repostOf->images)
+                                @php $originImages = array_filter(explode(',', $post->repostOf->images)); @endphp
+                                @if(count($originImages) > 0)
+                                    <div class="h-32 rounded-lg overflow-hidden border border-zinc-200/50">
+                                        <img src="{{ route('images.show', ['path' => trim($originImages[0])]) }}"
+                                            class="size-full object-cover">
+                                    </div>
+                                @endif
+                            @elseif($post->repostOf->video)
+                                <div
+                                    class="h-32 rounded-lg overflow-hidden bg-black flex items-center justify-center border border-zinc-200/50">
+                                    <video src="{{ route('images.show', ['path' => $post->repostOf->video]) }}"
+                                        class="w-full h-full object-cover" controls></video>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
                 </div>
 
                 <div class="flex items-center gap-6 pt-3 border-t border-zinc-50 dark:border-zinc-800/50 mt-2">
@@ -282,8 +348,8 @@ new class extends Component {
                         <flux:icon name="chat-bubble-left" class="size-5" />
                         <span class="text-sm font-medium">{{ $post->all_comments_count }}</span>
                     </span>
-                    </div>
                 </div>
+            </div>
         @empty
             <div
                 class="bg-white dark:bg-zinc-900 rounded-2xl p-12 shadow-sm border border-zinc-200 dark:border-zinc-800 text-center">
