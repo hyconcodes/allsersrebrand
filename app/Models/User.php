@@ -209,4 +209,43 @@ class User extends Authenticatable //implements MustVerifyEmail
             ->withPivot('awarded_at')
             ->withTimestamps();
     }
+
+    /**
+     * Get profile completion statistics for artisans.
+     */
+    public function profileCompletion(): array
+    {
+        $fields = [
+            'profile_picture' => 'Profile Picture',
+            'gender' => 'Gender',
+            'work' => 'Work Category',
+            'bio' => 'Short Bio',
+            'experience_year' => 'Years of Experience',
+            'work_status' => 'Availability Status',
+            'phone_number' => 'Phone Number',
+            'address' => 'Home/Store Address',
+        ];
+
+        $completed = [];
+        $missing = [];
+        $filledCount = 0;
+
+        foreach ($fields as $field => $label) {
+            if (!empty($this->{$field})) {
+                $completed[] = ['field' => $field, 'label' => $label];
+                $filledCount++;
+            } else {
+                $missing[] = ['field' => $field, 'label' => $label];
+            }
+        }
+
+        $percentage = ($filledCount / count($fields)) * 100;
+
+        return [
+            'percentage' => round($percentage),
+            'completed' => $completed,
+            'missing' => $missing,
+            'is_complete' => $filledCount === count($fields),
+        ];
+    }
 }

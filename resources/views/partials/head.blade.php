@@ -1,22 +1,25 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<title>{{ $metaTitle ?? $title ?? config('app.name') }}</title>
-<meta name="description" content="{{ $metaDescription ?? 'Connect with verified artisans and service providers. Chat directly, view their work, and hire with confidence.' }}" />
+<title>{{ $metaTitle ?? ($title ?? config('app.name')) }}</title>
+<meta name="description"
+    content="{{ $metaDescription ?? 'Connect with verified artisans and service providers. Chat directly, view their work, and hire with confidence.' }}" />
 <meta name="author" content="Allsers" />
 
 <!-- Open Graph / Facebook -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="{{ $metaUrl ?? url()->current() }}">
-<meta property="og:title" content="{{ $metaTitle ?? $title ?? config('app.name') }}">
-<meta property="og:description" content="{{ $metaDescription ?? 'Connect with verified artisans and service providers.' }}">
+<meta property="og:title" content="{{ $metaTitle ?? ($title ?? config('app.name')) }}">
+<meta property="og:description"
+    content="{{ $metaDescription ?? 'Connect with verified artisans and service providers.' }}">
 <meta property="og:image" content="{{ $metaImage ?? asset('assets/allsers.png') }}">
 
 <!-- Twitter -->
 <meta property="twitter:card" content="summary_large_image">
 <meta property="twitter:url" content="{{ $metaUrl ?? url()->current() }}">
-<meta property="twitter:title" content="{{ $metaTitle ?? $title ?? config('app.name') }}">
-<meta property="twitter:description" content="{{ $metaDescription ?? 'Connect with verified artisans and service providers.' }}">
+<meta property="twitter:title" content="{{ $metaTitle ?? ($title ?? config('app.name')) }}">
+<meta property="twitter:description"
+    content="{{ $metaDescription ?? 'Connect with verified artisans and service providers.' }}">
 <meta property="twitter:image" content="{{ $metaImage ?? asset('assets/allsers.png') }}">
 
 <link rel="canonical" href="{{ $metaUrl ?? url()->current() }}" />
@@ -29,5 +32,20 @@
 <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+<!-- Leaflet Maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 @fluxAppearance
 @snowfall
+
+<!-- SVG Gradient for Map Polyline -->
+<svg style="width:0;height:0;position:absolute;" aria-hidden="true" focusable="false">
+    <defs>
+        <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#3B82F6" />
+            <stop offset="100%" stop-color="#6D28D9" />
+        </linearGradient>
+    </defs>
+</svg>

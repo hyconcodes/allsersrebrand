@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'ai'=> [
+        'api_key' => env('API_KEY', ''),
+        'model' => env('AI_MODEL', ''),
+        'provider' => env('AI_PROVIDER', 'Groq'),
+    ],
+
 ];

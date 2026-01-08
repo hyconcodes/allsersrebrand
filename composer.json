@@ -15,6 +15,7 @@
         "laravel/tinker": "^2.10.1",
         "livewire/flux": "^2.9.0",
         "livewire/volt": "^1.7.0",
+        "prism-php/prism": "^0.99.11",
         "remeritus/laravel-snowfall": "^1.2"
     },
     "require-dev": {

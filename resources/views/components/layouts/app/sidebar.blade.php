@@ -4,9 +4,24 @@
 <head>
     @include('partials.head')
     @stack('head')
+    <style>
+        /* Hide scrollbar for ALL elements within flux-sidebar and the sidebar itself */
+        [flux-sidebar],
+        [flux-sidebar] * {
+            -ms-overflow-style: none !important;
+            scrollbar-width: none !important;
+        }
+
+        [flux-sidebar]::-webkit-scrollbar,
+        [flux-sidebar] *::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+    </style>
 </head>
 
-<body class="min-h-screen bg-white dark:bg-zinc-800">
+<body class="min-h-screen bg-white dark:bg-zinc-800 scroll-m-0 pb-6 lg:pb-0">
     @auth
         <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
 
@@ -42,7 +57,7 @@
                     </flux:navlist.item>
                 </flux:navlist.group>
 
-                @if(auth()->user()->isAdmin())
+                @if (auth()->user()->isAdmin())
                     <flux:navlist.group :heading="__('Admin')" class="grid mt-4">
                         <flux:navlist.item icon="shield-check" :href="route('admin.reports')"
                             :current="request()->routeIs('admin.reports')" wire:navigate>
@@ -100,8 +115,9 @@
                         <div class="p-0 text-sm font-normal">
                             <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
                                 <span class="relative flex h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                                    @if(auth()->user()->profile_picture_url)
-                                        <img src="{{ auth()->user()->profile_picture_url }}" class="h-full w-full object-cover">
+                                    @if (auth()->user()->profile_picture_url)
+                                        <img src="{{ auth()->user()->profile_picture_url }}"
+                                            class="h-full w-full object-cover">
                                     @else
                                         <span
                                             class="flex h-full w-full items-center justify-center rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
@@ -159,8 +175,9 @@
                         <div class="p-0 text-sm font-normal">
                             <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
                                 <span class="relative flex h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                                    @if(auth()->user()->profile_picture_url)
-                                        <img src="{{ auth()->user()->profile_picture_url }}" class="h-full w-full object-cover">
+                                    @if (auth()->user()->profile_picture_url)
+                                        <img src="{{ auth()->user()->profile_picture_url }}"
+                                            class="h-full w-full object-cover">
                                     @else
                                         <span
                                             class="flex h-full w-full items-center justify-center rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
@@ -233,6 +250,57 @@
     <!-- </div> -->
 
     <x-ui.toast />
+
+    <livewire:ai-chat />
+
+    @auth
+        <!-- Mobile Bottom Nav -->
+        <nav
+            class="lg:hidden fixed bottom-0 left-0 right-0 z-[500] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 px-6 pb-6 pt-3 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+            <div class="flex items-center justify-between max-w-md mx-auto">
+                <!-- Home -->
+                <a href="{{ route('dashboard') }}" wire:navigate class="flex flex-col items-center gap-1 group">
+                    <div
+                        class="p-2 rounded-xl transition-all {{ request()->routeIs('dashboard') ? 'bg-[var(--color-brand-purple)] text-white shadow-lg shadow-purple-500/30' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800' }}">
+                        <flux:icon name="home" :variant="request()->routeIs('dashboard') ? 'solid' : 'outline'"
+                            class="size-6" />
+                    </div>
+                    <span
+                        class="text-[10px] font-black uppercase tracking-widest {{ request()->routeIs('dashboard') ? 'text-[var(--color-brand-purple)]' : 'text-zinc-400' }}">Home</span>
+                </a>
+
+                <!-- Lila (Central AI Toggle) -->
+                <button @click="$dispatch('open-lila')" class="relative -mt-12 flex flex-col items-center gap-2">
+                    <div
+                        class="size-16 rounded-full bg-gradient-to-tr from-[var(--color-brand-purple)] to-purple-400 p-1 shadow-2xl shadow-purple-500/40 ring-4 ring-white dark:ring-zinc-900">
+                        <div class="size-full rounded-full overflow-hidden border-2 border-white/20">
+                            <img src="{{ asset('assets/lila-avatar.png') }}"
+                                class="size-full object-cover animate-lila-idle">
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-purple)]">Ask
+                        Lila</span>
+                </button>
+
+                <!-- Chat -->
+                <a href="{{ route('chat') }}" wire:navigate class="flex flex-col items-center gap-1 group relative">
+                    <div
+                        class="p-2 rounded-xl transition-all {{ request()->routeIs('chat*') ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800' }}">
+                        <flux:icon name="chat-bubble-left-right"
+                            :variant="request()->routeIs('chat*') ? 'solid' : 'outline'" class="size-6" />
+                    </div>
+                    @if ($unreadCount = auth()->user()->unreadMessagesCount())
+                        <div
+                            class="absolute top-1 right-2 size-4 bg-red-500 border border-white dark:border-zinc-900 rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-lg">
+                            {{ $unreadCount }}
+                        </div>
+                    @endif
+                    <span
+                        class="text-[10px] font-black uppercase tracking-widest {{ request()->routeIs('chat*') ? 'text-blue-600' : 'text-zinc-400' }}">Chat</span>
+                </a>
+            </div>
+        </nav>
+    @endauth
 
     @fluxScripts
 </body>
