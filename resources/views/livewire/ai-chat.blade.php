@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use App\Models\User;
+use App\Mail\ServiceInquiryMail;
+use App\Notifications\ServiceInquiry;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Volt\Component;
 use Livewire\Attributes\On;
 
@@ -24,6 +28,8 @@ new class extends Component {
     public $address = null;
     public $showLocationRequest = false;
     public $completion = null;
+    public $sentPings = [];
+    public $pingingId = null;
 
     public function mount()
     {
@@ -118,6 +124,43 @@ new class extends Component {
 
         $this->dispatch('scroll-to-bottom');
         $this->dispatch('generate-ai-response');
+    }
+
+    public function pingArtisan($userId)
+    {
+        if (!auth()->check()) {
+            return $this->redirect(route('login'));
+        }
+
+        if (in_array($userId, $this->sentPings)) {
+            return;
+        }
+
+        $artisan = User::find($userId);
+        if (!$artisan) {
+            return;
+        }
+
+        $this->pingingId = $userId;
+        $sender = auth()->user();
+
+        try {
+            Mail::to($artisan->email)->send(new ServiceInquiryMail($sender, $artisan));
+            $artisan->notify(new ServiceInquiry($sender));
+            $this->sentPings[] = $userId;
+            $this->dispatch('toast', type: 'success', title: 'Ping Sent!', message: 'Your inquiry has been sent to ' . $artisan->name);
+        } catch (\Exception $e) {
+            // Log the error if needed: Log::error($e->getMessage());
+            // We still mark it as "sent" in the UI to prevent spamming, or we can let them retry.
+            // But usually, if the mail server is down, we should tell them something went wrong.
+            $this->dispatch('toast', type: 'info', title: 'Connection Alert', message: "We're having trouble reaching the mail server, but we've logged your interest in " . $artisan->name . ". They'll see it in their notifications! 🌸");
+
+            // Still notify inside the app even if mail fails
+            $artisan->notify(new ServiceInquiry($sender));
+            $this->sentPings[] = $userId;
+        } finally {
+            $this->pingingId = null;
+        }
     }
 
     #[On('generate-ai-response')]
@@ -394,10 +437,36 @@ new class extends Component {
                                 </div>
                             </div>
 
-                            <a :href="'/artisan/' + selectedArtisan.username"
-                                class="block w-full text-center py-4 bg-[var(--color-brand-purple)] text-white font-black rounded-2xl hover:shadow-lg hover:shadow-purple-500/30 transition-all hover:-translate-y-0.5 active:translate-y-0">
-                                Book Now
-                            </a>
+                            <button @click="$wire.pingArtisan(selectedArtisan.id)"
+                                class="block w-full py-4 text-white font-black rounded-2xl hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                :disabled="$wire.pingingId == selectedArtisan.id || $wire.sentPings.includes(selectedArtisan.id)"
+                                :class="$wire.sentPings.includes(selectedArtisan.id) ?
+                                    'bg-green-500 hover:shadow-green-500/30' :
+                                    ($wire.pingingId == selectedArtisan.id ? 'bg-zinc-400' :
+                                        'bg-[var(--color-brand-purple)] hover:shadow-purple-500/30')">
+                                <template x-if="$wire.pingingId == selectedArtisan.id">
+                                    <div class="flex items-center gap-2">
+                                        <div
+                                            class="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin">
+                                        </div>
+                                        <span>{{ __('Sending Ping...') }}</span>
+                                    </div>
+                                </template>
+                                <template
+                                    x-if="$wire.sentPings.includes(selectedArtisan.id) && $wire.pingingId != selectedArtisan.id">
+                                    <div class="flex items-center gap-2">
+                                        <flux:icon name="check" class="size-5" />
+                                        <span>{{ __('Ping Sent!') }}</span>
+                                    </div>
+                                </template>
+                                <template
+                                    x-if="!$wire.sentPings.includes(selectedArtisan.id) && $wire.pingingId != selectedArtisan.id">
+                                    <div class="flex items-center gap-2">
+                                        <flux:icon name="chat-bubble-left-right" class="size-5" />
+                                        <span>{{ __('Ping') }}</span>
+                                    </div>
+                                </template>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -488,8 +557,8 @@ new class extends Component {
                                                 </div>
                                                 <button
                                                     @click="selectedArtisan = {{ json_encode($artisan) }}; showMap = true"
-                                                    class="mt-2 block w-full text-center py-1.5 bg-[var(--color-brand-purple)] text-white text-[11px] font-bold rounded-lg hover:opacity-90 transition-opacity">
-                                                    Connect
+                                                    class="mt-2 block w-full text-center py-2 bg-[var(--color-brand-purple)] text-white text-[11px] font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/20 transition-all">
+                                                    {{ __('View on Map') }}
                                                 </button>
                                             </div>
                                         </div>

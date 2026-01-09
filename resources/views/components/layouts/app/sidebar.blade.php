@@ -67,7 +67,7 @@
                 @endif
             </flux:navlist>
 
-            <div class="px-2 mt-6">
+            <div class="px-2 mt-6 hidden">
                 <h3 class="px-2 mb-2 text-xs font-medium text-zinc-500 uppercase tracking-wider">{{ __('Filters') }}</h3>
                 <div class="space-y-3">
                     <div class="space-y-1">

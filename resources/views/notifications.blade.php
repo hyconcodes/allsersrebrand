@@ -7,8 +7,8 @@
 
         <!-- Right Sidebar (Reused from Dashboard) -->
         <div class="hidden lg:block w-80 space-y-6">
-            @include('partials.trending-widget')
-            @include('partials.pros-widget')
+            <livewire:challenge.trending-widget />
+            <livewire:dashboard.pros-widget />
         </div>
     </div>
 </x-layouts.app>

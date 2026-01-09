@@ -7,7 +7,7 @@
     <title>{{ config('app.name') }} - Find Trusted Artisans & Service Providers Near You</title>
     @snowfall
     @vite(['resources/js/app.js'])
-    <meta name="description"    
+    <meta name="description"
         content="Connect with verified artisans and service providers. Chat directly, view their work, and hire with confidence. Find local services on the map." />
     <meta name="author" content="Allsers" />
     <link rel="canonical" href="https://allsers.com" />
@@ -89,7 +89,7 @@
 
 <body class="font-sans antialiased bg-white text-black">
     <!-- Navbar -->
-    <x-navbar/>
+    <x-navbar />
 
     <!-- Hero Section -->
     <section class="relative min-h-[90vh] flex items-center bg-primary-light overflow-hidden">
@@ -363,6 +363,35 @@
                     <h3 class="font-semibold text-black mb-1">Photography</h3>
                     <p class="text-sm text-gray-600">1,200+ providers</p>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Dynamic Pros Section (Instant Value) -->
+    <section class="relative px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24 bg-white overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent">
+        </div>
+        <div class="max-w-7xl mx-auto">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                <div class="max-w-2xl">
+                    <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold text-black mb-4">
+                        Work with Best <span class="gradient-text">Pros</span>
+                    </h2>
+                    <p class="text-lg text-gray-600">Verified professionals in your area, available to start right now.
+                    </p>
+                </div>
+                <a href="{{ route('register') }}"
+                    class="inline-flex items-center gap-2 text-primary font-bold hover:underline">
+                    View all categories
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7">
+                        </path>
+                    </svg>
+                </a>
+            </div>
+
+            <div class="max-w-3xl mx-auto">
+                <livewire:dashboard.pros-widget />
             </div>
         </div>
     </section>
@@ -734,7 +763,8 @@
                         feature made it so easy to discuss what I needed before booking."</p>
                     <div class="flex items-center gap-3">
                         <div class="bg-primary/10 rounded-full flex items-center justify-center">
-                            <img class="rounded-full border border-2 border-purple-600 w-12 h-12" src="https://allsers.com/profilePics/66d96ccab2932-IMG-20240204-WA0013.jpg"
+                            <img class="rounded-full border border-2 border-purple-600 w-12 h-12"
+                                src="https://allsers.com/profilePics/66d96ccab2932-IMG-20240204-WA0013.jpg"
                                 alt="">
                         </div>
                         <div>
@@ -772,7 +802,8 @@
                         client base significantly. The 24 hour ads feature is genius!"</p>
                     <div class="flex items-center gap-3">
                         <div class="bg-primary/10 rounded-full flex items-center justify-center">
-                            <img class="rounded-full border border-2 border-purple-600 w-12 h-12" src="https://allsers.com/profilePics/66d82e9f84165-images%20(19)_20240903203759.jpeg"
+                            <img class="rounded-full border border-2 border-purple-600 w-12 h-12"
+                                src="https://allsers.com/profilePics/66d82e9f84165-images%20(19)_20240903203759.jpeg"
                                 alt="">
                         </div>
                         <div>
@@ -810,7 +841,8 @@
                         providers near my business and compare them easily."</p>
                     <div class="flex items-center gap-3">
                         <div class="bg-primary/10 rounded-full flex items-center justify-center">
-                            <img class="rounded-full border border-2 border-purple-600 w-12 h-12" src="https://allsers.com/profilePics/66d77d642d89f-75d5fcc7f923c80f2ee604734117965b.png"
+                            <img class="rounded-full border border-2 border-purple-600 w-12 h-12"
+                                src="https://allsers.com/profilePics/66d77d642d89f-75d5fcc7f923c80f2ee604734117965b.png"
                                 alt="">
                         </div>
                         <div>
@@ -856,7 +888,7 @@
     </section>
 
     <!-- Footer -->
-    <x-footer/>
+    <x-footer />
 
     <script>
         // Navbar scroll effect

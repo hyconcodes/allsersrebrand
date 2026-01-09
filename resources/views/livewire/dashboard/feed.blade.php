@@ -19,6 +19,12 @@ new class extends Component {
     #[Validate('nullable|file|mimes:mp4,mov,avi,wmv|max:10240')]
     public $video = null;
 
+    #[Validate('nullable|numeric|min:0')]
+    public $price_min = null;
+
+    #[Validate('nullable|numeric|min:0|gte:price_min')]
+    public $price_max = null;
+
     public $posts = [];
     public $tab = 'for-you';
     public $page = 1;
@@ -47,7 +53,9 @@ new class extends Component {
 
     public function loadMore()
     {
-        if ($this->loadingMore || !$this->hasMore) return;
+        if ($this->loadingMore || !$this->hasMore) {
+            return;
+        }
 
         $this->loadingMore = true;
         $this->page++;
@@ -63,16 +71,21 @@ new class extends Component {
             $this->posts = [];
         }
 
-        $query = Post::query()->with([
-            'user',
-            'repostOf.user',
-            'likes' => function ($query) {
-                $query->where('user_id', auth()->id());
-            },
-            'bookmarks' => function ($query) {
-                $query->where('user_id', auth()->id());
-            },
-        ])->withCount(['likes', 'allComments']);
+        $query = Post::query()
+            ->with([
+                'user',
+                'repostOf.user',
+                'comments' => function ($q) {
+                    $q->latest()->limit(1)->with('user');
+                },
+                'likes' => function ($query) {
+                    $query->where('user_id', auth()->id());
+                },
+                'bookmarks' => function ($query) {
+                    $query->where('user_id', auth()->id());
+                },
+            ])
+            ->withCount(['likes', 'allComments']);
 
         if ($this->tab === 'local' && auth()->user()->latitude && auth()->user()->longitude) {
             $lat = auth()->user()->latitude;
@@ -102,10 +115,7 @@ new class extends Component {
         if ($reset) {
             $this->posts = $newPosts->all();
         } else {
-            $this->posts = collect($this->posts)
-                ->concat($newPosts)
-                ->unique('id')
-                ->all();
+            $this->posts = collect($this->posts)->concat($newPosts)->unique('id')->all();
         }
     }
 
@@ -200,6 +210,8 @@ new class extends Component {
         $post = Post::create([
             'user_id' => auth()->id(),
             'content' => $this->content,
+            'price_min' => $this->price_min,
+            'price_max' => $this->price_max,
         ]);
 
         // Handle images - store as comma-separated string
@@ -221,10 +233,13 @@ new class extends Component {
         $this->notifyMentionedUsers($post);
 
         // Reset form
-        $this->reset(['content', 'images', 'video']);
+        $this->reset(['content', 'images', 'video', 'price_min', 'price_max']);
 
-        // Reload posts
-        $this->loadPosts();
+        // Refresh feed completely to show new post at top
+        $this->page = 1;
+        $this->posts = [];
+        $this->hasMore = true;
+        $this->loadPosts(true);
 
         // Dispatch success event
         $this->dispatch('post-created');
@@ -258,57 +273,9 @@ new class extends Component {
         $this->images = array_values($this->images);
     }
 
-    public function deletePost($postId)
-    {
-        $post = Post::find($postId);
-
-        if ($post && $post->user_id === auth()->id()) {
-            $post->delete();
-            $this->loadPosts();
-            $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Post has been deleted.');
-        } else {
-            $this->dispatch('toast', type: 'error', title: 'Error', message: 'You cannot delete this post.');
-        }
-    }
-
     public function removeVideo()
     {
         $this->video = null;
-    }
-
-    public function toggleLike($postId)
-    {
-        $post = Post::find($postId);
-
-        if (!$post) {
-            return;
-        }
-
-        $user = auth()->user();
-        $existingLike = $post->likes()->where('user_id', $user->id)->first();
-
-        if ($existingLike) {
-            // Unlike
-            $existingLike->delete();
-        } else {
-            // Like
-            $post->likes()->create([
-                'user_id' => $user->id,
-            ]);
-
-            // Notify post owner
-            if ($post->user_id !== $user->id) {
-                $post->user->notify(new \App\Notifications\PostLiked($post, $user));
-            }
-        }
-
-        // Reload current posts to update counts
-        $this->loadPosts();
-        
-        // Bonus: Load more content when they interact!
-        if (!$existingLike) {
-            $this->loadMore();
-        }
     }
 
     public $showReportModal = false;
@@ -437,6 +404,41 @@ new class extends Component {
                             </div>
                         @endif
 
+                        <!-- Price Range (Optional) -->
+                        <div x-data="{ showPrice: {{ $price_min || $price_max ? 'true' : 'false' }} }" class="space-y-3">
+                            <button type="button" @click="showPrice = !showPrice"
+                                class="flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-[var(--color-brand-purple)] transition-colors">
+                                <flux:icon name="currency-dollar" class="size-4" />
+                                <span
+                                    x-text="showPrice ? '{{ __('Hide Price Range') }}' : '{{ __('Add Price Range') }}'"></span>
+                            </button>
+
+                            <div x-show="showPrice" x-collapse class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                                        {{ __('Min Price (₦)') }}
+                                    </label>
+                                    <input type="number" wire:model="price_min" min="0" step="0.01"
+                                        class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
+                                        placeholder="0.00">
+                                    @error('price_min')
+                                        <span class="text-xs text-red-500 mt-1">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                                        {{ __('Max Price (₦)') }}
+                                    </label>
+                                    <input type="number" wire:model="price_max" min="0" step="0.01"
+                                        class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
+                                        placeholder="0.00">
+                                    @error('price_max')
+                                        <span class="text-xs text-red-500 mt-1">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="flex items-center justify-between px-1">
                             <div class="flex items-center gap-4">
                                 <label
@@ -471,246 +473,16 @@ new class extends Component {
         </div>
     @endif
 
+    <!-- Suggested Professionals (In-Feed) -->
+    {{-- <div class="w-[calc(100-30)]"> --}}
+    <livewire:dashboard.pros-widget :in-feed="true" />
+    {{--
+    </div> --}}
+
     <!-- Feed Posts -->
     <div class="space-y-6">
         @forelse($posts as $post)
-            <div wire:key="post-{{ $post['id'] ?? $post->id }}-{{ $loop->index }}"
-                class="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 relative">
-                @if ($post->repost_of_id)
-                    <div class="absolute left-[10px] top-[75px] bottom-[60px] w-0.5 bg-[#6a11cb] opacity-50 z-0"></div>
-                @endif
-                <div @click="$dispatch('open-post-detail', { postId: {{ $post->id }} })"
-                    class="cursor-pointer relative z-10">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex items-center gap-3">
-                            <a @if (auth()->id() !== $post->user_id) href="{{ route('artisan.profile', $post->user) }}"
-                            wire:navigate @endif
-                                @click.stop
-                                class="size-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm overflow-hidden @if (auth()->id() !== $post->user_id) cursor-pointer hover:ring-2 hover:ring-[var(--color-brand-purple)] transition-all @endif">
-                                @if ($post->user->profile_picture_url)
-                                    <img src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
-                                @else
-                                    {{ $post->user->initials() }}
-                                @endif
-                            </a>
-                            <div>
-                                <div class="flex items-center gap-2 text-sm">
-                                    <h3 @if (auth()->id() !== $post->user_id) @click.stop="window.location.href='{{ route('artisan.profile', $post->user) }}'" @endif
-                                        class="font-bold text-zinc-900 dark:text-zinc-100 @if (auth()->id() !== $post->user_id) hover:text-[var(--color-brand-purple)] cursor-pointer @endif">
-                                        {{ $post->user->name }}
-                                    </h3>
-                                    @if ($post->repost_of_id)
-                                        <div
-                                            class="flex items-center gap-1 text-[10px] text-zinc-500 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
-                                            <flux:icon name="arrow-path-rounded-square" class="size-3" />
-                                            <span>reposted work</span>
-                                        </div>
-                                    @else
-                                        <span
-                                            class="bg-purple-100 text-[var(--color-brand-purple)] text-[8px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
-                                            {{ $post->user->work ?? __('Artisan') }}
-                                        </span>
-                                    @endif
-                                </div>
-                                <p class="text-xs text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
-                            </div>
-                        </div>
-                        <flux:dropdown>
-                            <button class="text-zinc-400 hover:text-zinc-600">
-                                <flux:icon name="ellipsis-horizontal" class="size-5" />
-                            </button>
-
-                            <flux:menu>
-                                @if ($post->user_id === auth()->id())
-                                    <flux:menu.item wire:click="deletePost({{ $post->id }})"
-                                        wire:confirm="{{ __('Are you sure you want to delete this post?') }}"
-                                        icon="trash" variant="danger">{{ __('Delete') }}</flux:menu.item>
-                                @else
-                                    <flux:menu.item wire:click="openReportModal({{ $post->id }})" icon="flag">
-                                        {{ __('Report') }}
-                                    </flux:menu.item>
-                                @endif
-                            </flux:menu>
-                        </flux:dropdown>
-                    </div>
-
-                    @if ($post->content)
-                        @if (Str::length($post->content) > 300)
-                            <div x-data="{ expanded: false }">
-                                <p x-show="!expanded"
-                                    class="text-zinc-700 dark:text-zinc-300 mb-2 text-sm leading-relaxed whitespace-pre-line">
-                                    {!! $post->formatted_content_summary !!}
-                                </p>
-                                <p x-show="expanded"
-                                    class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
-                                    {!! $post->formatted_content !!}
-                                </p>
-                                <button x-show="!expanded" @click.stop="expanded = true"
-                                    class="text-sm font-medium text-[var(--color-brand-purple)] hover:underline mb-4">{{ __('See More') }}</button>
-                            </div>
-                        @else
-                            <p
-                                class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
-                                {!! $post->formatted_content !!}
-                            </p>
-                        @endif
-                    @endif
-
-                    <!-- Images -->
-                    @if ($post->images)
-                        @php
-                            $imageArray = array_filter(explode(',', $post->images));
-                        @endphp
-                        @if (count($imageArray) > 0)
-                            @if (count($imageArray) === 1)
-                                {{-- Single image --}}
-                                <div class="mb-4 rounded-xl overflow-hidden h-80 relative">
-                                    <img src="{{ route('images.show', ['path' => trim($imageArray[0])]) }}"
-                                        alt="Post image"
-                                        class="absolute inset-0 size-full object-cover hover:scale-105 transition-transform duration-500">
-                                </div>
-                            @else
-                                {{-- Multiple images --}}
-                                <div
-                                    class="mb-4 rounded-xl overflow-hidden grid gap-2 @if (count($imageArray) === 2) grid-cols-2 h-64 @elseif(count($imageArray) === 3) grid-cols-2 grid-rows-2 h-[400px] @else grid-cols-2 grid-rows-2 h-[400px] @endif">
-                                    @foreach ($imageArray as $index => $image)
-                                        <div class="relative @if (count($imageArray) === 3 && $index === 0) row-span-2 @endif">
-                                            <img src="{{ route('images.show', ['path' => trim($image)]) }}"
-                                                alt="Post image"
-                                                class="absolute inset-0 size-full object-cover hover:scale-105 transition-transform duration-500">
-                                        </div>
-                                    @endforeach
-                                </div>
-                            @endif
-                        @endif
-                    @endif
-
-                    <!-- Video -->
-                    @if ($post->video)
-                        <div class="mb-4 rounded-xl overflow-hidden h-80">
-                            <video src="{{ route('images.show', ['path' => $post->video]) }}"
-                                class="w-full h-full object-cover" controls></video>
-                        </div>
-                    @endif
-
-                    <!-- Original Post Preview (Repost) -->
-                    @if ($post->repostOf)
-                        <div @click.stop="$dispatch('open-post-detail', { postId: {{ $post->repost_of_id }} })"
-                            class="mb-4 p-4 border border-zinc-100 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer ring-1 ring-transparent hover:ring-[var(--color-brand-purple)]/30">
-                            <div class="flex items-center gap-2 mb-2">
-                                <div
-                                    class="size-6 rounded-full bg-purple-50 flex items-center justify-center text-[10px] overflow-hidden">
-                                    @if ($post->repostOf->user->profile_picture_url)
-                                        <img src="{{ $post->repostOf->user->profile_picture_url }}"
-                                            class="size-full object-cover">
-                                    @else
-                                        {{ $post->repostOf->user->initials() }}
-                                    @endif
-                                </div>
-                                <span
-                                    class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ $post->repostOf->user->name }}</span>
-                                <span class="text-[10px] text-zinc-400">•
-                                    {{ $post->repostOf->created_at->diffForHumans() }}</span>
-                            </div>
-                            <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2 whitespace-pre-wrap">
-                                {!! $post->repostOf->formatted_content !!}
-                            </p>
-                            @if ($post->repostOf->images)
-                                @php $originImages = array_filter(explode(',', $post->repostOf->images)); @endphp
-                                @if (count($originImages) > 0)
-                                    <div class="h-32 rounded-lg overflow-hidden border border-zinc-200/50">
-                                        <img src="{{ route('images.show', ['path' => trim($originImages[0])]) }}"
-                                            class="size-full object-cover">
-                                    </div>
-                                @endif
-                            @elseif($post->repostOf->video)
-                                <div
-                                    class="h-32 rounded-lg overflow-hidden bg-black flex items-center justify-center border border-zinc-200/50">
-                                    <video src="{{ route('images.show', ['path' => $post->repostOf->video]) }}"
-                                        class="w-full h-full object-cover" controls></video>
-                                </div>
-                            @endif
-                        </div>
-                    @endif
-                </div>
-
-                <div class="flex items-center justify-between pt-2">
-                    <div class="flex items-center gap-6">
-                        <button wire:click="toggleLike({{ $post->id }})"
-                            @click="new Audio('{{ asset('assets/mixkit-cartoon-toy-whistle-616.wav') }}').play()"
-                            class="flex items-center gap-1.5 transition-colors group @if ($post->isLikedBy(auth()->user())) text-red-500 @else text-zinc-500 hover:text-red-500 @endif">
-                            @if ($post->isLikedBy(auth()->user()))
-                                <svg class="size-5 fill-current group-hover:scale-110 transition-transform"
-                                    viewBox="0 0 24 24" fill="currentColor">
-                                    <path
-                                        d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-                                </svg>
-                            @else
-                                <flux:icon name="heart" class="size-5 group-hover:scale-110 transition-transform" />
-                            @endif
-                            <span class="text-sm font-medium">{{ $post->likes_count ?? 0 }}</span>
-                        </button>
-                        <button @click="$dispatch('open-post-detail', { postId: {{ $post->id }} })"
-                            class="flex items-center gap-1.5 text-zinc-500 hover:text-blue-500 transition-colors">
-                            <flux:icon name="chat-bubble-left" class="size-5" />
-                            <span class="text-sm font-medium">{{ $post->all_comments_count ?? 0 }}</span>
-                        </button>
-                        @if (auth()->user()->isArtisan() && $post->canBeReposted())
-                            <button wire:click="openRepostModal({{ $post->id }})"
-                                class="flex items-center gap-1.5 text-zinc-500 hover:text-green-500 transition-colors"
-                                title="{{ __('Repost Work') }}">
-                                <flux:icon name="arrow-path-rounded-square" class="size-5" />
-                            </button>
-                        @endif
-                        <button x-data="{
-                            copied: false,
-                            share() {
-                                const shareData = {
-                                    title: 'Post by {{ $post->user->name }}',
-                                    text: 'Check out this post on Allsers: {{ Str::limit($post->content, 50) }}',
-                                    url: window.location.origin + '/dashboard?post={{ $post->post_id }}'
-                                };
-                        
-                                if (navigator.share) {
-                                    navigator.share(shareData).catch(console.error);
-                                } else {
-                                    navigator.clipboard.writeText(shareData.url).then(() => {
-                                        this.copied = true;
-                                        setTimeout(() => this.copied = false, 2000);
-                                    });
-                                }
-                            }
-                        }" @click.stop="share()"
-                            class="flex items-center gap-1.5 transition-colors relative"
-                            :class="copied ? 'text-green-500' : 'text-zinc-500 hover:text-green-500'">
-                            <flux:icon name="share" class="size-5" />
-                            <span x-show="copied" x-transition
-                                class="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap">
-                                {{ __('Link Copied!') }}
-                            </span>
-                        </button>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <button wire:click="toggleBookmark({{ $post->id }})"
-                            class="transition-colors @if ($post->isBookmarkedBy(auth()->user())) text-[var(--color-brand-purple)] @else text-zinc-400 hover:text-[var(--color-brand-purple)] @endif">
-                            @if ($post->isBookmarkedBy(auth()->user()))
-                                <svg class="size-5 fill-current" viewBox="0 0 24 24"
-                                    xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M6 2c-1.1 0-2 .9-2 2v18l8-3.5 8 3.5V4c0-1.1-.9-2-2-2H6z" />
-                                </svg>
-                            @else
-                                <flux:icon name="bookmark" class="size-5" />
-                            @endif
-                        </button>
-                        @if ($post->user_id !== auth()->id())
-                            <a href="{{ route('user.profile', $post->user) }}" wire:navigate
-                                class="border border-[var(--color-brand-purple)] text-[var(--color-brand-purple)] px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-[var(--color-brand-purple)] hover:text-white transition-all">
-                                {{ __('Contact') }}
-                            </a>
-                        @endif
-                    </div>
-                </div>
-            </div>
+            <livewire:dashboard.post-item :post="$post" :wire:key="'post-'.$post->id" />
         @empty
             <div
                 class="bg-white dark:bg-zinc-900 rounded-2xl p-8 shadow-sm border border-zinc-200 dark:border-zinc-800 text-center">
@@ -718,15 +490,32 @@ new class extends Component {
             </div>
         @endforelse
 
-        <!-- Infinite Scroll Trigger -->
+        <!-- Manual Load More Trigger -->
         @if ($hasMore)
-            <div wire:intersect.debounce.500ms="loadMore" class="w-full py-20 flex flex-col items-center justify-center border-t border-dashed border-zinc-100 dark:border-zinc-800">
-                <div wire:loading wire:target="loadMore" class="flex flex-col gap-6 w-full px-4">
-                    <div class="flex justify-center mb-4">
-                        <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest animate-pulse">Loading amazing work...</span>
+            <div
+                class="w-full py-12 flex flex-col items-center justify-center border-t border-dashed border-zinc-100 dark:border-zinc-800">
+
+                {{-- Button --}}
+                <button wire:click="loadMore" wire:loading.remove wire:target="loadMore"
+                    class="group flex flex-col items-center gap-2 text-zinc-400 hover:text-[var(--color-brand-purple)] transition-colors p-4">
+                    <div
+                        class="size-10 rounded-full border-2 border-current flex items-center justify-center group-hover:scale-110 transition-transform bg-white dark:bg-zinc-900">
+                        <flux:icon name="chevron-down" class="size-5" />
                     </div>
-                    @for ($i = 0; $i < 2; $i++)
-                        <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 animate-pulse">
+                </button>
+
+                {{-- Loading State --}}
+                <div wire:loading wire:target="loadMore" class="flex flex-col gap-6 w-full px-4 items-center">
+                    <div class="flex justify-center mb-4">
+                        <span
+                            class="text-xs font-bold text-[var(--color-brand-purple)] uppercase tracking-widest animate-pulse">
+                            {{ __('Loading...') }}
+                        </span>
+                    </div>
+                    {{-- Skeleton Loader --}}
+                    <div class="w-full space-y-6 opacity-50">
+                        <div
+                            class="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 animate-pulse">
                             <div class="flex items-center gap-3 mb-4">
                                 <div class="size-10 rounded-full bg-zinc-200 dark:bg-zinc-800"></div>
                                 <div class="space-y-1">
@@ -739,7 +528,7 @@ new class extends Component {
                                 <div class="h-3 w-4/5 bg-zinc-100 dark:bg-zinc-800 rounded"></div>
                             </div>
                         </div>
-                    @endfor
+                    </div>
                 </div>
             </div>
         @endif
@@ -750,7 +539,7 @@ new class extends Component {
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg">{{ __('Repost Work') }}</flux:heading>
-                <flux:subheading>{{ __('Share this work and add your own progress or feedback.') }}</flux:subheading>
+                <flux:subheading>{{ __('Repost this work and add your own progress or feedback.') }}</flux:subheading>
             </div>
 
             <div class="space-y-4">

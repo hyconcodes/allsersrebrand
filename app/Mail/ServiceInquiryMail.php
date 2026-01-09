@@ -52,7 +52,7 @@ class ServiceInquiryMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.service-inquiry',
+            view: 'emails.service-inquiry',
         );
     }
 }

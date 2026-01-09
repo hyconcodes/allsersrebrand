@@ -23,5 +23,7 @@ class AppServiceProvider extends ServiceProvider
             \Illuminate\Auth\Events\Login::class,
             \App\Listeners\UpdateUserLocationOnLogin::class,
         );
+
+        \App\Models\Review::observe(\App\Observers\ReviewObserver::class);
     }
 }

@@ -17,6 +17,8 @@ class Post extends Model
         'repost_of_id',
         'challenge_id',
         'is_challenge_pinned',
+        'price_min',
+        'price_max',
     ];
 
     public function repostOf()
@@ -149,7 +151,7 @@ class Post extends Model
             return '';
         }
 
-        $escaped = e(trim($content));
+        $escaped = e(trim(htmlspecialchars_decode($content, ENT_QUOTES)), false);
 
         // 1. Convert URLs to links
         $urlPattern = '/(https?:\/\/[^\s<]+)/i';
@@ -168,17 +170,18 @@ class Post extends Model
             return $whitespace . '<a href="' . $url . '" class="text-[var(--color-brand-purple)] font-bold hover:underline">@' . $username . '</a>';
         }, $escaped);
 
-        // 3. Convert #hashtags to links
-        $hashtagPattern = '/#([a-zA-Z0-9_]+)/';
+        // 3. Convert #hashtags to links - Ensure it's not part of an HTML entity
+        $hashtagPattern = '/(^|\s)#([a-zA-Z0-9_]+)/';
         $escaped = preg_replace_callback($hashtagPattern, function ($matches) {
-            $hashtag = $matches[1];
+            $whitespace = $matches[1];
+            $hashtag = $matches[2];
             // Check if this hashtag corresponds to a challenge
             $challenge = \App\Models\Challenge::where('hashtag', $hashtag)->first();
             if ($challenge) {
                 $url = route('challenges.show', $challenge->custom_link);
-                return '<a href="' . $url . '" class="text-blue-500 font-bold hover:underline">#' . $hashtag . '</a>';
+                return $whitespace . '<a href="' . $url . '" class="text-blue-500 font-bold hover:underline">#' . $hashtag . '</a>';
             }
-            return '<span class="text-blue-400">#' . $hashtag . '</span>';
+            return $whitespace . '<span class="text-blue-400">#' . $hashtag . '</span>';
         }, $escaped);
 
         return $escaped;

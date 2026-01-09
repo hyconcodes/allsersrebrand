@@ -40,6 +40,7 @@ class User extends Authenticatable //implements MustVerifyEmail
         'status',
         'last_activity',
         'banned_until',
+        'smart_rating', // Weighted rating
     ];
 
     /**
@@ -247,5 +248,51 @@ class User extends Authenticatable //implements MustVerifyEmail
             'missing' => $missing,
             'is_complete' => $filledCount === count($fields),
         ];
+    }
+    public function reviews()
+    {
+        return $this->hasMany(Review::class, 'artisan_id');
+    }
+
+    /**
+     * Recalculate and update the smart rating for this artisan.
+     * Uses a weighted Bayesian average favoring recent reviews.
+     */
+    public function recalculateSmartRating()
+    {
+        $reviews = $this->reviews;
+        $totalWeight = 0;
+        $weightedSum = 0;
+
+        // Constants for Bayesian smoothing (prevents 1 review of 5.0 from beating 100 reviews of 4.8)
+        $C = 3.5; // Average rating of all artisans (Assumed constant for now)
+        $m = 2;   // Minimum votes required to be listed (Weight of the prior)
+
+        // Add the "prior" belief
+        $weightedSum += $C * $m;
+        $totalWeight += $m;
+
+        foreach ($reviews as $review) {
+            $daysOld = $review->created_at->diffInDays(now());
+
+            // Time decay weights: Recent reviews matter more
+            $weight = match (true) {
+                $daysOld <= 30 => 1.2,  // High impact for last month
+                $daysOld <= 90 => 1.0,  // Standard impact for last quarter
+                default => 0.8          // Lower impact for older reviews
+            };
+
+            $weightedSum += $review->rating * $weight;
+            $totalWeight += $weight;
+        }
+
+        $newRating = $totalWeight > 0 ? $weightedSum / $totalWeight : 0;
+
+        $this->update(['smart_rating' => min(5, max(0, $newRating))]);
+    }
+
+    public function averageRating()
+    {
+        return $this->reviews()->avg('rating') ?? 0;
     }
 }
