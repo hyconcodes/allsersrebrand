@@ -256,7 +256,7 @@
     @auth
         <!-- Mobile Bottom Nav -->
         <nav
-            class="lg:hidden fixed bottom-0 left-0 right-0 z-[500] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 px-6 pb-6 pt-3 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+            class="lg:hidden fixed bottom-0 left-0 right-0 z-[500] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 px-6 pb-2 pt-3 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
             <div class="flex items-center justify-between max-w-md mx-auto">
                 <!-- Home -->
                 <a href="{{ route('dashboard') }}" wire:navigate class="flex flex-col items-center gap-1 group">
@@ -303,6 +303,7 @@
     @endauth
 
     @fluxScripts
+    <x-pwa-scripts />
 </body>
 
 </html>

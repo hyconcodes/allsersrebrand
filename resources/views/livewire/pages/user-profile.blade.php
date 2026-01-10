@@ -3,9 +3,6 @@
 use App\Models\User;
 use App\Models\Post;
 use App\Models\Conversation;
-use App\Mail\ServiceInquiryMail;
-use App\Notifications\ServiceInquiry;
-use Illuminate\Support\Facades\Mail;
 use Livewire\Volt\Component;
 use function Livewire\Volt\layout;
 
@@ -14,7 +11,6 @@ layout('components.layouts.app');
 new class extends Component {
     public User $user;
     public $posts = [];
-    public bool $pingSent = false;
 
     public function rendering($view)
     {
@@ -46,26 +42,6 @@ new class extends Component {
             ->withCount(['likes', 'allComments'])
             ->latest()
             ->get();
-    }
-
-    public function pingUser()
-    {
-        if ($this->pingSent) {
-            return;
-        }
-
-        $sender = auth()->user();
-
-        // Send Email
-        Mail::to($this->user->email)->send(new ServiceInquiryMail($sender, $this->user));
-
-        // Send Notification
-        $this->user->notify(new ServiceInquiry($sender));
-
-        $this->pingSent = true;
-
-        $this->dispatch('ping-sent');
-        $this->dispatch('toast', type: 'success', title: 'Message Sent!', message: 'Your inquiry has been sent to ' . $this->user->name . '. Check your email for updates.');
     }
 
     public function startConversation()
@@ -129,23 +105,10 @@ new class extends Component {
                     }
                 }">
                     @if (auth()->id() !== $user->id)
-                        @if ($user->isGuest())
-                            <flux:button wire:click="startConversation" variant="primary" icon="chat-bubble-left-right"
-                                class="rounded-full px-6">
-                                {{ __('Chat') }}
-                            </flux:button>
-                        @else
-                            <button wire:click="pingUser"
-                                class="px-6 py-2.5 rounded-full font-bold text-sm transition-all flex items-center gap-2 @if ($pingSent) bg-green-100 text-green-700 cursor-default @else bg-[var(--color-brand-purple)] text-white hover:bg-[var(--color-brand-purple)]/90 @endif">
-                                @if ($pingSent)
-                                    <flux:icon name="check" class="size-4" />
-                                    {{ __('Ping Sent!') }}
-                                @else
-                                    <flux:icon name="chat-bubble-left-right" class="size-4" />
-                                    {{ __('Chat') }}
-                                @endif
-                            </button>
-                        @endif
+                        <flux:button wire:click="startConversation" variant="primary" icon="chat-bubble-left-right"
+                            class="rounded-full px-6">
+                            {{ __('Chat') }}
+                        </flux:button>
                     @endif
                     {{-- <flux:button @click="copy('{{ route('artisan.profile', $user->username ?? $user->id) }}')"
                         variant="outline" icon="share" class="rounded-full shadow-none">

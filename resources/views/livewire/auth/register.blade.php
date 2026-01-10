@@ -139,6 +139,15 @@
                 </p>
             </div>
 
+            <p class="text-xs text-zinc-500 text-center">
+                {{ __('By creating an account, you agree to our') }}
+                <a href="{{ route('terms') }}" class="text-primary hover:underline"
+                    target="_blank">{{ __('Terms of Service') }}</a>
+                {{ __('and') }}
+                <a href="{{ route('privacy') }}" class="text-primary hover:underline"
+                    target="_blank">{{ __('Privacy Policy') }}</a>.
+            </p>
+
             <div class="flex items-center justify-end">
                 <flux:button type="submit" variant="primary"
                     class="w-full bg-[var(--color-brand-purple)] hover:bg-[var(--color-brand-purple)]/90"

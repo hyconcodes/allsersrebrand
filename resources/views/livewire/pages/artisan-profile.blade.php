@@ -3,9 +3,6 @@
 use App\Models\User;
 use App\Models\Post;
 use App\Models\Conversation;
-use App\Mail\ServiceInquiryMail;
-use App\Notifications\ServiceInquiry;
-use Illuminate\Support\Facades\Mail;
 use Livewire\Volt\Component;
 use function Livewire\Volt\layout;
 
@@ -14,7 +11,6 @@ layout('components.layouts.app');
 new class extends Component {
     public User $user;
     public $posts = [];
-    public bool $pingSent = false;
 
     public function rendering($view)
     {
@@ -89,33 +85,6 @@ new class extends Component {
 
         return $this->redirect(route('chat', $conversation->id), navigate: true);
     }
-
-    public function pingUser()
-    {
-        if (!auth()->check()) {
-            return $this->redirect(route('login'));
-        }
-
-        if ($this->pingSent) {
-            return;
-        }
-
-        $sender = auth()->user();
-
-        try {
-            Mail::to($this->user->email)->send(new ServiceInquiryMail($sender, $this->user));
-            $this->user->notify(new ServiceInquiry($sender));
-            $this->pingSent = true;
-            $this->dispatch('toast', type: 'success', title: 'Message Sent!', message: 'Your inquiry has been sent to ' . $this->user->name);
-        } catch (\Exception $e) {
-            // Log if needed
-            $this->dispatch('toast', type: 'info', title: 'Connection Alert', message: "We're having trouble reaching the mail server, but we've logged your interest in " . $this->user->name . ". They'll see it in their notifications! 🌸");
-
-            // Still notify inside the app
-            $this->user->notify(new ServiceInquiry($sender));
-            $this->pingSent = true;
-        }
-    }
 }; ?>
 
 @push('head')
@@ -171,39 +140,15 @@ new class extends Component {
                 <div class="flex gap-3">
                     @auth
                         @if (auth()->id() !== $user->id)
-                            @if ($user->isGuest())
-                                <flux:button wire:click="startConversation" variant="primary" icon="chat-bubble-left-right"
-                                    class="rounded-full px-6">
-                                    {{ __('Chat') }}
-                                </flux:button>
-                            @else
-                                <button wire:click="pingUser" wire:loading.attr="disabled"
-                                    class="px-6 py-2.5 rounded-full font-bold text-sm transition-all flex items-center gap-2 {{ $pingSent ? 'bg-green-100 text-green-700' : 'bg-[var(--color-brand-purple)] text-white hover:opacity-90' }} disabled:opacity-50">
-                                    <span wire:loading.remove wire:target="pingUser">
-                                        @if ($pingSent)
-                                            <div class="flex items-center gap-2">
-                                                <flux:icon name="check" class="size-4" /> {{ __('Ping Sent!') }}
-                                            </div>
-                                        @else
-                                            <div class="flex items-center gap-2">
-                                                <flux:icon name="chat-bubble-left-right" class="size-4" />
-                                                {{ __('Ping') }}
-                                            </div>
-                                        @endif
-                                    </span>
-                                    <span wire:loading wire:target="pingUser" class="flex items-center gap-2">
-                                        <div
-                                            class="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin">
-                                        </div>
-                                        {{ __('Pinging...') }}
-                                    </span>
-                                </button>
-                            @endif
+                            <flux:button wire:click="startConversation" variant="primary" icon="chat-bubble-left-right"
+                                class="rounded-full px-6">
+                                {{ __('Chat') }}
+                            </flux:button>
                         @endif
                     @else
                         <flux:button :href="route('login')" variant="primary" icon="chat-bubble-left-right"
                             class="rounded-full px-6">
-                            {{ __('Chat Artisan') }}
+                            {{ __('Chat') }}
                         </flux:button>
                     @endauth
 

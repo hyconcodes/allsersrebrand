@@ -363,7 +363,7 @@ new class extends Component {
                             rows="3"></textarea>
 
                         <div class="flex flex-wrap gap-2 px-1">
-                            @foreach (['🔥', '✨', '🛠️', '🎨', '🚀', '⭐', '💎', '🏆', '👏', '🙌'] as $emoji)
+                            @foreach (['🔥', '✨', '🛠️', '🎨', '🚀', '👏', '🙌'] as $emoji)
                                 <button type="button" @click="insertEmoji('{{ $emoji }}')"
                                     class="text-sm hover:scale-125 transition-transform p-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">{{ $emoji }}</button>
                             @endforeach

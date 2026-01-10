@@ -23,6 +23,11 @@
 <meta property="twitter:image" content="{{ $metaImage ?? asset('assets/allsers.png') }}">
 
 <link rel="canonical" href="{{ $metaUrl ?? url()->current() }}" />
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#6a11cb" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Allsers" />
 
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">

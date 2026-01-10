@@ -106,7 +106,7 @@ new class extends Component {
             <div>
                 <flux:textarea wire:model="content" placeholder="Tell us about your work..." rows="6" />
                 <div class="flex flex-wrap gap-2 mt-2">
-                    @foreach(['🔥', '✨', '🛠️', '🎨', '🚀', '⭐', '💎', '🏆', '👏', '🙌'] as $emoji)
+                    @foreach(['🔥', '✨', '🛠️', '🎨', '🚀', '👏', '🙌'] as $emoji)
                         <button type="button" @click="insertEmoji('{{ $emoji }}')" class="hover:scale-125 transition-transform p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">{{ $emoji }}</button>
                     @endforeach
                 </div>

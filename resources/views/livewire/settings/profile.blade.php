@@ -141,7 +141,8 @@ new class extends Component {
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
+                <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus
+                    autocomplete="name" />
                 <flux:input wire:model="username" :label="__('Username')" type="text" autocomplete="username" />
             </div>
 
@@ -170,10 +171,12 @@ new class extends Component {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <flux:input wire:model="work" :label="__('Work / Job Title')" type="text" />
-                <flux:input wire:model="experience_year" :label="__('Experience (Years)')" type="number" min="0" />
+                <flux:input wire:model="experience_year" :label="__('Experience (Years)')" type="number"
+                    min="0" />
             </div>
 
-            <flux:textarea wire:model="bio" :label="__('Bio')" rows="4" placeholder="Tell us about yourself..." />
+            <flux:textarea wire:model="bio" :label="__('Bio')" rows="4"
+                placeholder="Tell us about yourself..." />
 
 
             <div>
@@ -182,7 +185,8 @@ new class extends Component {
                         <flux:text class="mt-4">
                             {{ __('Your email address is unverified.') }}
 
-                            <flux:link class="text-sm cursor-pointer" wire:click.prevent="resendVerificationNotification">
+                            <flux:link class="text-sm cursor-pointer"
+                                wire:click.prevent="resendVerificationNotification">
                                 {{ __('Click here to re-send the verification email.') }}
                             </flux:link>
                         </flux:text>

@@ -23,7 +23,7 @@ new class extends Component {
 
     protected $listeners = [
         'refresh' => '$refresh',
-        'message-received' => 'loadMessages'
+        'message-received' => 'loadMessages',
     ];
 
     public function refreshChat()
@@ -49,7 +49,9 @@ new class extends Component {
 
     public function loadConversations()
     {
-        $this->conversations = auth()->user()->conversations()
+        $this->conversations = auth()
+            ->user()
+            ->conversations()
             ->with(['users', 'latestMessage'])
             ->orderByDesc('last_message_at')
             ->get();
@@ -65,23 +67,22 @@ new class extends Component {
     public function loadMessages()
     {
         if ($this->activeConversation) {
-            $this->messages = $this->activeConversation->messages()
-                ->with('user')
-                ->oldest()
-                ->get();
+            $this->messages = $this->activeConversation->messages()->with('user')->oldest()->get();
         }
     }
 
     public function sendMessage()
     {
-        if (empty(trim($this->messageText)) && !$this->photo && !$this->document)
+        if (empty(trim($this->messageText)) && !$this->photo && !$this->document) {
             return;
-        if (!$this->activeConversation)
+        }
+        if (!$this->activeConversation) {
             return;
+        }
 
         $imagePath = null;
         if ($this->photo) {
-            $imagePath = $this->photo->store('chat/images', 'public');
+            $imagePath = $this->photo->store('chat/images', 'cloudinary');
         }
 
         $documentPath = null;
@@ -117,7 +118,8 @@ new class extends Component {
     public function markAsRead()
     {
         if ($this->activeConversation) {
-            $this->activeConversation->messages()
+            $this->activeConversation
+                ->messages()
                 ->where('user_id', '!=', auth()->id())
                 ->whereNull('read_at')
                 ->update(['read_at' => now()]);
@@ -130,7 +132,7 @@ new class extends Component {
             'toast',
             type: 'info',
             title: 'Feature Unavailable!',
-            message: 'Upgrade to premium plan to use voice and video calls to Allsers. Stay tuned!',
+            message: 'Upgrade to premium plan to use voice and video calls on Allsers. Stay tuned!',
             // title: 'Feature Coming Soon!',
             // message: 'We are working hard to bring voice and video calls to Allsers. Stay tuned!'
         );
@@ -142,21 +144,22 @@ new class extends Component {
     }
 }; ?>
 
-<div wire:poll.10s="refreshChat"
-    class="h-[calc(100vh-4rem)] flex overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-sm mb-4">
+<div wire:poll.10s="refreshChat" x-data="{ mobileView: @if ($activeConversation) 'chat' @else 'list' @endif }"
+    class="h-[calc(100dvh-12rem)] md:h-[calc(100vh-4rem)] flex overflow-hidden bg-white dark:bg-zinc-900 border-x-0 border-t-0 md:border border-zinc-200 dark:border-zinc-800 md:rounded-3xl shadow-sm md:mb-4 relative rounded-lg">
     <!-- Conversation List -->
-    <div class="w-80 border-e border-zinc-200 dark:border-zinc-800 flex flex-col">
+    <div class="w-full md:w-80 border-e border-zinc-200 dark:border-zinc-800 flex flex-col transition-all duration-300"
+        :class="mobileView === 'list' ? 'flex' : 'hidden md:flex'">
         <div class="p-4 border-b border-zinc-200 dark:border-zinc-800">
             <h2 class="text-lg font-bold text-zinc-900 dark:text-zinc-100">{{ __('Messages') }}</h2>
         </div>
         <div class="flex-1 overflow-y-auto">
             @forelse($conversations as $conv)
                 @php $otherUser = $conv->other_user; @endphp
-                <button wire:click="selectConversation({{ $conv->id }})"
-                    class="w-full p-4 flex items-center gap-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-left border-b border-zinc-50 dark:border-zinc-800/30 @if($activeConversation && $activeConversation->id === $conv->id) bg-purple-50 dark:bg-purple-900/10 @endif">
+                <button wire:click="selectConversation({{ $conv->id }})" @click="mobileView = 'chat'"
+                    class="w-full p-4 flex items-center gap-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-left border-b border-zinc-50 dark:border-zinc-800/30 @if ($activeConversation && $activeConversation->id === $conv->id) bg-purple-50 dark:bg-purple-900/10 @endif">
                     <div
                         class="shrink-0 size-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold overflow-hidden">
-                        @if($otherUser->profile_picture_url)
+                        @if ($otherUser->profile_picture_url)
                             <img src="{{ $otherUser->profile_picture_url }}" class="size-full object-cover">
                         @else
                             {{ $otherUser->initials() }}
@@ -164,17 +167,18 @@ new class extends Component {
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-baseline gap-2">
-                            <h3 class="font-bold text-zinc-900 dark:text-zinc-100 truncate text-sm">{{ $otherUser->name }}
+                            <h3 class="font-bold text-zinc-900 dark:text-zinc-100 truncate text-sm">
+                                {{ $otherUser->name }}
                             </h3>
                             <span class="text-[10px] text-zinc-500 whitespace-nowrap">
                                 {{ $conv->last_message_at ? $conv->last_message_at->diffForHumans(null, true) : '' }}
                             </span>
                         </div>
                         <p class="text-xs text-zinc-500 truncate mt-0.5">
-                            {{ $conv->latestMessage->content ?: ($conv->latestMessage && $conv->latestMessage->image_path ? __('Sent an image') : ($conv->latestMessage && $conv->latestMessage->document_path ? __('Sent a document') : __('No messages yet'))) }}
+                            {{ $conv->latestMessage?->content ?: ($conv->latestMessage?->image_path ? __('Sent an image') : ($conv->latestMessage?->document_path ? __('Sent a document') : __('No messages yet'))) }}
                         </p>
                     </div>
-                    @if($conv->messages()->where('user_id', '!=', auth()->id())->whereNull('read_at')->count() > 0)
+                    @if ($conv->messages()->where('user_id', '!=', auth()->id())->whereNull('read_at')->count() > 0)
                         <div
                             class="size-2 rounded-full bg-[var(--color-brand-purple)] shadow-[0_0_8px_var(--color-brand-purple)]">
                         </div>
@@ -189,15 +193,20 @@ new class extends Component {
     </div>
 
     <!-- Message View -->
-    <div class="flex-1 flex flex-col bg-zinc-50/30 dark:bg-zinc-900/50">
-        @if($activeConversation)
+    <div class="flex-1 flex flex-col bg-zinc-50/30 dark:bg-zinc-900/50 transition-all duration-300"
+        :class="mobileView === 'chat' ? 'flex' : 'hidden md:flex'">
+        @if ($activeConversation)
             <!-- Header -->
             <div
                 class="p-4 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 md:gap-3">
+                    <button @click="mobileView = 'list'"
+                        class="md:hidden p-1 -ms-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
+                        <flux:icon name="chevron-left" class="size-6 text-zinc-500" />
+                    </button>
                     <div
                         class="size-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold text-sm overflow-hidden">
-                        @if($activeConversation->other_user->profile_picture_url)
+                        @if ($activeConversation->other_user->profile_picture_url)
                             <img src="{{ $activeConversation->other_user->profile_picture_url }}"
                                 class="size-full object-cover">
                         @else
@@ -211,61 +220,67 @@ new class extends Component {
                         <p class="text-[10px] text-green-500 font-medium">{{ __('Online') }}</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <flux:button wire:click="comingSoon" variant="ghost" icon="phone" size="sm" />
-                    <flux:button wire:click="comingSoon" variant="ghost" icon="video-camera" size="sm" />
+                <div class="flex items-center gap-1 md:gap-2">
+                    <flux:button wire:click="comingSoon" variant="ghost" icon="phone" size="sm"
+                        class="hidden sm:inline-flex" />
+                    <flux:button wire:click="comingSoon" variant="ghost" icon="video-camera" size="sm"
+                        class="hidden sm:inline-flex" />
                     <flux:button variant="ghost" icon="information-circle" size="sm" />
                 </div>
             </div>
 
             <!-- Messages Area -->
-            <div id="message-container" class="flex-1 overflow-y-auto p-6 space-y-4" x-data="{ 
-                                            scrollToBottom() {
-                                                this.$el.scrollTo({ top: this.$el.scrollHeight, behavior: 'smooth' });
-                                            }
-                                        }" x-init="scrollToBottom()" @message-sent.window="scrollToBottom()">
-                @foreach($messages as $msg)
+            <div id="message-container" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 min-h-0"
+                x-data="{
+                    scrollToBottom() {
+                        this.$el.scrollTo({ top: this.$el.scrollHeight, behavior: 'smooth' });
+                    }
+                }" x-init="scrollToBottom()" @message-sent.window="scrollToBottom()">
+                @foreach ($messages as $msg)
                     @php $isMine = $msg->user_id === auth()->id(); @endphp
-                    <div class="flex {{ $isMine ? 'justify-end' : 'justify-start' }}">
-                        <div class="max-w-[70%] space-y-1">
-                            <div class="rounded-2xl px-4 py-2 text-sm shadow-sm
-                                                                                @if($isMine) 
-                                                                                    bg-[var(--color-brand-purple)] text-white rounded-tr-none 
+                    <div class="flex {{ $isMine ? 'justify-end' : 'justify-start' }} w-full">
+                        <div class="max-w-[85%] md:max-w-[70%] space-y-1">
+                            <div
+                                class="rounded-2xl px-4 py-2 text-sm shadow-sm break-words overflow-hidden
+                                                                                @if ($isMine) bg-[var(--color-brand-purple)] text-white rounded-tr-none 
                                                                                 @else 
-                                                                                    bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-100 dark:border-zinc-700 rounded-tl-none 
-                                                                                @endif">
+                                                                                    bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-100 dark:border-zinc-700 rounded-tl-none @endif">
 
-                                @if($msg->image_path)
-                                    <div class="mb-2 rounded-lg overflow-hidden border border-white/20">
-                                        <img src="{{ route('images.show', ['path' => $msg->image_path]) }}"
-                                            class="max-w-xs h-auto cursor-pointer hover:opacity-90 transition-opacity"
-                                            @click="window.open('{{ route('images.show', ['path' => $msg->image_path]) }}', '_blank')">
+                                @if ($msg->image_path)
+                                    <div
+                                        class="mb-2 rounded-lg overflow-hidden border border-white/20 bg-zinc-100/10 -mx-1">
+                                        <img src="{{ \App\Models\Setting::asset($msg->image_path) }}"
+                                            class="max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity w-full object-cover"
+                                            @click="window.open('{{ \App\Models\Setting::asset($msg->image_path) }}', '_blank')">
                                     </div>
                                 @endif
 
-                                @if($msg->document_path)
+                                @if ($msg->document_path)
                                     <div
-                                        class="mb-2 flex items-center gap-2 p-2 rounded-lg @if($isMine) bg-white/20 @else bg-zinc-100 dark:bg-zinc-700 @endif border border-white/10">
+                                        class="mb-2 flex items-center gap-2 p-2 rounded-lg @if ($isMine) bg-white/20 @else bg-zinc-100 dark:bg-zinc-700 @endif border border-white/10">
                                         <flux:icon name="document" class="size-5" />
                                         <div class="flex-1 min-w-0">
-                                            <p class="text-xs font-bold truncate">{{ $msg->document_name }}</p>
+                                            <p class="text-xs font-bold truncate">
+                                                {{ Str::limit($msg->document_name, 8) }}</p>
                                         </div>
-                                        <a href="{{ route('images.show', ['path' => $msg->document_path]) }}" target="_blank"
+                                        <a href="{{ \App\Models\Setting::asset($msg->document_path) }}" target="_blank"
+                                            download="{{ $msg->document_name }}" title="{{ __('Download Document') }}"
                                             class="p-1 hover:bg-black/10 rounded transition-colors">
                                             <flux:icon name="arrow-down-tray" class="size-4" />
                                         </a>
                                     </div>
                                 @endif
 
-                                @if($msg->content)
-                                    <p class="leading-relaxed">{{ $msg->content }}</p>
+                                @if ($msg->content)
+                                    <p class="leading-relaxed whitespace-pre-wrap">{{ $msg->content }}</p>
                                 @endif
                             </div>
-                            <div class="flex items-center gap-1.5 px-1 {{ $isMine ? 'justify-end' : 'justify-start' }}">
+                            <div
+                                class="flex items-center gap-1.5 px-1 {{ $isMine ? 'justify-end' : 'justify-start' }}">
                                 <span
                                     class="text-[8px] text-zinc-500 uppercase font-medium">{{ $msg->created_at->format('h:i A') }}</span>
-                                @if($isMine)
-                                    @if($msg->read_at)
+                                @if ($isMine)
+                                    @if ($msg->read_at)
                                         <flux:icon name="check" class="size-2 text-blue-400" />
                                         <flux:icon name="check" class="size-2 -ms-1.5 text-blue-400" />
                                     @else
@@ -279,25 +294,29 @@ new class extends Component {
             </div>
 
             <!-- Input Area -->
-            <div class="p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
+            <div class="p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 shrink-0">
                 <!-- Previews -->
-                @if($photo || $document)
-                    <div class="mb-3 flex gap-2 overflow-x-auto pb-2">
-                        @if($photo)
+                @if ($photo || $document)
+                    <div class="mb-3 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                        @if ($photo)
                             <div
-                                class="relative size-16 shrink-0 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                                class="relative size-16 shrink-0 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-sm">
                                 <img src="{{ $photo->temporaryUrl() }}" class="size-full object-cover">
                                 <button @click="$wire.set('photo', null)"
-                                    class="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-0.5 hover:bg-black">
+                                    class="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black backdrop-blur-sm">
                                     <flux:icon name="x-mark" class="size-3" />
                                 </button>
                             </div>
                         @endif
-                        @if($document)
+                        @if ($document)
                             <div
-                                class="relative w-32 h-16 shrink-0 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center p-2 gap-2">
-                                <flux:icon name="document" class="size-5 text-zinc-400" />
-                                <p class="text-[10px] truncate flex-1 font-medium">{{ $document->getClientOriginalName() }}</p>
+                                class="relative w-40 h-16 shrink-0 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center p-2 gap-2 shadow-sm">
+                                <div
+                                    class="size-8 rounded bg-[var(--color-brand-purple)]/10 flex items-center justify-center shrink-0">
+                                    <flux:icon name="document" class="size-4 text-[var(--color-brand-purple)]" />
+                                </div>
+                                <p class="text-[10px] truncate flex-1 font-bold text-zinc-700 dark:text-zinc-300">
+                                    {{ Str::limit($document->getClientOriginalName(), 8) }}</p>
                                 <button @click="$wire.set('document', null)"
                                     class="absolute -top-1.5 -right-1.5 bg-zinc-400 text-white rounded-full p-0.5 hover:bg-zinc-500 shadow-sm">
                                     <flux:icon name="x-mark" class="size-3" />
@@ -306,9 +325,8 @@ new class extends Component {
                         @endif
                     </div>
                 @endif
-
                 <form wire:submit="sendMessage"
-                    class="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-4 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:ring-2 focus-within:ring-[var(--color-brand-purple)]/20 focus-within:border-[var(--color-brand-purple)] transition-all">
+                    class="flex items-center gap-1 md:gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-2 md:px-4 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:ring-2 focus-within:ring-[var(--color-brand-purple)]/20 focus-within:border-[var(--color-brand-purple)] transition-all">
 
                     <div class="flex gap-1">
                         <label
@@ -328,7 +346,7 @@ new class extends Component {
 
                     <button type="submit"
                         class="p-2 text-[var(--color-brand-purple)] hover:scale-110 transition-transform disabled:opacity-50"
-                        @if(empty(trim($messageText)) && !$photo && !$document) disabled @endif>
+                        @if (empty(trim($messageText)) && !$photo && !$document) disabled @endif>
                         <flux:icon name="paper-airplane" class="size-5" />
                     </button>
                 </form>
@@ -342,7 +360,8 @@ new class extends Component {
                     class="size-20 rounded-full bg-purple-50 dark:bg-purple-900/10 flex items-center justify-center text-purple-600 dark:text-purple-400 mb-4 shadow-inner">
                     <flux:icon name="chat-bubble-left-right" class="size-10" />
                 </div>
-                <h3 class="text-xl font-black text-zinc-900 dark:text-zinc-100 mb-2">{{ __('Select a Conversation') }}</h3>
+                <h3 class="text-xl font-black text-zinc-900 dark:text-zinc-100 mb-2">{{ __('Select a Conversation') }}
+                </h3>
                 <p class="text-zinc-500 max-w-xs text-sm leading-relaxed">
                     {{ __('Choose a message from the left or start a new conversation to get started.') }}
                 </p>

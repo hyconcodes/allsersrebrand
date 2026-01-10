@@ -233,7 +233,7 @@ new class extends Component {
                                             <span class="opacity-75">-</span>
                                             <span>₦{{ number_format($post->price_max, 0) }}</span>
                                         @elseif ($post->price_min)
-                                            <span>{{ __('From') }} ₦{{ number_format($post->price_min, 0) }}</span>
+                                            <span>₦{{ number_format($post->price_min, 0) }}</span>
                                         @else
                                             <span>{{ __('Up to') }} ₦{{ number_format($post->price_max, 0) }}</span>
                                         @endif

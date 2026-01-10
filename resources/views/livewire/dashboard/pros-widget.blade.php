@@ -71,7 +71,7 @@ new class extends Component {
             {{-- Header --}}
             <div class="flex items-center justify-between px-1 mb-4">
                 <h3 class="font-black text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-                    {{ __('Suggested Professionals') }}
+                    {{ __('Near you') }}
                 </h3>
                 <div class="flex gap-2">
                     {{-- Scroll Indicators (Desktop) --}}
@@ -183,7 +183,8 @@ new class extends Component {
                         </div>
                     </a>
                 @empty
-                    {{-- Fallback --}}
+                    {{-- Fallback --}}  
+                    <p class="text-center text-[10px] text-zinc-500 font-bold">it's seems you are not close to any artisan. Spread the word!</p>
                 @endforelse
             </div>
 

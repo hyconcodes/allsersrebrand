@@ -4,7 +4,7 @@
             <!-- Brand -->
             <div class="lg:col-span-2">
                 <div class="text-2xl font-bold text-black mb-4">
-                    <span class="gradient-text">{{ config("app.name") }}</span>
+                    <span class="gradient-text">{{ config('app.name') }}</span>
                 </div>
                 <p class="text-gray-600 mb-6 max-w-sm">
                     Connecting people with trusted artisans and service providers. Quality services, verified
@@ -48,7 +48,8 @@
                     <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200">List
                             Your
                             Business</a></li>
-                    <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200">Features</a>
+                    <li><a href="#"
+                            class="text-gray-600 hover:text-primary transition-colors duration-200">Features</a>
                     </li>
                 </ul>
             </div>
@@ -59,7 +60,8 @@
                     <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200">About
                             Us</a>
                     </li>
-                    <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200">Careers</a>
+                    <li><a href="#"
+                            class="text-gray-600 hover:text-primary transition-colors duration-200">Careers</a>
                     </li>
                 </ul>
             </div>
@@ -70,12 +72,15 @@
                     <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200">Help
                             Center</a>
                     </li>
-                    <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200">Contact
+                    <li><a href="#"
+                            class="text-gray-600 hover:text-primary transition-colors duration-200">Contact
                             Us</a>
                     </li>
-                    <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200">Privacy
+                    <li><a href="{{ route('privacy') }}"
+                            class="text-gray-600 hover:text-primary transition-colors duration-200">Privacy
                             Policy</a></li>
-                    <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200">Terms
+                    <li><a href="{{ route('terms') }}"
+                            class="text-gray-600 hover:text-primary transition-colors duration-200">Terms
                             of
                             Service</a></li>
                 </ul>

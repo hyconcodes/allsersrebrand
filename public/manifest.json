@@ -1,0 +1,41 @@
+{
+    "name": "Allsers - Find Trusted Artisans",
+    "short_name": "Allsers",
+    "description": "Connect with verified artisans and service providers. Chat directly, view their work, and hire with confidence.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#6a11cb",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/favicon.ico",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+        },
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Search Services",
+            "url": "/#services",
+            "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+        },
+        {
+            "name": "Dashboard",
+            "url": "/dashboard",
+            "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+        }
+    ]
+}

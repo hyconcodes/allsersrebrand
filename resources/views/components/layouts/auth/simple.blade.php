@@ -36,6 +36,7 @@
         </div>
     </div>
     @fluxScripts
+    <x-pwa-scripts />
 </body>
 
 </html>

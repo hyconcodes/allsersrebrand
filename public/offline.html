@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline - Allsers</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#6a11cb',
+                        'primary-light': '#f7f1fe',
+                        'primary-dark': '#5a0eb0',
+                    }
+                },
+            },
+        }
+    </script>
+    <style>
+        .gradient-text {
+            background: linear-gradient(135deg, #6a11cb 0%, #9b4dca 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+
+<body class="font-sans antialiased bg-zinc-50 text-black min-h-screen flex items-center justify-center p-6">
+    <div class="max-w-md w-full text-center">
+        <div class="relative mb-8 flex justify-center">
+            <div class="absolute inset-0 bg-primary/10 rounded-full blur-3xl animate-pulse-slow"></div>
+            <div class="size-24 bg-white rounded-[2rem] shadow-2xl border border-zinc-100 flex items-center justify-center relative z-10">
+                <svg class="size-12 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 4.243a4.978 4.978 0 01-1.414-2.83m-1.415 5.658a9 9 0 01-2.167-3.674m0 0L3 21m6.233-4.072a2 2 0 01-3.187-2.497m11.954-11.954a9 9 0 010 12.728m0 0l-2.829-2.829M4.243 4.243a9 9 0 0112.728 0m-4.243 4.243a4.978 4.978 0 012.83 1.415"></path>
+                </svg>
+            </div>
+        </div>
+
+        <h1 class="text-3xl font-black text-zinc-900 mb-4 tracking-tight">
+            You're <span class="gradient-text">Offline</span>
+        </h1>
+        
+        <p class="text-zinc-600 font-medium mb-10 leading-relaxed">
+            It looks like your internet connection is taking a break. Don't worry, once you're back online, Allsers will be ready for you.
+        </p>
+
+        <div class="space-y-4">
+            <button onclick="window.location.reload()" class="w-full bg-primary hover:bg-primary-dark text-white font-bold py-4 rounded-2xl shadow-button hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Try Again
+            </button>
+            <a href="/" class="block w-full text-zinc-500 hover:text-primary font-bold py-2 transition-colors">
+                Back to Home
+            </a>
+        </div>
+
+        <div class="mt-12 pt-8 border-t border-zinc-100">
+            <p class="text-xs text-zinc-400 uppercase tracking-widest font-bold">
+                ALLSERS
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>
