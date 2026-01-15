@@ -22,6 +22,7 @@ new class extends Component {
     public string $work_status = '';
     public string $phone_number = '';
     public string $address = '';
+    public string $country_code = 'NG';
 
     /**
      * Mount the component.
@@ -40,6 +41,7 @@ new class extends Component {
         $this->work_status = $user->work_status ?? '';
         $this->phone_number = $user->phone_number ?? '';
         $this->address = $user->address ?? '';
+        $this->country_code = $user->country_code ?? 'NG';
     }
 
     /**
@@ -60,6 +62,7 @@ new class extends Component {
             'work_status' => ['nullable', 'string', 'max:255'],
             'phone_number' => ['nullable', 'string', 'max:20'],
             'address' => ['nullable', 'string', 'max:255'],
+            'country_code' => ['required', 'string', 'size:2'],
         ]);
 
         if ($this->photo) {
@@ -76,6 +79,7 @@ new class extends Component {
             'work_status' => $validated['work_status'],
             'phone_number' => $validated['phone_number'],
             'address' => $validated['address'],
+            'country_code' => $validated['country_code'],
         ]);
         $user->save();
 
@@ -155,11 +159,7 @@ new class extends Component {
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <flux:select wire:model="gender" :label="__('Gender')" placeholder="Select gender">
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                </flux:select>
+                <flux:input wire:model="gender" :label="__('Gender')" type="text" />
 
                 <flux:select wire:model="work_status" :label="__('Work Status')" placeholder="Select status">
                     <option value="employed">Employed</option>
@@ -173,6 +173,27 @@ new class extends Component {
                 <flux:input wire:model="work" :label="__('Work / Job Title')" type="text" />
                 <flux:input wire:model="experience_year" :label="__('Experience (Years)')" type="number"
                     min="0" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <flux:select wire:model="country_code" :label="__('Country / Currency Region')"
+                    placeholder="Select country">
+                    <option value="NG">Nigeria (₦)</option>
+                    <option value="US">United States ($)</option>
+                    <option value="GB">United Kingdom (£)</option>
+                    <option value="EU">European Union (€)</option>
+                    <option value="GH">Ghana (₵)</option>
+                    <option value="KE">Kenya (KSh)</option>
+                    <option value="ZA">South Africa (R)</option>
+                    <option value="CA">Canada (C$)</option>
+                    <option value="AU">Australia (A$)</option>
+                    <option value="NL">Netherlands (€)</option>
+                </flux:select>
+                <div class="flex items-center pt-6">
+                    <p class="text-xs text-zinc-500 italic">
+                        {{ __('This determines the currency symbol shown on your posts.') }}
+                    </p>
+                </div>
             </div>
 
             <flux:textarea wire:model="bio" :label="__('Bio')" rows="4"
@@ -212,6 +233,53 @@ new class extends Component {
                 </x-action-message>
             </div>
         </form>
+
+        <div class="mt-10 border-t border-gray-100 pt-10">
+            <h3 class="text-lg font-medium text-gray-900">{{ __('Notifications') }}</h3>
+            <p class="mt-1 text-sm text-gray-600">
+                {{ __('Stay updated with real-time push notifications for messages and inquiries.') }}
+            </p>
+
+            <div class="mt-6">
+                <div x-data="{
+                    isSubscribed: false,
+                    async checkSubscription() {
+                        window.OneSignalDeferred = window.OneSignalDeferred || [];
+                        OneSignalDeferred.push(async (OneSignal) => {
+                            this.isSubscribed = OneSignal.Notifications.permission;
+                        });
+                    },
+                    async subscribe() {
+                        window.OneSignalDeferred = window.OneSignalDeferred || [];
+                        OneSignalDeferred.push(async (OneSignal) => {
+                            await OneSignal.Notifications.requestPermission();
+                            this.isSubscribed = OneSignal.Notifications.permission;
+                
+                            if (this.isSubscribed && window.Flux) {
+                                Flux.toast({
+                                    variant: 'success',
+                                    heading: 'Success',
+                                    text: 'You will now receive real-time notifications!'
+                                });
+                            }
+                        });
+                    }
+                }" x-init="checkSubscription()" class="flex items-center gap-4">
+                    <flux:button @click="subscribe()" icon="bell" variant="outline"
+                        x-text="isSubscribed ? '{{ __('Notifications are active') }}' : '{{ __('Enable Browser Notifications') }}'"
+                        x-bind:class="isSubscribed ? '!bg-green-50 !text-green-700 !border-green-100' : ''"
+                        x-bind:disabled="isSubscribed">
+                    </flux:button>
+
+                    <template x-if="isSubscribed">
+                        <span class="text-xs text-green-600 font-medium flex items-center gap-1">
+                            <flux:icon name="check-circle" variant="solid" class="size-3" />
+                            {{ __('Active') }}
+                        </span>
+                    </template>
+                </div>
+            </div>
+        </div>
 
         {{-- <livewire:settings.delete-user-form /> --}}
     </x-settings.layout>

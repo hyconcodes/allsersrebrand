@@ -1,7 +1,7 @@
 {
     "name": "Allsers - Find Trusted Artisans",
     "short_name": "Allsers",
-    "description": "Connect with verified artisans and service providers. Chat directly, view their work, and hire with confidence.",
+    "description": "Connect with verified artisans and service providers near you. Chat directly, view their work, and hire with confidence.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",

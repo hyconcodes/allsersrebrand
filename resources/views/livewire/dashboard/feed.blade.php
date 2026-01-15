@@ -143,11 +143,23 @@ new class extends Component {
 
     public function createRepost()
     {
-        $this->validate([
-            'repostContent' => 'nullable|string|max:1000',
-            'repostImage' => 'nullable|image|max:5120',
-            'repostVideo' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:20480',
-        ]);
+        try {
+            $this->validate([
+                'repostContent' => 'nullable|string|max:1000',
+                'repostImage' => 'nullable|image|max:10240',
+                'repostVideo' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:10240',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            foreach ($e->validator->errors()->getMessages() as $field => $messages) {
+                if (str_contains($field, 'repostImage') || str_contains($field, 'repostVideo')) {
+                    if (str_contains(implode(' ', $messages), 'kilobytes') || str_contains(implode(' ', $messages), 'large')) {
+                        $this->dispatch('toast', type: 'error', title: 'File Too Large', message: 'Images and videos must be less than 10MB.');
+                        break;
+                    }
+                }
+            }
+            throw $e;
+        }
 
         $imagePath = $this->repostImage ? $this->repostImage->store('posts/images', 'public') : null;
         $videoPath = $this->repostVideo ? $this->repostVideo->store('posts/videos', 'public') : null;
@@ -200,12 +212,24 @@ new class extends Component {
             return;
         }
 
-        $validated = $this->validate([
-            'content' => 'nullable|string|max:1000',
-            'images' => 'nullable|array|max:4',
-            'images.*' => 'nullable|image|max:2048',
-            'video' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:10240',
-        ]);
+        try {
+            $validated = $this->validate([
+                'content' => 'nullable|string|max:1000',
+                'images' => 'nullable|array|max:4',
+                'images.*' => 'nullable|image|max:10240',
+                'video' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:10240',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            foreach ($e->validator->errors()->getMessages() as $field => $messages) {
+                if (str_contains($field, 'images') || str_contains($field, 'video')) {
+                    if (str_contains(implode(' ', $messages), 'kilobytes') || str_contains(implode(' ', $messages), 'large')) {
+                        $this->dispatch('toast', type: 'error', title: 'File Too Large', message: 'Images and videos must be less than 10MB.');
+                        break;
+                    }
+                }
+            }
+            throw $e;
+        }
 
         $post = Post::create([
             'user_id' => auth()->id(),
@@ -348,16 +372,16 @@ new class extends Component {
                         </div>
                     </div>
                     <div class="flex-1 space-y-3" x-data="{
-                        insertEmoji(emoji) {
-                            const el = $wire.$el.querySelector('textarea');
-                            const start = el.selectionStart;
-                            const end = el.selectionEnd;
-                            const text = $wire.content;
-                            $wire.content = text.substring(0, start) + emoji + text.substring(end);
-                            el.focus();
-                            setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
-                        }
-                    }">
+                            insertEmoji(emoji) {
+                                const el = $wire.$el.querySelector('textarea');
+                                const start = el.selectionStart;
+                                const end = el.selectionEnd;
+                                const text = $wire.content;
+                                $wire.content = text.substring(0, start) + emoji + text.substring(end);
+                                el.focus();
+                                setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
+                            }
+                        }">
                         <textarea wire:model="content" placeholder="{{ __('Share your recent work...') }}"
                             class="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--color-brand-purple)]/20 transition-all resize-none"
                             rows="3"></textarea>
@@ -381,8 +405,7 @@ new class extends Component {
                             <div class="grid grid-cols-2 gap-2">
                                 @foreach ($images as $index => $image)
                                     <div class="relative group">
-                                        <img src="{{ $image->temporaryUrl() }}"
-                                            class="w-full h-32 object-cover rounded-lg">
+                                        <img src="{{ $image->temporaryUrl() }}" class="w-full h-32 object-cover rounded-lg">
                                         <button type="button" wire:click="removeImage({{ $index }})"
                                             class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <flux:icon name="x-mark" class="size-4" />
@@ -416,7 +439,7 @@ new class extends Component {
                             <div x-show="showPrice" x-collapse class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                                        {{ __('Min Price (₦)') }}
+                                        {{ __('Min Price') }} ({{ auth()->user()->currency_symbol }})
                                     </label>
                                     <input type="number" wire:model="price_min" min="0" step="0.01"
                                         class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
@@ -427,7 +450,7 @@ new class extends Component {
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                                        {{ __('Max Price (₦)') }}
+                                        {{ __('Max Price') }} ({{ auth()->user()->currency_symbol }})
                                     </label>
                                     <input type="number" wire:model="price_max" min="0" step="0.01"
                                         class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
@@ -475,8 +498,8 @@ new class extends Component {
 
     <!-- Suggested Professionals (In-Feed) -->
     {{-- <div class="w-[calc(100-30)]"> --}}
-    <livewire:dashboard.pros-widget :in-feed="true" />
-    {{--
+        <livewire:dashboard.pros-widget :in-feed="true" />
+        {{--
     </div> --}}
 
     <!-- Feed Posts -->
@@ -563,8 +586,7 @@ new class extends Component {
 
                 <div class="flex gap-4">
                     @if ($repostImage)
-                        <div
-                            class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 shadow-sm">
+                        <div class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 shadow-sm">
                             <img src="{{ $repostImage->temporaryUrl() }}" class="size-full object-cover">
                             <button type="button" wire:click="$set('repostImage', null)"
                                 class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

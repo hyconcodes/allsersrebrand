@@ -48,6 +48,7 @@ new class extends Component {
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where('id', '!=', auth()->id())
+            ->whereNotIn('work', ['Guest', 'Provider', 'Admin'])
             ->select('users.*')
             ->withAvg('reviews', 'rating')
             ->selectRaw('(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance', [$this->latitude, $this->longitude, $this->latitude])
@@ -183,8 +184,9 @@ new class extends Component {
                         </div>
                     </a>
                 @empty
-                    {{-- Fallback --}}  
-                    <p class="text-center text-[10px] text-zinc-500 font-bold">it's seems you are not close to any artisan. Spread the word!</p>
+                    {{-- Fallback --}}
+                    <p class="text-center text-[10px] text-zinc-500 font-bold">it's seems you are not close to any
+                        artisan. Spread the word!</p>
                 @endforelse
             </div>
 

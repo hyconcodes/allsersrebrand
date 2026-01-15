@@ -229,13 +229,14 @@ new class extends Component {
                                     <flux:icon name="currency-dollar" class="size-5" />
                                     <div class="flex items-center gap-1.5 font-bold text-sm">
                                         @if ($post->price_min && $post->price_max)
-                                            <span>₦{{ number_format($post->price_min, 0) }}</span>
+                                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_min, 0) }}</span>
                                             <span class="opacity-75">-</span>
-                                            <span>₦{{ number_format($post->price_max, 0) }}</span>
+                                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_max, 0) }}</span>
                                         @elseif ($post->price_min)
-                                            <span>₦{{ number_format($post->price_min, 0) }}</span>
+                                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_min, 0) }}</span>
                                         @else
-                                            <span>{{ __('Up to') }} ₦{{ number_format($post->price_max, 0) }}</span>
+                                            <span>{{ __('Up to') }}
+                                                {{ $post->user->currency_symbol }}{{ number_format($post->price_max, 0) }}</span>
                                         @endif
                                     </div>
                                 </div>
@@ -265,8 +266,9 @@ new class extends Component {
                         <!-- Video -->
                         @if ($post->video)
                             <div class="rounded-xl overflow-hidden h-80 border border-zinc-100 dark:border-zinc-800">
-                                <video src="{{ route('images.show', ['path' => $post->video]) }}"
-                                    class="w-full h-full object-cover" controls></video>
+                                <video src="{{ route('videos.show', ['path' => $post->video]) }}"
+                                    class="w-full h-full object-cover" controls controlsList="nodownload" playsinline
+                                    preload="metadata"></video>
                             </div>
                         @endif
 
@@ -295,12 +297,15 @@ new class extends Component {
                                             class="inline-flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
                                             <flux:icon name="currency-dollar" class="size-3" />
                                             @if ($post->repostOf->price_min && $post->repostOf->price_max)
-                                                <span>₦{{ number_format($post->repostOf->price_min, 0) }} -
-                                                    ₦{{ number_format($post->repostOf->price_max, 0) }}</span>
+                                                <span>{{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_min, 0) }}
+                                                    -
+                                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_max, 0) }}</span>
                                             @elseif ($post->repostOf->price_min)
-                                                <span>From ₦{{ number_format($post->repostOf->price_min, 0) }}</span>
+                                                <span>From
+                                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_min, 0) }}</span>
                                             @else
-                                                <span>Up to ₦{{ number_format($post->repostOf->price_max, 0) }}</span>
+                                                <span>Up to
+                                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_max, 0) }}</span>
                                             @endif
                                         </div>
                                     @endif
@@ -319,8 +324,9 @@ new class extends Component {
                                 @elseif($post->repostOf->video)
                                     <div
                                         class="h-32 rounded-lg overflow-hidden bg-black flex items-center justify-center border border-zinc-200/50">
-                                        <video src="{{ route('images.show', ['path' => $post->repostOf->video]) }}"
-                                            class="w-full h-full object-cover" controls></video>
+                                        <video src="{{ route('videos.show', ['path' => $post->repostOf->video]) }}"
+                                            class="w-full h-full object-cover" controls controlsList="nodownload"
+                                            playsinline preload="metadata"></video>
                                     </div>
                                 @endif
                             </div>

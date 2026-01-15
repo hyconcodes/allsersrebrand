@@ -51,13 +51,17 @@ new class extends Component {
             $this->dispatch('toast', type: 'error', title: 'Error', message: 'You cannot delete this post.');
         }
     }
+    public function redirectToPost()
+    {
+        $this->redirect(route('posts.show', $this->post), navigate: true);
+    }
 }; ?>
 
 <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 relative">
     @if ($post->repost_of_id)
         <div class="absolute left-[10px] top-[75px] bottom-[60px] w-0.5 bg-[#6a11cb] opacity-50 z-0"></div>
     @endif
-    <div wire:click="$dispatch('open-post-detail', { postId: {{ $post->id }} })" class="cursor-pointer relative z-10">
+    <div wire:click="redirectToPost" class="cursor-pointer relative z-10">
         <div class="flex justify-between items-start mb-4">
             <div class="flex items-center gap-3">
                 <a @if (auth()->id() !== $post->user_id) href="{{ route('artisan.profile', $post->user) }}"
@@ -119,13 +123,14 @@ new class extends Component {
                     <flux:icon name="currency-dollar" class="size-5" />
                     <div class="flex items-center gap-1.5 font-bold text-sm">
                         @if ($post->price_min && $post->price_max)
-                            <span>₦{{ number_format($post->price_min, 0) }}</span>
+                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_min, 0) }}</span>
                             <span class="opacity-75">-</span>
-                            <span>₦{{ number_format($post->price_max, 0) }}</span>
+                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_max, 0) }}</span>
                         @elseif ($post->price_min)
-                            <span>₦{{ number_format($post->price_min, 0) }}</span>
+                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_min, 0) }}</span>
                         @else
-                            <span>{{ __('Up to') }} ₦{{ number_format($post->price_max, 0) }}</span>
+                            <span>{{ __('Up to') }}
+                                {{ $post->user->currency_symbol }}{{ number_format($post->price_max, 0) }}</span>
                         @endif
                     </div>
                 </div>
@@ -184,8 +189,8 @@ new class extends Component {
         <!-- Video -->
         @if ($post->video)
             <div class="mb-4 rounded-xl overflow-hidden h-80">
-                <video src="{{ route('images.show', ['path' => $post->video]) }}" class="w-full h-full object-cover"
-                    controls></video>
+                <video src="{{ route('videos.show', ['path' => $post->video]) }}" class="w-full h-full object-cover"
+                    controls controlsList="nodownload" playsinline preload="metadata"></video>
             </div>
         @endif
 
@@ -213,12 +218,15 @@ new class extends Component {
                             class="inline-flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
                             <flux:icon name="currency-dollar" class="size-3" />
                             @if ($post->repostOf->price_min && $post->repostOf->price_max)
-                                <span>₦{{ number_format($post->repostOf->price_min, 0) }} -
-                                    ₦{{ number_format($post->repostOf->price_max, 0) }}</span>
+                                <span>{{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_min, 0) }}
+                                    -
+                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_max, 0) }}</span>
                             @elseif ($post->repostOf->price_min)
-                                <span>From ₦{{ number_format($post->repostOf->price_min, 0) }}</span>
+                                <span>From
+                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_min, 0) }}</span>
                             @else
-                                <span>Up to ₦{{ number_format($post->repostOf->price_max, 0) }}</span>
+                                <span>Up to
+                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_max, 0) }}</span>
                             @endif
                         </div>
                     @endif
@@ -237,8 +245,9 @@ new class extends Component {
                 @elseif($post->repostOf->video)
                     <div
                         class="h-32 rounded-lg overflow-hidden bg-black flex items-center justify-center border border-zinc-200/50">
-                        <video src="{{ route('images.show', ['path' => $post->repostOf->video]) }}"
-                            class="w-full h-full object-cover" controls></video>
+                        <video src="{{ route('videos.show', ['path' => $post->repostOf->video]) }}"
+                            class="w-full h-full object-cover" controls controlsList="nodownload" playsinline
+                            preload="metadata"></video>
                     </div>
                 @endif
             </div>

@@ -290,16 +290,18 @@ new class extends Component {
     initMap() {
         if (!this.selectedArtisan) return;
 
-        // Wait for modal transition to complete
+        // Wait for modal transition to fully complete (duration is 500ms)
         setTimeout(() => {
             const container = document.getElementById('artisan-map');
             if (!container) return;
 
             if (this.map) {
+                this.map.off();
                 this.map.remove();
+                this.map = null;
             }
 
-            const userLat = @js($lat) || 6.5244; // Default to Lagos if null
+            const userLat = @js($lat) || 6.5244;
             const userLng = @js($lng) || 3.3792;
             const artisanLat = parseFloat(this.selectedArtisan.latitude);
             const artisanLng = parseFloat(this.selectedArtisan.longitude);
@@ -308,7 +310,8 @@ new class extends Component {
 
             this.map = L.map('artisan-map', {
                 zoomControl: true,
-                dragging: true
+                dragging: true,
+                scrollWheelZoom: false
             }).setView([userLat, userLng], 13);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -329,12 +332,9 @@ new class extends Component {
                 iconAnchor: [7, 7]
             });
 
-            console.log('Initializing Map with User:', userLat, userLng, 'Artisan:', artisanLat, artisanLng);
-
             this.userMarker = L.marker([userLat, userLng], { icon: userIcon })
                 .addTo(this.map)
-                .bindPopup('Your Current Location')
-                .openPopup();
+                .bindPopup('Your Current Location');
 
             this.artisanMarker = L.marker([artisanLat, artisanLng], { icon: purpleIcon })
                 .addTo(this.map)
@@ -351,6 +351,20 @@ new class extends Component {
                 lineCap: 'round'
             }).addTo(this.map);
 
+            const midpoint = [
+                (userLat + artisanLat) / 2,
+                (userLng + artisanLng) / 2
+            ];
+
+            this.distanceLabel = L.marker(midpoint, {
+                icon: L.divIcon({
+                    className: 'distance-label',
+                    html: `<div class='bg-white dark:bg-zinc-800 px-3 py-1.5 rounded-full text-[11px] font-black shadow-xl border-2 border-purple-500 dark:border-purple-400 text-purple-600 dark:text-purple-300 animate-in zoom-in duration-300'>${this.selectedArtisan.distance}</div>`,
+                    iconSize: [window.innerWidth < 640 ? 60 : 70, 24],
+                    iconAnchor: [window.innerWidth < 640 ? 30 : 35, 12]
+                })
+            }).addTo(this.map);
+
             const bounds = L.latLngBounds([
                 [userLat, userLng],
                 [artisanLat, artisanLng]
@@ -358,121 +372,128 @@ new class extends Component {
 
             this.map.fitBounds(bounds, { padding: [50, 50] });
 
-            // Critical: Force Leaflet to recalculate container size
+            // Critical: Force Leaflet to recalculate container size again after a short delay
             setTimeout(() => {
                 this.map.invalidateSize();
-            }, 100);
-        }, 400);
+            }, 200);
+        }, 600);
     }
 }" x-show="!closed" x-on:play-sound.window="playSound()"
     class="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-4">
 
     <!-- Map Modal -->
-    <template x-if="showMap">
-        <div class="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-zinc-900/80 backdrop-blur-md"
-            @keydown.escape.window="showMap = false">
-            <div
-                class="bg-white dark:bg-zinc-900 w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[85vh] border border-white/20 relative">
+    <div x-show="showMap" x-transition.opacity.duration.300ms
+        class="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-zinc-900/80 backdrop-blur-md"
+        @keydown.escape.window="showMap = false" x-init="$watch('showMap', value => { if (value) initMap() })" style="display: none;">
+        <div class="bg-white dark:bg-zinc-900 w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[85vh] border border-white/20 relative"
+            @click.away="showMap = false">
 
-                <!-- Map Container -->
-                <div class="flex-1 relative bg-zinc-100 dark:bg-zinc-800">
-                    <div id="artisan-map" class="absolute inset-0 z-10" x-init="initMap()"></div>
+            <!-- Map Container -->
+            <div class="flex-1 relative bg-zinc-100 dark:bg-zinc-800">
+                <div wire:ignore id="artisan-map" class="absolute inset-0 z-10"></div>
 
-                    <!-- Header Overlay -->
+                <!-- Header Overlay -->
+                <div class="absolute top-6 left-6 right-6 z-20 flex justify-between items-start pointer-events-none">
+                    <!-- User Card (Top Left) -->
                     <div
-                        class="absolute top-6 left-6 right-6 z-20 flex justify-between items-start pointer-events-none">
-                        <!-- User Card (Top Left) -->
-                        <div
-                            class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 pointer-events-auto max-w-sm animate-in fade-in slide-in-from-left-4 duration-500">
-                            <div class="flex items-center gap-3">
-                                <div class="size-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                                    <flux:icon name="map-pin" class="size-5 text-blue-500" />
-                                </div>
-                                <div class="flex-1">
-                                    <p class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Your
-                                        Location</p>
-                                    <p class="text-xs font-bold text-zinc-900 dark:text-white leading-tight mt-0.5"
-                                        x-text="'{{ $address ?: 'Detecting your coordinates...' }}'"></p>
-                                </div>
+                        class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 pointer-events-auto max-w-sm animate-in fade-in slide-in-from-left-4 duration-500">
+                        <div class="flex items-center gap-3">
+                            <div class="size-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                                <flux:icon name="map-pin" class="size-5 text-blue-500" />
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Your
+                                    Location</p>
+                                <p class="text-xs font-bold text-zinc-900 dark:text-white leading-tight mt-0.5"
+                                    x-text="'{{ $address ?: 'Detecting your coordinates...' }}'"></p>
                             </div>
                         </div>
-
-                        <!-- Close Button -->
-                        <button @click="showMap = false"
-                            class="pointer-events-auto size-12 flex items-center justify-center bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md rounded-full shadow-xl border border-white/20 hover:scale-110 active:scale-95 transition-all">
-                            <flux:icon name="x-mark" class="size-6 text-zinc-600 dark:text-zinc-400" />
-                        </button>
                     </div>
 
-                    <!-- Artisan Card (Bottom Right) -->
-                    <div class="absolute bottom-10 right-10 z-20 pointer-events-none">
-                        <div
-                            class="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] shadow-2xl border border-white/20 pointer-events-auto w-80 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div class="flex items-start gap-4 mb-5">
-                                <div
-                                    class="size-16 rounded-2xl overflow-hidden border-2 border-[var(--color-brand-purple)] shrink-0">
-                                    <template x-if="selectedArtisan.profile_picture">
-                                        <img :src="selectedArtisan.profile_picture" class="size-full object-cover">
-                                    </template>
-                                    <template x-if="!selectedArtisan.profile_picture">
-                                        <div
-                                            class="size-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
-                                            <flux:icon name="user" class="size-8" />
-                                        </div>
-                                    </template>
-                                </div>
-                                <div class="min-w-0">
-                                    <h3 class="font-black text-lg text-zinc-900 dark:text-white truncate"
-                                        x-text="selectedArtisan.name"></h3>
-                                    <p class="text-xs font-black uppercase text-[var(--color-brand-purple)] tracking-wider"
-                                        x-text="selectedArtisan.work"></p>
-                                    <div class="mt-2 flex items-center gap-1.5">
+                    <!-- Close Button -->
+                    <button @click="showMap = false"
+                        class="pointer-events-auto size-12 flex items-center justify-center bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md rounded-full shadow-xl border border-white/20 hover:scale-110 active:scale-95 transition-all">
+                        <flux:icon name="x-mark" class="size-6 text-zinc-600 dark:text-zinc-400" />
+                    </button>
+                </div>
+
+                <!-- Artisan Card (Bottom Right) -->
+                <div class="absolute bottom-10 right-10 z-20 pointer-events-none">
+                    <div
+                        class="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] shadow-2xl border border-white/20 pointer-events-auto w-80 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div class="flex items-start gap-4 mb-5">
+                            <div
+                                class="size-14 lg:size-16 rounded-2xl overflow-hidden border-2 border-[var(--color-brand-purple)] shrink-0 shadow-lg bg-zinc-100 dark:bg-zinc-800">
+                                <template x-if="selectedArtisan && selectedArtisan.profile_picture">
+                                    <img :src="selectedArtisan.profile_picture" class="size-full object-cover">
+                                </template>
+                                <template x-if="!selectedArtisan || !selectedArtisan.profile_picture">
+                                    <div
+                                        class="size-full flex items-center justify-center text-zinc-400 font-black text-lg">
                                         <span
-                                            class="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-500"
-                                            x-text="selectedArtisan.experience"></span>
-                                        <span
-                                            class="px-2 py-0.5 rounded-full bg-[var(--color-brand-purple)]/10 text-[10px] font-black text-[var(--color-brand-purple)]"
-                                            x-text="selectedArtisan.distance + ' away'"></span>
+                                            x-text="selectedArtisan ? selectedArtisan.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2) : ''"></span>
                                     </div>
+                                </template>
+                            </div>
+                            <div class="min-w-0" x-show="selectedArtisan">
+                                <h3 class="font-black text-base lg:text-lg text-zinc-900 dark:text-white truncate"
+                                    x-text="selectedArtisan.name"></h3>
+                                <p class="text-[10px] lg:text-xs font-black uppercase text-[var(--color-brand-purple)] tracking-wider"
+                                    x-text="selectedArtisan.work"></p>
+                                <div class="mt-1 flex items-center gap-1.5">
+                                    <span
+                                        class="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-500"
+                                        x-text="selectedArtisan.experience"></span>
+                                    <span
+                                        class="px-2 py-0.5 rounded-full bg-[var(--color-brand-purple)]/10 text-[10px] font-black text-[var(--color-brand-purple)]"
+                                        x-text="selectedArtisan.distance + ' away'"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button wire:click="pingArtisan(selectedArtisan.id)" wire:loading.attr="disabled"
+                            wire:target="pingArtisan"
+                            class="block w-full py-4 text-white font-black rounded-2xl hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group px-6"
+                            :disabled="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)"
+                            :class="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id) ?
+                                'bg-green-500 shadow-lg shadow-green-500/30' :
+                                'bg-[var(--color-brand-purple)] shadow-lg shadow-purple-500/30 hover:scale-[1.02]'">
+
+                            {{-- Loading Spinner (Native Livewire) --}}
+                            <div wire:loading wire:target="pingArtisan">
+                                <div class="flex items-center gap-2">
+                                    <div
+                                        class="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin">
+                                    </div>
+                                    <span class="text-xs uppercase tracking-widest">{{ __('Sending...') }}</span>
                                 </div>
                             </div>
 
-                            <button @click="$wire.pingArtisan(selectedArtisan.id)"
-                                class="block w-full py-4 text-white font-black rounded-2xl hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                :disabled="$wire.pingingId == selectedArtisan.id || $wire.sentPings.includes(selectedArtisan.id)"
-                                :class="$wire.sentPings.includes(selectedArtisan.id) ?
-                                    'bg-green-500 hover:shadow-green-500/30' :
-                                    ($wire.pingingId == selectedArtisan.id ? 'bg-zinc-400' :
-                                        'bg-[var(--color-brand-purple)] hover:shadow-purple-500/30')">
-                                <template x-if="$wire.pingingId == selectedArtisan.id">
+                            {{-- Button States (Hidden while loading) --}}
+                            <div wire:loading.remove wire:target="pingArtisan">
+                                {{-- Sent State --}}
+                                <template x-if="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)">
                                     <div class="flex items-center gap-2">
-                                        <div
-                                            class="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin">
-                                        </div>
-                                        <span>{{ __('Sending Ping...') }}</span>
+                                        <flux:icon name="check" class="size-4" />
+                                        <span class="text-xs uppercase tracking-widest">{{ __('Ping Sent!') }}</span>
                                     </div>
                                 </template>
-                                <template
-                                    x-if="$wire.sentPings.includes(selectedArtisan.id) && $wire.pingingId != selectedArtisan.id">
+
+                                {{-- Idle State --}}
+                                <template x-if="selectedArtisan && !$wire.sentPings.includes(selectedArtisan.id)">
                                     <div class="flex items-center gap-2">
-                                        <flux:icon name="check" class="size-5" />
-                                        <span>{{ __('Ping Sent!') }}</span>
+                                        <flux:icon name="chat-bubble-left-right"
+                                            class="size-4 transition-transform group-hover:scale-110" />
+                                        <span class="text-xs uppercase tracking-widest">{{ __('Ping Now') }}</span>
                                     </div>
                                 </template>
-                                <template
-                                    x-if="!$wire.sentPings.includes(selectedArtisan.id) && $wire.pingingId != selectedArtisan.id">
-                                    <div class="flex items-center gap-2">
-                                        <flux:icon name="chat-bubble-left-right" class="size-5" />
-                                        <span>{{ __('Ping') }}</span>
-                                    </div>
-                                </template>
-                            </button>
-                        </div>
+                            </div>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
-    </template>
+    </div>
 
     <!-- Chat Box -->
     <div x-show="open" x-transition:enter="transition ease-out duration-300 transform opacity-0 translate-y-4"

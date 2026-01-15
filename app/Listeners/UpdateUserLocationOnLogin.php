@@ -29,9 +29,26 @@ class UpdateUserLocationOnLogin
             $lng = request('longitude');
 
             if ($lat && $lng) {
+                // Try to resolve country code
+                $countryCode = 'NG';
+                try {
+                    /** @var \Illuminate\Http\Client\Response $response */
+                    $response = \Illuminate\Support\Facades\Http::withHeaders(['User-Agent' => 'Allsers-App'])
+                        ->timeout(3)
+                        ->get("https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=10");
+
+                    if ($response->successful()) {
+                        $countryCode = strtoupper($response->json()['address']['country_code'] ?? 'NG');
+                    }
+                } catch (\Exception $e) {
+                    // Fallback to existing or default
+                    $countryCode = $user->country_code ?: 'NG';
+                }
+
                 $user->update([
                     'latitude' => $lat,
                     'longitude' => $lng,
+                    'country_code' => $countryCode,
                 ]);
             }
         }

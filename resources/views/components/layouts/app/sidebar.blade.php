@@ -35,7 +35,9 @@
 
                 <flux:navlist.group :heading="__('Platform')" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')"
-                        wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
+                        wire:navigate>{{ __('Home') }}</flux:navlist.item>
+                    <flux:navlist.item icon="magnifying-glass" :href="route('finder')"
+                        :current="request()->routeIs('finder')" wire:navigate>{{ __('Finder') }}</flux:navlist.item>
                     <flux:navlist.item icon="fire" :href="route('challenges.index')"
                         :current="request()->routeIs('challenges.*') || request()->routeIs('challenge.*')" wire:navigate>
                         {{ __('Challenges') }}
@@ -59,7 +61,11 @@
 
                 @if (auth()->user()->isAdmin())
                     <flux:navlist.group :heading="__('Admin')" class="grid mt-4">
-                        <flux:navlist.item icon="shield-check" :href="route('admin.reports')"
+                        <flux:navlist.item icon="shield-check" :href="route('admin.dashboard')"
+                            :current="request()->routeIs('admin.dashboard')" wire:navigate>
+                            {{ __('Dashboard') }}
+                        </flux:navlist.item>
+                        <flux:navlist.item icon="flag" :href="route('admin.reports')"
                             :current="request()->routeIs('admin.reports')" wire:navigate>
                             {{ __('Reports') }}
                         </flux:navlist.item>
@@ -300,9 +306,11 @@
                 </a>
             </div>
         </nav>
+        <livewire:onesignal-handler />
     @endauth
 
     @fluxScripts
+    @stack('scripts')
     <x-pwa-scripts />
 </body>
 

@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\User;
+use App\Services\OneSignalService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -27,7 +28,22 @@ class ServiceInquiry extends Notification
      */
     public function via(object $notifiable): array
     {
+        if ($notifiable->onesignal_player_id) {
+            $this->sendPushNotification($notifiable);
+        }
+
         return ['database'];
+    }
+
+    protected function sendPushNotification($notifiable)
+    {
+        $oneSignal = app(OneSignalService::class);
+        $oneSignal->sendToUser(
+            $notifiable->onesignal_player_id,
+            "New Service Inquiry!",
+            $this->sender->name . " is interested in your services and sent you a ping!",
+            route('notifications')
+        );
     }
 
     /**

@@ -16,7 +16,7 @@ return new class extends Migration {
             $table->string('gender')->nullable()->after('profile_picture');
             $table->string('work')->nullable()->after('gender');
             $table->text('bio')->nullable()->after('work');
-            $table->integer('experience_year')->nullable()->after('bio');
+            $table->string('experience_year')->nullable()->after('bio');
             $table->string('work_status')->nullable()->comment('employed, unemployed, student, etc.')->after('experience_year');
             $table->string('phone_number')->nullable()->after('work_status');
             $table->string('address')->nullable()->after('phone_number');

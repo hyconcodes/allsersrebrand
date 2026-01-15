@@ -35,10 +35,15 @@ return [
         ],
     ],
 
-    'ai'=> [
+    'ai' => [
         'api_key' => env('API_KEY', ''),
         'model' => env('AI_MODEL', ''),
         'provider' => env('AI_PROVIDER', 'Groq'),
+    ],
+
+    'onesignal' => [
+        'app_id' => env('ONESIGNAL_APP_ID', 'aa90688c-3da5-47a5-8dc3-06fa7619fd25'),
+        'rest_api_key' => env('ONESIGNAL_REST_API_KEY'),
     ],
 
 ];
