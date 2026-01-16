@@ -264,18 +264,23 @@ new class extends Component {
                             }
                         });
                     }
-                }" x-init="checkSubscription()" class="flex items-center gap-4">
+                }" x-init="checkSubscription()"
+                    class="flex flex-col sm:flex-row sm:items-center gap-3">
                     <flux:button @click="subscribe()" icon="bell" variant="outline"
                         x-text="isSubscribed ? '{{ __('Notifications are active') }}' : '{{ __('Enable Browser Notifications') }}'"
-                        x-bind:class="isSubscribed ? '!bg-green-50 !text-green-700 !border-green-100' : ''"
+                        x-bind:class="isSubscribed ? '!bg-green-50 !text-green-700 !border-green-100 sm:w-auto w-full' :
+                            'sm:w-auto w-full'"
                         x-bind:disabled="isSubscribed">
                     </flux:button>
 
                     <template x-if="isSubscribed">
-                        <span class="text-xs text-green-600 font-medium flex items-center gap-1">
-                            <flux:icon name="check-circle" variant="solid" class="size-3" />
-                            {{ __('Active') }}
-                        </span>
+                        <div
+                            class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50/50 border border-green-100 sm:border-0 sm:bg-transparent">
+                            <flux:icon name="check-circle" variant="solid" class="size-4 text-green-600" />
+                            <span class="text-sm text-green-700 font-semibold uppercase tracking-tight">
+                                {{ __('Live') }}
+                            </span>
+                        </div>
                     </template>
                 </div>
             </div>

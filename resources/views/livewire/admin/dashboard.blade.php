@@ -23,6 +23,7 @@ new class extends Component {
     public $recentReports = [];
 
     public $postSearchQuery = '';
+    public $userSearchQuery = '';
 
     public function mount()
     {
@@ -45,8 +46,19 @@ new class extends Component {
                 ->get();
         }
 
+        $managedUsers = [];
+        if (strlen($this->userSearchQuery) >= 3) {
+            $managedUsers = User::where('name', 'like', '%' . $this->userSearchQuery . '%')
+                ->orWhere('username', 'like', '%' . $this->userSearchQuery . '%')
+                ->orWhere('email', 'like', '%' . $this->userSearchQuery . '%')
+                ->latest()
+                ->limit(10)
+                ->get();
+        }
+
         return [
             'managedPosts' => $posts,
+            'managedUsers' => $managedUsers,
         ];
     }
 
@@ -103,6 +115,16 @@ new class extends Component {
             ->latest()
             ->limit(5)
             ->get();
+    }
+
+    public function updateUserRole($userId, $newRole)
+    {
+        $user = User::findOrFail($userId);
+        $user->update(['role' => $newRole]);
+
+        $this->loadStats();
+        $this->loadChartData();
+        $this->dispatch('toast', type: 'success', title: 'Role Updated', message: "User {$user->name} is now a {$newRole}.");
     }
 
     public function deletePost($postId)
@@ -167,7 +189,13 @@ new class extends Component {
             :class="activeTab === 'posts' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' :
                 'text-zinc-500 hover:text-zinc-700'"
             class="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-            {{ __('Posts Management') }}
+            {{ __('Posts') }}
+        </button>
+        <button @click="activeTab = 'users'"
+            :class="activeTab === 'users' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' :
+                'text-zinc-500 hover:text-zinc-700'"
+            class="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+            {{ __('Users') }}
         </button>
     </div>
 
@@ -456,6 +484,81 @@ new class extends Component {
                             class="text-center py-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-3xl">
                             <p class="text-xs text-zinc-400 font-bold uppercase tracking-widest">
                                 {{ __('Enter at least 3 characters to search') }}</p>
+                        </div>
+                    @endif
+                @endforelse
+            </div>
+        </div>
+    </div>
+
+    <!-- User Management Tab -->
+    <div x-show="activeTab === 'users'" x-cloak class="space-y-6">
+        <div class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+            <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-6">
+                {{ __('Find & Manage Users') }}</h3>
+
+            <div class="max-w-md">
+                <flux:input wire:model.live.debounce.300ms="userSearchQuery" icon="magnifying-glass"
+                    placeholder="Search name, username or email..." />
+            </div>
+
+            <div class="mt-8 space-y-4">
+                @forelse($managedUsers as $user)
+                    <div
+                        class="p-6 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <div
+                                class="size-12 rounded-2xl overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
+                                @if ($user->profile_picture_url)
+                                    <img src="{{ $user->profile_picture_url }}" class="size-full object-cover">
+                                @else
+                                    <div
+                                        class="size-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700 text-sm font-black">
+                                        {{ $user->initials() }}</div>
+                                @endif
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-black text-zinc-900 dark:text-white flex items-center gap-2">
+                                    {{ $user->name }}
+                                    <span
+                                        class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest {{ $user->role === 'artisan' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600' }}">
+                                        {{ $user->role }}
+                                    </span>
+                                </p>
+                                <p class="text-xs text-zinc-500">@<span>{{ $user->username }}</span> •
+                                    {{ $user->email }}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            @if ($user->role === 'artisan')
+                                <flux:button wire:click="updateUserRole({{ $user->id }}, 'guest')"
+                                    variant="outline" size="sm"
+                                    class="font-black text-[10px] uppercase tracking-widest">
+                                    {{ __('Make Guest') }}
+                                </flux:button>
+                            @else
+                                <flux:button wire:click="updateUserRole({{ $user->id }}, 'artisan')"
+                                    variant="primary" size="sm"
+                                    class="font-black text-[10px] uppercase tracking-widest">
+                                    {{ __('Make Artisan') }}
+                                </flux:button>
+                            @endif
+                        </div>
+                    </div>
+                @empty
+                    @if (strlen($userSearchQuery) >= 3)
+                        <div class="text-center py-12">
+                            <flux:icon name="magnifying-glass"
+                                class="size-12 text-zinc-200 dark:text-zinc-800 mx-auto mb-4" />
+                            <p class="text-sm text-zinc-400">{{ __('No users found matching') }}
+                                "{{ $userSearchQuery }}"</p>
+                        </div>
+                    @else
+                        <div
+                            class="text-center py-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-3xl">
+                            <p class="text-xs text-zinc-400 font-bold uppercase tracking-widest">
+                                {{ __('Enter at least 3 characters to search users') }}</p>
                         </div>
                     @endif
                 @endforelse

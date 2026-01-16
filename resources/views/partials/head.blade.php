@@ -68,12 +68,14 @@
             });
 
             // Fetch the Subscription ID
-            const subscriptionId = OneSignal.User.PushSubscription.id;
+            const subscriptionId = await OneSignal.User.PushSubscription.id;
 
             if (subscriptionId) {
                 console.warn('OneSignal Subscription ID:', subscriptionId);
                 // The actual saving to database is handled by the livewire:onesignal-handler
                 // component which is already active and listening for this ID.
+            } else {
+                console.warn('No OneSignal Subscription ID available yet.');
             }
         } catch (error) {
             console.error('Error initializing OneSignal or retrieving Subscription ID:', error);

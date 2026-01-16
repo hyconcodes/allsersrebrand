@@ -42,7 +42,11 @@ class ServiceInquiry extends Notification
             $notifiable->onesignal_player_id,
             "New Service Inquiry!",
             $this->sender->name . " is interested in your services and sent you a ping!",
-            route('notifications')
+            route('notifications'),
+            [
+                'type' => 'inquiry',
+                'sender_id' => $this->sender->id,
+            ]
         );
     }
 

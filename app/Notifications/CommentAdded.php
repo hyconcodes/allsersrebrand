@@ -48,7 +48,12 @@ class CommentAdded extends Notification
             $notifiable->onesignal_player_id,
             "New Comment!",
             $this->commenter->name . " commented on your post",
-            route('posts.show', $this->post->post_id)
+            route('posts.show', $this->post->post_id),
+            [
+                'type' => 'comment',
+                'post_id' => $this->post->id,
+                'commenter_id' => $this->commenter->id,
+            ]
         );
     }
 

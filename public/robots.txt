@@ -1,2 +1,46 @@
+# Allsers - Robots.txt Configuration
+# Connect with verified artisans and service providers
+
+# Allow all search engines to crawl public content
 User-agent: *
-Disallow:
+Allow: /
+Allow: /artisan/*
+Allow: /posts/*
+
+# Disallow private and admin areas
+Disallow: /admin/
+Disallow: /settings/
+Disallow: /dashboard
+Disallow: /chat
+Disallow: /chat/*
+Disallow: /notifications
+Disallow: /bookmarks
+Disallow: /finder
+
+# Disallow authentication pages (no SEO value)
+Disallow: /login
+Disallow: /register
+Disallow: /password/
+Disallow: /two-factor-challenge
+Disallow: /user-profile-information
+Disallow: /user-password
+
+# Disallow API endpoints
+Disallow: /api/
+Disallow: /livewire/
+Disallow: /_ignition/
+
+# Disallow storage and assets that shouldn't be indexed
+Disallow: /storage/
+Disallow: /vendor/
+Disallow: /.well-known/
+
+# Allow specific public pages
+Allow: /privacy-policy
+Allow: /terms-of-service
+
+# Crawl delay (be respectful to server resources)
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://allsers.com/sitemap.xml

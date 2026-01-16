@@ -38,7 +38,12 @@ class NewMessage extends Notification
             $notifiable->onesignal_player_id,
             "New Message from $senderName",
             $content,
-            route('chat', $this->message->conversation_id)
+            route('chat', $this->message->conversation_id),
+            [
+                'type' => 'message',
+                'sender_id' => $this->message->user_id,
+                'conversation_id' => $this->message->conversation_id,
+            ]
         );
     }
 
