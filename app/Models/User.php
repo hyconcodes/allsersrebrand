@@ -89,7 +89,7 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getProfilePictureUrlAttribute(): ?string
     {
         return $this->profile_picture
-            ? asset('storage/' . $this->profile_picture)
+            ? route('images.show', ['path' => $this->profile_picture])
             : null;
     }
 
