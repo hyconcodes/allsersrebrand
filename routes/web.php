@@ -104,18 +104,8 @@ Route::get('/images/{path}', function ($path) {
 })->where('path', '.*')->name('images.show');
 
 // Storage route for production (fallback when symlink doesn't work)
-Route::get('/storage/{path}', function ($path) {
-    $filePath = storage_path('app/public/' . $path);
-
-    if (!file_exists($filePath)) {
-        abort(404);
-    }
-
-    // Determine MIME type
-    $mimeType = mime_content_type($filePath);
-
-    return response()->file($filePath, [
-        'Content-Type' => $mimeType,
-        'Cache-Control' => 'public, max-age=31536000',
-    ]);
-})->where('path', '.*')->name('storage.show');
+// Utility route to create storage symlink (useful for shared hosting)
+Route::get('/storage-link', function () {
+    Artisan::call('storage:link');
+    return 'Storage Linked successfully.';
+});
