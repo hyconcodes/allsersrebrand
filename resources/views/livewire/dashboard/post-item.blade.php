@@ -41,19 +41,16 @@ new class extends Component {
         $this->post->refresh();
     }
 
-    public function deletePost()
-    {
-        if ($this->post->user_id === auth()->id()) {
-            $this->post->delete();
-            $this->dispatch('post-deleted'); // Notify parent to refresh list
-            $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Post has been deleted.');
-        } else {
-            $this->dispatch('toast', type: 'error', title: 'Error', message: 'You cannot delete this post.');
-        }
-    }
     public function redirectToPost()
     {
         $this->redirect(route('posts.show', $this->post), navigate: true);
+    }
+
+    public function navigateToRepost()
+    {
+        if ($this->post->repostOf) {
+            $this->redirect(route('posts.show', $this->post->repostOf), navigate: true);
+        }
     }
 }; ?>
 
@@ -88,7 +85,7 @@ new class extends Component {
                             </div>
                         @else
                             <span
-                                class="bg-purple-100 text-[var(--color-brand-purple)] text-[8px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                class="bg-purple-100 text-[var(--color-brand-purple)] text-[8px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide truncate max-w-[100px] inline-block align-middle">
                                 {{ $post->user->work ?? __('Artisan') }}
                             </span>
                         @endif
@@ -102,15 +99,34 @@ new class extends Component {
                 </button>
 
                 <flux:menu>
-                    @if ($post->user_id === auth()->id())
-                        <flux:menu.item wire:click="deletePost"
-                            wire:confirm="{{ __('Are you sure you want to delete this post?') }}" icon="trash"
-                            variant="danger">{{ __('Delete') }}</flux:menu.item>
-                    @else
-                        <flux:menu.item wire:click="$parent.openReportModal({{ $post->id }})" icon="flag">
+                    @if ($post->user_id !== auth()->id())
+                        <flux:menu.item wire:click.stop="$parent.openReportModal({{ $post->id }})" icon="flag">
                             {{ __('Report') }}
                         </flux:menu.item>
                     @endif
+
+                    <flux:menu.item x-data="{
+                        copied: false,
+                        share() {
+                            const shareData = {
+                                title: 'Post by {{ $post->user->username }}',
+                                text: 'Check out this post on Allsers',
+                                url: '{{ route('posts.show', $post) }}'
+                            };
+                    
+                            if (navigator.share) {
+                                navigator.share(shareData).catch(console.error);
+                            } else {
+                                navigator.clipboard.writeText(shareData.url).then(() => {
+                                    this.copied = true;
+                                    setTimeout(() => this.copied = false, 2000);
+                                });
+                            }
+                        }
+                    }" @click.stop="share()" icon="share">
+                        <span x-show="!copied">{{ __('Share') }}</span>
+                        <span x-show="copied" class="text-green-500">{{ __('Link Copied!') }}</span>
+                    </flux:menu.item>
                 </flux:menu>
             </flux:dropdown>
         </div>
@@ -148,8 +164,7 @@ new class extends Component {
                         class="text-zinc-700 dark:text-zinc-300 mb-4 text-sm leading-relaxed whitespace-pre-line">
                         {!! $post->formatted_content !!}
                     </p>
-                    <button x-show="!expanded"
-                        @click.stop="$dispatch('open-post-detail', { postId: {{ $post->id }} })"
+                    <button x-show="!expanded" wire:click.stop="redirectToPost"
                         class="text-sm font-medium text-[var(--color-brand-purple)] hover:underline mb-4">{{ __('See More') }}</button>
                 </div>
             @else
@@ -196,7 +211,7 @@ new class extends Component {
 
         <!-- Original Post Preview (Repost) -->
         @if ($post->repostOf)
-            <div wire:click.stop="$dispatch('open-post-detail', { postId: {{ $post->repost_of_id }} })"
+            <div wire:click.stop="navigateToRepost"
                 class="mb-4 p-4 border border-zinc-100 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer ring-1 ring-transparent hover:ring-[var(--color-brand-purple)]/30">
                 <div class="flex items-center gap-2 mb-2">
                     <div
@@ -270,7 +285,7 @@ new class extends Component {
                 @endif
                 <span class="text-sm font-medium">{{ $post->likes_count ?? 0 }}</span>
             </button>
-            <button wire:click.stop="$dispatch('open-post-detail', { postId: {{ $post->id }} })"
+            <button wire:click.stop="redirectToPost"
                 class="flex items-center gap-1.5 text-zinc-500 hover:text-blue-500 transition-colors">
                 <flux:icon name="chat-bubble-left" class="size-5" />
                 <span class="text-sm font-medium">{{ $post->all_comments_count ?? 0 }}</span>
@@ -359,7 +374,7 @@ new class extends Component {
                             {{ htmlspecialchars_decode($post->comments->first()->content, ENT_QUOTES) }}
                         </p>
                     </div>
-                    <button wire:click.stop="$dispatch('open-post-detail', { postId: {{ $post->id }} })"
+                    <button wire:click.stop="redirectToPost"
                         class="text-[10px] font-bold text-[var(--color-brand-purple)] hover:underline mt-1 ml-1">
                         {{ __('See more') }}
                     </button>

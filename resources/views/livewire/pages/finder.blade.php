@@ -153,6 +153,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
         polyline: null,
         distanceLabel: null,
         mobileView: 'list',
+        selectedArtisan: @entangle('selectedArtisan'),
         userLat: @entangle('lat'),
         userLng: @entangle('lng'),
     
@@ -245,7 +246,12 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                     [aLat, aLng]
                 ]);
     
-                this.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+                this.map.fitBounds(bounds, {
+                    padding: [70, 70],
+                    maxZoom: 15,
+                    animate: true,
+                    duration: 1
+                });
             }, 200);
         }
     }" x-init="initMap();
@@ -340,7 +346,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                         </div>
 
                         <div class="flex flex-col sm:flex-row gap-2 hidden">
-                            <flux:button :href="route('artisan.profile', $selectedArtisan->username)" wire:navigate
+                            <flux:button :href="route('artisan.profile', $selectedArtisan)" wire:navigate
                                 variant="ghost" class="flex-1 rounded-xl">View Profile</flux:button>
 
                             <button wire:click="pingArtisan('{{ $selectedArtisan->id }}')" wire:loading.attr="disabled"
@@ -510,44 +516,47 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
         <div class="absolute bottom-24 lg:bottom-10 right-4 lg:right-10 z-20 pointer-events-none"
             x-show="selectedArtisan">
             <div
-                class="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md p-5 rounded-[2rem] shadow-2xl border border-white/20 pointer-events-auto w-72 lg:w-80 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div class="flex items-start gap-4 mb-5">
+                class="relative bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md p-4 rounded-3xl shadow-2xl border border-white/20 pointer-events-auto w-64 lg:w-72 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+                <!-- Close Button -->
+                <button @click.stop="selectedArtisan = null; $wire.selectedArtisan = null"
+                    class="absolute -top-2 -right-2 size-7 bg-white dark:bg-zinc-800 rounded-full shadow-lg border border-zinc-100 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors z-[100] pointer-events-auto">
+                    <flux:icon name="x-mark" class="size-4" />
+                </button>
+
+                <div class="flex items-start gap-3 mb-3">
                     <div
-                        class="size-14 lg:size-16 rounded-2xl overflow-hidden border-2 border-purple-500 shrink-0 shadow-lg bg-zinc-100 dark:bg-zinc-800">
+                        class="size-10 lg:size-12 rounded-xl overflow-hidden border-2 border-purple-500 shrink-0 shadow-lg bg-zinc-100 dark:bg-zinc-800">
                         <template x-if="selectedArtisan && selectedArtisan.profile_picture_url">
                             <img :src="selectedArtisan.profile_picture_url" class="size-full object-cover">
                         </template>
                         <template x-if="!selectedArtisan || !selectedArtisan.profile_picture_url">
-                            <div class="size-full flex items-center justify-center text-zinc-400 font-black text-lg">
+                            <div class="size-full flex items-center justify-center text-zinc-400 font-black text-xs">
                                 <span
                                     x-text="selectedArtisan ? selectedArtisan.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2) : ''"></span>
                             </div>
                         </template>
                     </div>
                     <div class="min-w-0 flex-1">
-                        <h3 class="font-black text-base lg:text-lg text-zinc-900 dark:text-white truncate"
+                        <h3 class="font-black text-sm lg:text-base text-zinc-900 dark:text-white truncate"
                             x-text="selectedArtisan ? selectedArtisan.name : ''"></h3>
-                        <p class="text-[10px] lg:text-xs font-black uppercase text-purple-600 tracking-wider"
+                        <p class="text-[9px] lg:text-[10px] font-black uppercase text-purple-600 tracking-wider"
                             x-text="selectedArtisan ? (selectedArtisan.work || 'Expert') : ''"></p>
-                        <div class="mt-1 flex items-center gap-1.5">
+                        <div class="mt-1 flex flex-wrap items-center gap-1">
                             <span
-                                class="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-500"
+                                class="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[8px] font-bold text-zinc-500"
                                 x-text="selectedArtisan ? (selectedArtisan.experience_year || '0') + 'Y Exp' : ''"></span>
                             <span
-                                class="px-2 py-0.5 rounded-full bg-purple-600/10 text-[10px] font-black text-purple-600"
+                                class="px-1.5 py-0.5 rounded-full bg-purple-600/10 text-[8px] font-black text-purple-600"
                                 x-text="selectedArtisan ? selectedArtisan.distance + ' away' : ''"></span>
-                            <template x-if="selectedArtisan && selectedArtisan.is_premium">
-                                <span
-                                    class="px-2 py-0.5 rounded-full bg-yellow-500/10 text-[10px] font-black text-yellow-500">Premium</span>
-                            </template>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex flex-col gap-2">
+                <div class="flex flex-col gap-1.5">
                     <button wire:click="pingArtisan(selectedArtisan.id)" wire:loading.attr="disabled"
                         wire:target="pingArtisan"
-                        class="block w-full py-3.5 text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group shadow-lg"
+                        class="block w-full py-2 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group shadow-lg"
                         :disabled="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)"
                         :class="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id) ?
                             'bg-green-500 shadow-green-500/20' :
@@ -556,10 +565,10 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                         {{-- Loading Spinner (Native Livewire) --}}
                         <div wire:loading wire:target="pingArtisan">
                             <div class="flex items-center gap-2">
-                                <div class="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin">
+                                <div class="size-3 border-2 border-white/30 border-t-white rounded-full animate-spin">
                                 </div>
                                 <span
-                                    class="text-xs uppercase tracking-widest leading-none">{{ __('Sending...') }}</span>
+                                    class="text-[10px] uppercase tracking-widest leading-none">{{ __('Sending...') }}</span>
                             </div>
                         </div>
 
@@ -568,9 +577,9 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                             {{-- Sent State --}}
                             <template x-if="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)">
                                 <div class="flex items-center gap-2">
-                                    <flux:icon name="check" class="size-4" />
+                                    <flux:icon name="check" class="size-3.5" />
                                     <span
-                                        class="text-xs uppercase tracking-widest leading-none">{{ __('Ping Sent!') }}</span>
+                                        class="text-[10px] uppercase tracking-widest leading-none">{{ __('Ping Sent!') }}</span>
                                 </div>
                             </template>
 
@@ -578,16 +587,16 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                             <template x-if="selectedArtisan && !$wire.sentPings.includes(selectedArtisan.id)">
                                 <div class="flex items-center gap-2">
                                     <flux:icon name="chat-bubble-left-right"
-                                        class="size-4 transition-transform group-hover:scale-110" />
+                                        class="size-3.5 transition-transform group-hover:scale-110" />
                                     <span
-                                        class="text-xs uppercase tracking-widest leading-none">{{ __('Ping Now') }}</span>
+                                        class="text-[10px] uppercase tracking-widest leading-none">{{ __('Ping Now') }}</span>
                                 </div>
                             </template>
                         </div>
                     </button>
 
                     <button @click="mobileView = 'list'"
-                        class="lg:hidden text-[10px] font-black uppercase text-zinc-400 tracking-widest py-2 hover:text-zinc-600 transition-colors">
+                        class="lg:hidden text-[9px] font-black uppercase text-zinc-400 tracking-widest py-1 hover:text-zinc-600 transition-colors">
                         Back to List
                     </button>
                 </div>

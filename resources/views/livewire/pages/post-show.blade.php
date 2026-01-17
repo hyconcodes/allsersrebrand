@@ -159,6 +159,30 @@ new class extends Component {
         $this->showReportModal = false;
         $this->dispatch('toast', type: 'success', title: 'Report Submitted', message: 'Thank you for reporting. We will review this post.');
     }
+
+    public function deleteComment($commentId)
+    {
+        if (!auth()->check()) {
+            return;
+        }
+
+        $comment = Comment::find($commentId);
+        if ($comment && $comment->user_id === auth()->id()) {
+            $comment->delete();
+            $this->mount($this->post);
+            $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Comment deleted.');
+        }
+    }
+
+    public function sendQuickComment($emoji)
+    {
+        if (!auth()->check()) {
+            return redirect()->route('login');
+        }
+
+        $this->commentContent = $emoji;
+        $this->addComment();
+    }
     public function rendering(\Illuminate\View\View $view)
     {
         $title = $this->post->user->name . ' on Allsers: "' . Str::limit($this->post->content, 50) . '"';
@@ -198,7 +222,8 @@ new class extends Component {
 
 
 <div>
-    <div class="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div class="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        <livewire:dashboard.navigation />
         <div
             class="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 relative">
             <!-- Original Post -->
@@ -243,11 +268,11 @@ new class extends Component {
                         <flux:menu>
                             @auth
                                 @if ($post->user_id === auth()->id())
-                                    <flux:menu.item wire:click="deletePost"
+                                    <flux:menu.item wire:click.stop="deletePost"
                                         wire:confirm="{{ __('Are you sure you want to delete this post?') }}"
                                         icon="trash" variant="danger">{{ __('Delete') }}</flux:menu.item>
                                 @else
-                                    <flux:menu.item wire:click="openReportModal" icon="flag">{{ __('Report') }}
+                                    <flux:menu.item wire:click.stop="openReportModal" icon="flag">{{ __('Report') }}
                                     </flux:menu.item>
                                 @endif
                             @endauth
@@ -480,6 +505,13 @@ new class extends Component {
                                         class="text-[10px] font-bold text-[var(--color-brand-purple)] hover:underline">
                                         {{ __('Reply') }}
                                     </button>
+                                    @if (auth()->id() === $comment->user_id)
+                                        <button wire:click="deleteComment({{ $comment->id }})"
+                                            wire:confirm="{{ __('Delete comment?') }}"
+                                            class="text-[10px] font-bold text-red-500 hover:underline ml-3">
+                                            {{ __('Delete') }}
+                                        </button>
+                                    @endif
                                 @endif
 
                                 <!-- Replies -->
@@ -506,6 +538,13 @@ new class extends Component {
                                                     <p class="text-xs text-zinc-600 dark:text-zinc-400">
                                                         {{ htmlspecialchars_decode($reply->content, ENT_QUOTES) }}
                                                     </p>
+                                                    @if (auth()->id() === $reply->user_id)
+                                                        <button wire:click="deleteComment({{ $reply->id }})"
+                                                            wire:confirm="{{ __('Delete reply?') }}"
+                                                            class="text-[8px] font-bold text-red-500 hover:underline">
+                                                            {{ __('Delete') }}
+                                                        </button>
+                                                    @endif
                                                 </div>
                                             </div>
                                         @endforeach
@@ -548,32 +587,28 @@ new class extends Component {
                             {{ auth()->user()->initials() }}
                         @endif
                     </div>
-                    <div class="flex-1 relative" x-data="{
-                        insertEmoji(emoji) {
-                            const el = $wire.$el.querySelector('input[type=text]');
-                            const start = el.selectionStart;
-                            const end = el.selectionEnd;
-                            const text = $wire.commentContent;
-                            $wire.commentContent = text.substring(0, start) + emoji + text.substring(end);
-                            el.focus();
-                            setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
-                        }
-                    }">
-                        <input wire:model="commentContent" type="text" placeholder="{{ __('Write a comment...') }}"
-                            class="w-full bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 rounded-full pl-4 pr-20 py-2 text-sm focus:ring-1 focus:ring-[var(--color-brand-purple)] focus:border-[var(--color-brand-purple)]"
-                            wire:keydown.enter="addComment">
-
-                        <div class="absolute right-10 top-2 flex items-center gap-1">
-                            @foreach (['🔥', '👍', '❤️'] as $emoji)
-                                <button type="button" @click="insertEmoji('{{ $emoji }}')"
-                                    class="hover:scale-125 transition-transform text-xs p-1">{{ $emoji }}</button>
+                    <div class="flex-1 relative">
+                        <!-- Quick Reaction Emojis -->
+                        <div class="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
+                            @foreach (['🔥', '❤️', '👍', '😮', '😢', '😡'] as $emoji)
+                                <button wire:click="sendQuickComment('{{ $emoji }}')"
+                                    class="size-10 text-2xl hover:scale-125 transition-transform bg-zinc-50 dark:bg-zinc-800 rounded-full flex items-center justify-center cursor-pointer shrink-0 shadow-sm border border-zinc-100 dark:border-zinc-700">
+                                    {{ $emoji }}
+                                </button>
                             @endforeach
                         </div>
 
-                        <button wire:click="addComment"
-                            class="absolute right-2 top-1.5 text-[var(--color-brand-purple)] hover:scale-110 transition-transform p-1">
-                            <flux:icon name="paper-airplane" class="size-4" />
-                        </button>
+                        <!-- Comment Textarea Area -->
+                        <div class="relative">
+                            <textarea wire:model="commentContent" placeholder="{{ __('Write a comment...') }}" rows="1"
+                                class="w-full bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 rounded-2xl pl-4 pr-12 py-3 text-sm focus:ring-1 focus:ring-[var(--color-brand-purple)] focus:border-[var(--color-brand-purple)] resize-none min-h-[46px] scrollbar-hide"
+                                wire:keydown.enter.prevent="addComment"></textarea>
+
+                            <button wire:click="addComment"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-brand-purple)] hover:scale-110 transition-transform p-1">
+                                <flux:icon name="paper-airplane" class="size-5" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             @else

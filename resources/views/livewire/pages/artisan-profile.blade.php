@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Models\Post;
 use App\Models\Conversation;
 use Livewire\Volt\Component;
+use Livewire\Attributes\On;
 use function Livewire\Volt\layout;
 
 layout('components.layouts.app');
@@ -24,19 +25,13 @@ new class extends Component {
             'metaTitle' => $title,
             'metaDescription' => $description,
             'metaImage' => $image,
-            'metaUrl' => route('artisan.profile', $this->user->username ?? $this->user->id),
+            'metaUrl' => route('artisan.profile', $this->user),
         ]);
     }
 
-    public function mount($user)
+    public function mount(User $user)
     {
-        // If $user is a string/ID, find it manually
-        if (!($user instanceof User)) {
-            $this->user = User::where('username', $user)->orWhere('id', $user)->firstOrFail();
-        } else {
-            $this->user = $user;
-        }
-
+        $this->user = $user;
         $this->loadPosts();
     }
 
@@ -59,6 +54,12 @@ new class extends Component {
             ->withCount(['likes', 'allComments'])
             ->latest()
             ->get();
+    }
+
+    #[On('post-deleted')]
+    public function refreshProfile()
+    {
+        $this->loadPosts();
     }
 
     public function startConversation()
@@ -90,18 +91,18 @@ new class extends Component {
 @push('head')
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ route('artisan.profile', $user->username ?? $user->id) }}">
+    <meta property="og:url" content="{{ route('artisan.profile', $user) }}">
     <meta property="og:title"
-        content="{{ $user->name }} (@{{ $user - > username ?? $user - > id }}) | {{ $user->work ?? 'Artisan' }} on Allsers">
+        content="{{ $user->name }} ({{ $user->username ?? $user->id }}) | {{ $user->work ?? 'Artisan' }} on Allsers">
     <meta property="og:description"
         content="{{ $user->bio ?? 'Explore the portfolio and services of ' . $user->name . ' on Allsers.' }}">
     <meta property="og:image" content="{{ $user->profile_picture_url ?? asset('assets/allsers.png') }}">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="{{ route('artisan.profile', $user->username ?? $user->id) }}">
+    <meta property="twitter:url" content="{{ route('artisan.profile', $user) }}">
     <meta property="twitter:title"
-        content="{{ $user->name }} (@{{ $user - > username ?? $user - > id }}) | {{ $user->work ?? 'Artisan' }} on Allsers">
+        content="{{ $user->name }} ({{ $user->username ?? $user->id }}) | {{ $user->work ?? 'Artisan' }} on Allsers">
     <meta property="twitter:description"
         content="{{ $user->bio ?? 'Explore the portfolio and services of ' . $user->name . ' on Allsers.' }}">
     <meta property="twitter:image" content="{{ $user->profile_picture_url ?? asset('assets/allsers.png') }}">

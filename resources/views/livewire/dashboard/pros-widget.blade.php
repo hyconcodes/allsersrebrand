@@ -10,6 +10,8 @@ new class extends Component {
     public $longitude;
     public $locationName = '';
     public $inFeed = false;
+    public $limit = 16;
+    public $isWelcome = false;
 
     public function mount()
     {
@@ -43,7 +45,7 @@ new class extends Component {
 
     public function loadPros()
     {
-        // Fetch 3 closest top-rated artisans
+        // Fetch closest top-rated artisans
         $this->artisans = User::where('role', 'artisan')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
@@ -52,9 +54,8 @@ new class extends Component {
             ->select('users.*')
             ->withAvg('reviews', 'rating')
             ->selectRaw('(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance', [$this->latitude, $this->longitude, $this->latitude])
-            // ->whereIn('work_status', ['available', 'at_work']) // Instant value: Available now
             ->orderBy('distance')
-            ->limit(20) // Fetch more candidates to allow for filtering
+            ->limit(50) // Fetch more candidates to allow for filtering
             ->get();
 
         // Filter out incomplete profiles
@@ -62,7 +63,7 @@ new class extends Component {
             ->filter(function ($artisan) {
                 return $artisan->profileCompletion()['is_complete'];
             })
-            ->take(3); // Take top 3 after filtering
+            ->take($this->limit); // Use configurable limit
     }
 }; ?>
 <div>
@@ -71,18 +72,19 @@ new class extends Component {
         <div class="relative my-6 lg:my-8 group/scroll">
             {{-- Header --}}
             <div class="flex items-center justify-between px-1 mb-4">
-                <h3 class="font-black text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+                <h3
+                    class="font-black text-[10px] uppercase tracking-[0.2em] {{ $isWelcome ? 'text-zinc-600 dark:text-zinc-400' : 'text-zinc-400' }}">
                     {{ __('Near you') }}
                 </h3>
                 <div class="flex gap-2">
                     {{-- Scroll Indicators (Desktop) --}}
                     <button
-                        class="hidden lg:flex items-center justify-center size-6 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-400 transition-colors"
+                        class="hidden lg:flex items-center justify-center size-6 rounded-full {{ $isWelcome ? 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 shadow-sm' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400' }} hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                         onclick="document.getElementById('pros-scroll-container').scrollBy({left: -280, behavior: 'smooth'})">
                         <flux:icon name="chevron-left" class="size-3" />
                     </button>
                     <button
-                        class="hidden lg:flex items-center justify-center size-6 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-400 transition-colors"
+                        class="hidden lg:flex items-center justify-center size-6 rounded-full {{ $isWelcome ? 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 shadow-sm' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400' }} hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                         onclick="document.getElementById('pros-scroll-container').scrollBy({left: 280, behavior: 'smooth'})">
                         <flux:icon name="chevron-right" class="size-3" />
                     </button>
@@ -115,7 +117,7 @@ new class extends Component {
                         $gradient = $gradients[$loop->index % count($gradients)];
                     @endphp
 
-                    <a href="{{ route('artisan.profile', $pro->username) }}" wire:navigate
+                    <a href="{{ route('artisan.profile', $pro) }}" wire:navigate
                         class="relative flex-none w-[220px] sm:w-[260px] aspect-[4/3] rounded-3xl overflow-hidden snap-center group shadow-xl hover:shadow-2xl transition-all duration-300 ring-1 ring-white/10">
                         <!-- Background Image (or Gradient) -->
                         <div class="absolute inset-0 bg-gradient-to-br {{ $gradient }}">
@@ -133,14 +135,14 @@ new class extends Component {
                                     <span
                                         class="text-[8px] font-black text-white tracking-widest uppercase flex items-center gap-1">
                                         <flux:icon name="sparkles" variant="solid" class="size-3 text-yellow-300" />
-                                        {{ $pro->work ?: 'Expert' }}
+                                        {{ Str::limit($pro->work ?: 'Expert', 12) }}
                                     </span>
                                 </div>
                             </div>
 
                             <div>
                                 <h4
-                                    class="text-lg font-black text-white mb-1 group-hover:translate-x-1 transition-transform tracking-tight leading-tight">
+                                    class="text-base font-black text-white mb-1 group-hover:translate-x-1 transition-transform tracking-tight leading-tight truncate">
                                     {{ $heading }}
                                 </h4>
                                 <p class="text-[10px] text-white/70 font-medium mb-4 flex items-center gap-1">
@@ -153,8 +155,7 @@ new class extends Component {
                                         <div
                                             class="size-8 rounded-full border border-white/20 bg-black/50 overflow-hidden backdrop-blur-sm">
                                             @if ($pro->profile_picture_url)
-                                                <img src="{{ $pro->profile_picture_url }}"
-                                                    class="size-full object-cover">
+                                                <img src="{{ $pro->profile_picture_url }}" class="size-full object-cover">
                                             @else
                                                 <div
                                                     class="size-full flex items-center justify-center text-[10px] font-black text-white">
@@ -162,12 +163,11 @@ new class extends Component {
                                                 </div>
                                             @endif
                                         </div>
-                                        <div class="flex flex-col">
+                                        <div class="flex flex-col min-w-0">
                                             <span
-                                                class="text-[10px] font-bold text-white leading-none">{{ $pro->name }}</span>
+                                                class="text-[10px] font-bold text-white leading-none truncate">{{ $pro->name }}</span>
                                             <div class="flex items-center gap-1 mt-0.5">
-                                                <flux:icon name="star" variant="solid"
-                                                    class="size-3 text-yellow-500" />
+                                                <flux:icon name="star" variant="solid" class="size-3 text-yellow-500" />
                                                 <span class="text-[9px] font-bold text-white">
                                                     {{ $pro->reviews_avg_rating ? number_format($pro->reviews_avg_rating, 1) : 'New' }}
                                                 </span>
@@ -266,7 +266,7 @@ new class extends Component {
                             <h4 class="font-bold text-sm text-zinc-900 dark:text-zinc-100 truncate">{{ $pro->name }}
                             </h4>
                             <p class="text-[11px] text-zinc-500 dark:text-zinc-400 truncate flex items-center gap-1.5">
-                                <span class="font-bold">{{ $pro->work ?: 'Professional' }}</span>
+                                <span class="font-bold truncate">{{ $pro->work ?: 'Professional' }}</span>
                                 <span class="size-0.5 bg-zinc-300 rounded-full"></span>
                                 <span class="flex items-center gap-0.5">
                                     <flux:icon name="star" variant="solid" class="size-3 text-yellow-500" />
@@ -277,7 +277,7 @@ new class extends Component {
                             </p>
                         </div>
 
-                        <a href="{{ route('artisan.profile', $pro->username) }}" wire:navigate
+                        <a href="{{ route('artisan.profile', $pro) }}" wire:navigate
                             class="shrink-0 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-lg hover:scale-105 active:scale-95 transition-all">
                             {{ __('Hire') }}
                         </a>

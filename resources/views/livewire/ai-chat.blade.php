@@ -375,7 +375,12 @@ new class extends Component {
                 [artisanLat, artisanLng]
             ]);
 
-            this.map.fitBounds(bounds, { padding: [50, 50] });
+            this.map.fitBounds(bounds, {
+                padding: [70, 70],
+                maxZoom: 15,
+                animate: true,
+                duration: 1
+            });
 
             // Critical: Force Leaflet to recalculate container size again after a short delay
             setTimeout(() => {
@@ -389,8 +394,7 @@ new class extends Component {
     <!-- Map Modal -->
     <div x-show="showMap" x-transition.opacity.duration.300ms
         class="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-zinc-900/80 backdrop-blur-md"
-        @keydown.escape.window="showMap = false" x-init="$watch('showMap', value => { if (value) initMap() })"
-        style="display: none;">
+        @keydown.escape.window="showMap = false" x-init="$watch('showMap', value => { if (value) initMap() })" style="display: none;">
         <div class="bg-white dark:bg-zinc-900 w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[85vh] border border-white/20 relative"
             @click.away="showMap = false">
 
@@ -424,34 +428,41 @@ new class extends Component {
                 </div>
 
                 <!-- Artisan Card (Bottom Right) -->
-                <div class="absolute bottom-10 right-10 z-20 pointer-events-none">
+                <div class="absolute bottom-10 right-10 z-20 pointer-events-none" x-show="selectedArtisan">
                     <div
-                        class="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] shadow-2xl border border-white/20 pointer-events-auto w-80 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div class="flex items-start gap-4 mb-5">
+                        class="relative bg-white dark:bg-zinc-900 p-4 rounded-3xl shadow-2xl border border-white/20 pointer-events-auto w-64 lg:w-72 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+                        <!-- Close Button -->
+                        <button @click.stop="selectedArtisan = null"
+                            class="absolute -top-2 -right-2 size-7 bg-white dark:bg-zinc-800 rounded-full shadow-lg border border-zinc-100 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors z-30">
+                            <flux:icon name="x-mark" class="size-4" />
+                        </button>
+
+                        <div class="flex items-start gap-3 mb-3">
                             <div
-                                class="size-14 lg:size-16 rounded-2xl overflow-hidden border-2 border-[var(--color-brand-purple)] shrink-0 shadow-lg bg-zinc-100 dark:bg-zinc-800">
+                                class="size-10 lg:size-12 rounded-xl overflow-hidden border-2 border-[var(--color-brand-purple)] shrink-0 shadow-lg bg-zinc-100 dark:bg-zinc-800">
                                 <template x-if="selectedArtisan && selectedArtisan.profile_picture">
                                     <img :src="selectedArtisan.profile_picture" class="size-full object-cover">
                                 </template>
                                 <template x-if="!selectedArtisan || !selectedArtisan.profile_picture">
                                     <div
-                                        class="size-full flex items-center justify-center text-zinc-400 font-black text-lg">
+                                        class="size-full flex items-center justify-center text-zinc-400 font-black text-xs">
                                         <span
                                             x-text="selectedArtisan ? selectedArtisan.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2) : ''"></span>
                                     </div>
                                 </template>
                             </div>
-                            <div class="min-w-0" x-show="selectedArtisan">
-                                <h3 class="font-black text-base lg:text-lg text-zinc-900 dark:text-white truncate"
+                            <div class="min-w-0 flex-1">
+                                <h3 class="font-black text-sm lg:text-base text-zinc-900 dark:text-white truncate"
                                     x-text="selectedArtisan.name"></h3>
-                                <p class="text-[10px] lg:text-xs font-black uppercase text-[var(--color-brand-purple)] tracking-wider"
+                                <p class="text-[9px] lg:text-[10px] font-black uppercase text-[var(--color-brand-purple)] tracking-wider"
                                     x-text="selectedArtisan.work"></p>
-                                <div class="mt-1 flex items-center gap-1.5">
+                                <div class="mt-1 flex flex-wrap items-center gap-1">
                                     <span
-                                        class="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-500"
+                                        class="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[8px] font-bold text-zinc-500"
                                         x-text="selectedArtisan.experience"></span>
                                     <span
-                                        class="px-2 py-0.5 rounded-full bg-[var(--color-brand-purple)]/10 text-[10px] font-black text-[var(--color-brand-purple)]"
+                                        class="px-1.5 py-0.5 rounded-full bg-[var(--color-brand-purple)]/10 text-[8px] font-black text-[var(--color-brand-purple)]"
                                         x-text="selectedArtisan.distance + ' away'"></span>
                                 </div>
                             </div>
@@ -459,8 +470,9 @@ new class extends Component {
 
                         <button wire:click="pingArtisan(selectedArtisan.id)" wire:loading.attr="disabled"
                             wire:target="pingArtisan"
-                            class="block w-full py-4 text-white font-black rounded-2xl hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group px-6"
-                            :disabled="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)" :class="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id) ?
+                            class="block w-full py-2 text-white text-xs font-black rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group px-6"
+                            :disabled="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)"
+                            :class="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id) ?
                                 'bg-green-500 shadow-lg shadow-green-500/30' :
                                 'bg-[var(--color-brand-purple)] shadow-lg shadow-purple-500/30 hover:scale-[1.02]'">
 
@@ -468,9 +480,10 @@ new class extends Component {
                             <div wire:loading wire:target="pingArtisan">
                                 <div class="flex items-center gap-2">
                                     <div
-                                        class="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin">
+                                        class="size-3 border-2 border-white/30 border-t-white rounded-full animate-spin">
                                     </div>
-                                    <span class="text-xs uppercase tracking-widest">{{ __('Sending...') }}</span>
+                                    <span
+                                        class="text-[10px] uppercase tracking-widest leading-none">{{ __('Sending...') }}</span>
                                 </div>
                             </div>
 
@@ -479,8 +492,9 @@ new class extends Component {
                                 {{-- Sent State --}}
                                 <template x-if="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)">
                                     <div class="flex items-center gap-2">
-                                        <flux:icon name="check" class="size-4" />
-                                        <span class="text-xs uppercase tracking-widest">{{ __('Ping Sent!') }}</span>
+                                        <flux:icon name="check" class="size-3.5" />
+                                        <span
+                                            class="text-[10px] uppercase tracking-widest leading-none">{{ __('Ping Sent!') }}</span>
                                     </div>
                                 </template>
 
@@ -488,8 +502,9 @@ new class extends Component {
                                 <template x-if="selectedArtisan && !$wire.sentPings.includes(selectedArtisan.id)">
                                     <div class="flex items-center gap-2">
                                         <flux:icon name="chat-bubble-left-right"
-                                            class="size-4 transition-transform group-hover:scale-110" />
-                                        <span class="text-xs uppercase tracking-widest">{{ __('Ping Now') }}</span>
+                                            class="size-3.5 transition-transform group-hover:scale-110" />
+                                        <span
+                                            class="text-[10px] uppercase tracking-widest leading-none">{{ __('Ping Now') }}</span>
                                     </div>
                                 </template>
                             </div>
@@ -501,8 +516,8 @@ new class extends Component {
     </div>
 
     <!-- Chat Box -->
-    <div x-show="open" x-cloak @if (!$fullPage)
-        x-transition:enter="transition ease-out duration-300 transform opacity-0 translate-y-4"
+    <div x-show="open" x-cloak
+        @if (!$fullPage) x-transition:enter="transition ease-out duration-300 transform opacity-0 translate-y-4"
         x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
         x-transition:leave="transition ease-in duration-200 transform opacity-100 translate-y-0"
     x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-4" @endif
@@ -536,7 +551,8 @@ new class extends Component {
         </div>
 
         <!-- Messages -->
-        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50 dark:bg-zinc-900/50" x-init="$watch('messages', () => { $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50 dark:bg-zinc-900/50"
+            x-init="$watch('messages', () => { $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });
             $watch('open', (value) => { if (value) $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });"
             x-on:scroll-to-bottom.window="$nextTick(() => { $el.scrollTop = $el.scrollHeight })">
             @foreach ($messages as $message)
@@ -558,11 +574,14 @@ new class extends Component {
                                     @foreach ($message['artisans'] as $artisan)
                                         <div
                                             class="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 flex gap-3 shadow-sm hover:border-[var(--color-brand-purple)] transition-colors">
-                                            <div class="size-12 rounded-lg bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0">
+                                            <div
+                                                class="size-12 rounded-lg bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0">
                                                 @if ($artisan['profile_picture'])
-                                                    <img src="{{ $artisan['profile_picture'] }}" class="size-full object-cover">
+                                                    <img src="{{ $artisan['profile_picture'] }}"
+                                                        class="size-full object-cover">
                                                 @else
-                                                    <div class="size-full flex items-center justify-center text-zinc-400">
+                                                    <div
+                                                        class="size-full flex items-center justify-center text-zinc-400">
                                                         <flux:icon name="user" class="size-6" />
                                                     </div>
                                                 @endif
@@ -580,7 +599,8 @@ new class extends Component {
                                                         {{ $artisan['experience'] }}
                                                     </span>
                                                 </div>
-                                                <button @click="selectedArtisan = {{ json_encode($artisan) }}; showMap = true"
+                                                <button
+                                                    @click="selectedArtisan = {{ json_encode($artisan) }}; showMap = true"
                                                     class="mt-2 block w-full text-center py-2 bg-[var(--color-brand-purple)] text-white text-[11px] font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/20 transition-all">
                                                     {{ __('View on Map') }}
                                                 </button>
@@ -872,7 +892,8 @@ new class extends Component {
                             </div>
                         @endforeach
                         @foreach ($completion['missing'] as $item)
-                            <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
+                            <div
+                                class="flex items-center gap-2 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                                 <div class="size-3.5 border-2 border-zinc-200 dark:border-zinc-600 rounded-full"></div>
                                 <span
                                     class="text-[11px] font-medium text-zinc-800 dark:text-zinc-200">{{ $item['label'] }}</span>
@@ -914,10 +935,11 @@ new class extends Component {
             @if ($completion && !$completion['is_complete'])
                 <div class="relative size-10 group/stat" @click.stop="checklist = !checklist">
                     <svg class="size-full -rotate-90" viewBox="0 0 36 36">
-                        <circle cx="18" cy="18" r="16" fill="none" class="stroke-zinc-100 dark:stroke-zinc-800"
-                            stroke-width="3"></circle>
-                        <circle cx="18" cy="18" r="16" fill="none" class="stroke-green-500" stroke-width="3"
-                            stroke-dasharray="{{ ($completion['percentage'] / 100) * 100 }}, 100" stroke-linecap="round">
+                        <circle cx="18" cy="18" r="16" fill="none"
+                            class="stroke-zinc-100 dark:stroke-zinc-800" stroke-width="3"></circle>
+                        <circle cx="18" cy="18" r="16" fill="none" class="stroke-green-500"
+                            stroke-width="3" stroke-dasharray="{{ ($completion['percentage'] / 100) * 100 }}, 100"
+                            stroke-linecap="round">
                         </circle>
                     </svg>
                     <div

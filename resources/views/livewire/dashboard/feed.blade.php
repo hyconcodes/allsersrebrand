@@ -5,6 +5,7 @@ use App\Models\User;
 use App\Notifications\UserTagged;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Attributes\Validate;
 
@@ -104,6 +105,10 @@ new class extends Component {
                 ->join('users', 'posts.user_id', '=', 'users.id')
                 ->select('posts.*')
                 ->selectRaw('(6371 * acos(cos(radians(?)) * cos(radians(users.latitude)) * cos(radians(users.longitude) - radians(?)) + sin(radians(?)) * sin(radians(users.latitude)))) AS distance', [$lat, $lng, $lat])
+                ->where('posts.user_id', '!=', auth()->id())
+                ->whereIn('posts.id', function ($q) {
+                    $q->selectRaw('max(id)')->from('posts')->groupBy('user_id');
+                })
                 ->whereNotNull('users.latitude')
                 ->orderBy('distance', 'asc')
                 ->orderBy('posts.created_at', 'desc')
@@ -142,11 +147,17 @@ new class extends Component {
 
     public function checkNewPosts()
     {
-        if (!$this->latestPostId) return;
-        
-        // Simple polling: check for any newer posts.
-        // For 'local', strictly speaking we should check distance, but ID check is a good enough signal for activity.
-        $this->newPostsCount = Post::where('id', '>', $this->latestPostId)->count();
+        if (!$this->latestPostId) {
+            return;
+        }
+
+        $query = Post::where('id', '>', $this->latestPostId);
+
+        if ($this->tab === 'local') {
+            $query->where('user_id', '!=', auth()->id());
+        }
+
+        $this->newPostsCount = $query->count();
     }
 
     public function loadNewPosts()
@@ -363,11 +374,11 @@ new class extends Component {
     <livewire:dashboard.navigation />
 
     @if ($newPostsCount > 0)
-        <div class="flex justify-center -mt-4 mb-2">
+        <div class="fixed top-20 md:top-24 left-1/2 -translate-x-1/2 z-40">
             <button wire:click="loadNewPosts"
-                class="px-4 py-2 bg-[var(--color-brand-purple)] text-white text-xs font-bold uppercase tracking-widest rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 animate-in slide-in-from-top-4 fade-in duration-300 transform">
-                <flux:icon name="arrow-up" class="size-4" />
-                <span>Show {{ $newPostsCount }} New Posts</span>
+                class="px-3 py-1.5 bg-[var(--color-brand-purple)] text-white text-[10px] md:text-xs font-black uppercase tracking-widest rounded-full shadow-xl shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 animate-in slide-in-from-top-4 fade-in duration-300">
+                <flux:icon name="arrow-up" class="size-3 md:size-4" />
+                <span>{{ $newPostsCount }} New</span>
             </button>
         </div>
     @endif
@@ -391,16 +402,16 @@ new class extends Component {
                         </div>
                     </div>
                     <div class="flex-1 min-w-0 space-y-2" x-data="{
-                                insertEmoji(emoji) {
-                                    const el = $wire.$el.querySelector('textarea');
-                                    const start = el.selectionStart;
-                                    const end = el.selectionEnd;
-                                    const text = $wire.content;
-                                    $wire.content = text.substring(0, start) + emoji + text.substring(end);
-                                    el.focus();
-                                    setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
-                                }
-                            }">
+                                    insertEmoji(emoji) {
+                                        const el = $wire.$el.querySelector('textarea');
+                                        const start = el.selectionStart;
+                                        const end = el.selectionEnd;
+                                        const text = $wire.content;
+                                        $wire.content = text.substring(0, start) + emoji + text.substring(end);
+                                        el.focus();
+                                        setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
+                                    }
+                                }">
                         <textarea wire:model="content" placeholder="{{ __('Share your work...') }}"
                             class="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-3 py-2 text-xs md:text-sm focus:ring-2 focus:ring-[var(--color-brand-purple)]/20 transition-all resize-none"
                             rows="2"></textarea>
@@ -493,9 +504,9 @@ new class extends Component {
                             </div>
                             <button type="submit"
                                 class="bg-[var(--color-brand-purple)] text-white px-4 py-1.5 rounded-full text-xs md:text-sm font-bold hover:bg-[var(--color-brand-purple)]/90 transition-colors shadow-lg shadow-purple-500/20 disabled:opacity-50"
-                                wire:loading.attr="disabled">
-                                <span wire:loading.remove>{{ __('Post') }}</span>
-                                <span wire:loading>{{ __('Posting...') }}</span>
+                                wire:loading.attr="disabled" wire:target="createPost">
+                                <span wire:loading.remove wire:target="createPost">{{ __('Post') }}</span>
+                                <span wire:loading wire:target="createPost">{{ __('Posting...') }}</span>
                             </button>
                         </div>
 
@@ -677,6 +688,4 @@ new class extends Component {
         </div>
     </flux:modal>
 
-    <!-- Post Detail Drawer -->
-    <livewire:dashboard.post-detail />
 </div>
