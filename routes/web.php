@@ -15,6 +15,10 @@ Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
+Route::view('menu', 'menu')
+    ->middleware(['auth', 'verified'])
+    ->name('menu');
+
 Route::view('bookmarks', 'bookmarks')
     ->middleware(['auth', 'verified'])
     ->name('bookmarks');
@@ -26,6 +30,7 @@ Route::view('notifications', 'notifications')
 Volt::route('finder', 'pages.finder')->name('finder')->middleware(['auth', 'verified']);
 
 Volt::route('chat/{conversation?}', 'pages.chat')->name('chat')->middleware(['auth']);
+Route::view('lila', 'lila')->name('lila')->middleware(['auth']);
 
 Volt::route('user/{user}', 'pages.user-profile')->name('user.profile')->middleware(['auth']);
 Volt::route('artisan/{user:username}', 'pages.artisan-profile')->name('artisan.profile');

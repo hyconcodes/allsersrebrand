@@ -145,7 +145,7 @@ new class extends Component {
 }; ?>
 
 <div wire:poll.10s="refreshChat" x-data="{ mobileView: @if ($activeConversation) 'chat' @else 'list' @endif }"
-    class="h-[calc(100dvh-12rem)] md:h-[calc(100vh-4rem)] flex overflow-hidden bg-white dark:bg-zinc-900 border-x-0 border-t-0 md:border border-zinc-200 dark:border-zinc-800 md:rounded-3xl shadow-sm md:mb-4 relative rounded-lg">
+    class="h-[calc(100dvh-4rem)] md:h-[calc(100vh-4rem)] flex overflow-hidden bg-white dark:bg-zinc-900 border-x-0 border-t-0 md:border border-zinc-200 dark:border-zinc-800 md:rounded-3xl shadow-sm md:mb-4 relative rounded-lg">
     <!-- Conversation List -->
     <div class="w-full md:w-80 border-e border-zinc-200 dark:border-zinc-800 flex flex-col transition-all duration-300"
         :class="mobileView === 'list' ? 'flex' : 'hidden md:flex'">
@@ -155,6 +155,9 @@ new class extends Component {
         <div class="flex-1 overflow-y-auto">
             @forelse($conversations as $conv)
                 @php $otherUser = $conv->other_user; @endphp
+                @if (!$otherUser)
+                    @continue
+                @endif
                 <button wire:click="selectConversation({{ $conv->id }})" @click="mobileView = 'chat'"
                     class="w-full p-4 flex items-center gap-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-left border-b border-zinc-50 dark:border-zinc-800/30 @if ($activeConversation && $activeConversation->id === $conv->id) bg-purple-50 dark:bg-purple-900/10 @endif">
                     <div
@@ -196,6 +199,7 @@ new class extends Component {
     <div class="flex-1 flex flex-col bg-zinc-50/30 dark:bg-zinc-900/50 transition-all duration-300"
         :class="mobileView === 'chat' ? 'flex' : 'hidden md:flex'">
         @if ($activeConversation)
+            @php $otherUser = $activeConversation->other_user; @endphp
             <!-- Header -->
             <div
                 class="p-4 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
@@ -206,18 +210,21 @@ new class extends Component {
                     </button>
                     <div
                         class="size-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold text-sm overflow-hidden">
-                        @if ($activeConversation->other_user->profile_picture_url)
-                            <img src="{{ $activeConversation->other_user->profile_picture_url }}"
-                                class="size-full object-cover">
+                        @if ($otherUser && $otherUser->profile_picture_url)
+                            <img src="{{ $otherUser->profile_picture_url }}" class="size-full object-cover">
+                        @elseif($otherUser)
+                            {{ $otherUser->initials() }}
                         @else
-                            {{ $activeConversation->other_user->initials() }}
+                            <flux:icon name="user" class="size-5" />
                         @endif
                     </div>
                     <div>
                         <h3 class="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
-                            {{ $activeConversation->other_user->name }}
+                            {{ $otherUser ? $otherUser->name : __('Deleted User') }}
                         </h3>
-                        <p class="text-[10px] text-green-500 font-medium">{{ __('Online') }}</p>
+                        @if ($otherUser)
+                            <p class="text-[10px] text-green-500 font-medium">{{ __('Online') }}</p>
+                        @endif
                     </div>
                 </div>
                 <div class="flex items-center gap-1 md:gap-2">

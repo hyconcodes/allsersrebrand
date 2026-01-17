@@ -30,10 +30,15 @@ new class extends Component {
     public $completion = null;
     public $sentPings = [];
     public $pingingId = null;
+    public $fullPage = false;
 
     public function mount()
     {
         $this->messages = [['role' => 'assistant', 'content' => 'Hi! I’m Lila 👋. I’m here to help you discover trusted artisans and connect with service providers right in your neighborhood.']];
+
+        if ($this->fullPage) {
+            $this->isOpen = true;
+        }
 
         if (auth()->check()) {
             if (auth()->user()->latitude) {
@@ -378,13 +383,14 @@ new class extends Component {
             }, 200);
         }, 600);
     }
-}" x-show="!closed" x-on:play-sound.window="playSound()"
-    class="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-4">
+}" x-show="!closed || {{ $fullPage ? 'true' : 'false' }}" x-on:play-sound.window="playSound()"
+    class="{{ $fullPage ? 'w-full h-full flex flex-col' : 'fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-4' }}">
 
     <!-- Map Modal -->
     <div x-show="showMap" x-transition.opacity.duration.300ms
         class="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-zinc-900/80 backdrop-blur-md"
-        @keydown.escape.window="showMap = false" x-init="$watch('showMap', value => { if (value) initMap() })" style="display: none;">
+        @keydown.escape.window="showMap = false" x-init="$watch('showMap', value => { if (value) initMap() })"
+        style="display: none;">
         <div class="bg-white dark:bg-zinc-900 w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[85vh] border border-white/20 relative"
             @click.away="showMap = false">
 
@@ -454,8 +460,7 @@ new class extends Component {
                         <button wire:click="pingArtisan(selectedArtisan.id)" wire:loading.attr="disabled"
                             wire:target="pingArtisan"
                             class="block w-full py-4 text-white font-black rounded-2xl hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group px-6"
-                            :disabled="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)"
-                            :class="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id) ?
+                            :disabled="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)" :class="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id) ?
                                 'bg-green-500 shadow-lg shadow-green-500/30' :
                                 'bg-[var(--color-brand-purple)] shadow-lg shadow-purple-500/30 hover:scale-[1.02]'">
 
@@ -496,11 +501,12 @@ new class extends Component {
     </div>
 
     <!-- Chat Box -->
-    <div x-show="open" x-transition:enter="transition ease-out duration-300 transform opacity-0 translate-y-4"
+    <div x-show="open" x-cloak @if (!$fullPage)
+        x-transition:enter="transition ease-out duration-300 transform opacity-0 translate-y-4"
         x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
         x-transition:leave="transition ease-in duration-200 transform opacity-100 translate-y-0"
-        x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-4"
-        class="w-80 md:w-96 h-[500px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+    x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-4" @endif
+        class="{{ $fullPage ? 'w-full flex-1 rounded-none border-t-0 shadow-none' : 'w-80 md:w-96 h-[500px] rounded-2xl shadow-2xl' }} bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
         <!-- Header -->
         <div class="p-4 bg-[var(--color-brand-purple)] text-white flex justify-between items-center shrink-0">
             <div class="flex items-center gap-2">
@@ -521,15 +527,16 @@ new class extends Component {
                     class="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
                     <flux:icon name="map-pin" class="size-4" />
                 </button>
-                <button @click="open = false" class="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
-                    <flux:icon name="x-mark" class="size-5" />
-                </button>
+                @if (!$fullPage)
+                    <button @click="open = false" class="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                        <flux:icon name="x-mark" class="size-5" />
+                    </button>
+                @endif
             </div>
         </div>
 
         <!-- Messages -->
-        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50 dark:bg-zinc-900/50"
-            x-init="$watch('messages', () => { $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50 dark:bg-zinc-900/50" x-init="$watch('messages', () => { $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });
             $watch('open', (value) => { if (value) $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });"
             x-on:scroll-to-bottom.window="$nextTick(() => { $el.scrollTop = $el.scrollHeight })">
             @foreach ($messages as $message)
@@ -551,14 +558,11 @@ new class extends Component {
                                     @foreach ($message['artisans'] as $artisan)
                                         <div
                                             class="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 flex gap-3 shadow-sm hover:border-[var(--color-brand-purple)] transition-colors">
-                                            <div
-                                                class="size-12 rounded-lg bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0">
+                                            <div class="size-12 rounded-lg bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0">
                                                 @if ($artisan['profile_picture'])
-                                                    <img src="{{ $artisan['profile_picture'] }}"
-                                                        class="size-full object-cover">
+                                                    <img src="{{ $artisan['profile_picture'] }}" class="size-full object-cover">
                                                 @else
-                                                    <div
-                                                        class="size-full flex items-center justify-center text-zinc-400">
+                                                    <div class="size-full flex items-center justify-center text-zinc-400">
                                                         <flux:icon name="user" class="size-6" />
                                                     </div>
                                                 @endif
@@ -576,8 +580,7 @@ new class extends Component {
                                                         {{ $artisan['experience'] }}
                                                     </span>
                                                 </div>
-                                                <button
-                                                    @click="selectedArtisan = {{ json_encode($artisan) }}; showMap = true"
+                                                <button @click="selectedArtisan = {{ json_encode($artisan) }}; showMap = true"
                                                     class="mt-2 block w-full text-center py-2 bg-[var(--color-brand-purple)] text-white text-[11px] font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/20 transition-all">
                                                     {{ __('View on Map') }}
                                                 </button>
@@ -655,6 +658,10 @@ new class extends Component {
         </script>
 
         <style>
+            [x-cloak] {
+                display: none !important;
+            }
+
             .markdown-content p {
                 margin-bottom: 0.75rem;
             }
@@ -865,8 +872,7 @@ new class extends Component {
                             </div>
                         @endforeach
                         @foreach ($completion['missing'] as $item)
-                            <div
-                                class="flex items-center gap-2 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
+                            <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                                 <div class="size-3.5 border-2 border-zinc-200 dark:border-zinc-600 rounded-full"></div>
                                 <span
                                     class="text-[11px] font-medium text-zinc-800 dark:text-zinc-200">{{ $item['label'] }}</span>
@@ -908,11 +914,10 @@ new class extends Component {
             @if ($completion && !$completion['is_complete'])
                 <div class="relative size-10 group/stat" @click.stop="checklist = !checklist">
                     <svg class="size-full -rotate-90" viewBox="0 0 36 36">
-                        <circle cx="18" cy="18" r="16" fill="none"
-                            class="stroke-zinc-100 dark:stroke-zinc-800" stroke-width="3"></circle>
-                        <circle cx="18" cy="18" r="16" fill="none" class="stroke-green-500"
-                            stroke-width="3" stroke-dasharray="{{ ($completion['percentage'] / 100) * 100 }}, 100"
-                            stroke-linecap="round">
+                        <circle cx="18" cy="18" r="16" fill="none" class="stroke-zinc-100 dark:stroke-zinc-800"
+                            stroke-width="3"></circle>
+                        <circle cx="18" cy="18" r="16" fill="none" class="stroke-green-500" stroke-width="3"
+                            stroke-dasharray="{{ ($completion['percentage'] / 100) * 100 }}, 100" stroke-linecap="round">
                         </circle>
                     </svg>
                     <div

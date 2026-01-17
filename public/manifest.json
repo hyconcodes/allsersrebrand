@@ -36,6 +36,11 @@
             "name": "Dashboard",
             "url": "/dashboard",
             "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+        },
+        {
+            "name": "Finder",
+            "url": "/finder",
+            "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
         }
     ]
 }

@@ -5,6 +5,7 @@ use App\Models\User;
 use App\Notifications\UserTagged;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
+use Livewire\Attributes\Url;
 use Livewire\Attributes\Validate;
 
 new class extends Component {
@@ -26,11 +27,16 @@ new class extends Component {
     public $price_max = null;
 
     public $posts = [];
+
+    #[Url]
     public $tab = 'for-you';
+
     public $page = 1;
-    public $perPage = 50;
+    public $perPage = 10;
     public $hasMore = true;
     public $loadingMore = false;
+    public $latestPostId = null;
+    public $newPostsCount = 0;
 
     public $repostingPostId = null;
     public $repostContent = '';
@@ -48,6 +54,8 @@ new class extends Component {
         $this->tab = $tab;
         $this->page = 1;
         $this->hasMore = true;
+        $this->newPostsCount = 0;
+        $this->latestPostId = null;
         $this->loadPosts(true);
     }
 
@@ -69,6 +77,7 @@ new class extends Component {
             $this->page = 1;
             $this->hasMore = true;
             $this->posts = [];
+            $this->newPostsCount = 0;
         }
 
         $query = Post::query()
@@ -114,6 +123,9 @@ new class extends Component {
 
         if ($reset) {
             $this->posts = $newPosts->all();
+            if ($newPosts->isNotEmpty()) {
+                $this->latestPostId = $newPosts->first()->id;
+            }
         } else {
             $this->posts = collect($this->posts)->concat($newPosts)->unique('id')->all();
         }
@@ -124,6 +136,20 @@ new class extends Component {
     #[Livewire\Attributes\On('post-bookmarked')]
     #[Livewire\Attributes\On('post-deleted')]
     public function refreshFeed()
+    {
+        $this->loadPosts(true);
+    }
+
+    public function checkNewPosts()
+    {
+        if (!$this->latestPostId) return;
+        
+        // Simple polling: check for any newer posts.
+        // For 'local', strictly speaking we should check distance, but ID check is a good enough signal for activity.
+        $this->newPostsCount = Post::where('id', '>', $this->latestPostId)->count();
+    }
+
+    public function loadNewPosts()
     {
         $this->loadPosts(true);
     }
@@ -332,45 +358,31 @@ new class extends Component {
 }; ?>
 
 <div class="space-y-6">
-    <div
-        class="flex items-center gap-6 border-b border-zinc-200 dark:border-zinc-800 mb-6 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-30 px-1 rounded-t-2xl">
-        <button wire:click="switchTab('for-you')"
-            class="relative py-4 text-sm font-black uppercase tracking-widest transition-all {{ $tab === 'for-you' ? 'text-[var(--color-brand-purple)]' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
-            {{ __('For You') }}
-            @if ($tab === 'for-you')
-                <div
-                    class="absolute bottom-0 left-0 right-0 h-1 bg-[var(--color-brand-purple)] rounded-t-full shadow-[0_-2px_10px_rgba(109,40,217,0.3)]">
-                </div>
-            @endif
-        </button>
-        <button wire:click="switchTab('local')"
-            class="relative py-4 text-sm font-black uppercase tracking-widest transition-all {{ $tab === 'local' ? 'text-[var(--color-brand-purple)]' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
-            {{ __('Local') }}
-            @if ($tab === 'local')
-                <div
-                    class="absolute bottom-0 left-0 right-0 h-1 bg-[var(--color-brand-purple)] rounded-t-full shadow-[0_-2px_10px_rgba(109,40,217,0.3)]">
-                </div>
-            @endif
-        </button>
+    <div wire:poll.15s="checkNewPosts"></div>
 
-        <div class="ml-auto flex items-center gap-2">
-            <a href="{{ route('finder') }}" wire:navigate
-                class="size-10 flex items-center justify-center rounded-full text-green-500 hover:text-green-600 transition-all bg-white dark:bg-zinc-800 shadow-sm border border-zinc-200 dark:border-zinc-700">
-                <flux:icon name="globe-americas" variant="solid" class="size-6 animate-spin [animation-duration:3s]" />
-            </a>
+    <livewire:dashboard.navigation />
+
+    @if ($newPostsCount > 0)
+        <div class="flex justify-center -mt-4 mb-2">
+            <button wire:click="loadNewPosts"
+                class="px-4 py-2 bg-[var(--color-brand-purple)] text-white text-xs font-bold uppercase tracking-widest rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 animate-in slide-in-from-top-4 fade-in duration-300 transform">
+                <flux:icon name="arrow-up" class="size-4" />
+                <span>Show {{ $newPostsCount }} New Posts</span>
+            </button>
         </div>
-    </div>
+    @endif
 
     <livewire:global-search />
 
     @if (auth()->user()->isArtisan())
         <!-- Create Post Widget -->
-        <div class="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <div
+            class="bg-white dark:bg-zinc-900 rounded-2xl md:rounded-2xl p-3 md:p-4 shadow-none md:shadow-sm border-b md:border border-zinc-200 dark:border-zinc-800">
             <form wire:submit="createPost">
-                <div class="flex items-start gap-4">
+                <div class="flex items-start gap-3 md:gap-4">
                     <div class="shrink-0">
                         <div
-                            class="size-10 rounded-full bg-[var(--color-brand-purple)]/10 flex items-center justify-center text-[var(--color-brand-purple)] font-bold overflow-hidden">
+                            class="size-8 md:size-10 rounded-full bg-[var(--color-brand-purple)]/10 flex items-center justify-center text-[var(--color-brand-purple)] font-bold overflow-hidden">
                             @if (auth()->user()->profile_picture_url)
                                 <img src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
                             @else
@@ -378,33 +390,33 @@ new class extends Component {
                             @endif
                         </div>
                     </div>
-                    <div class="flex-1 space-y-3" x-data="{
-                        insertEmoji(emoji) {
-                            const el = $wire.$el.querySelector('textarea');
-                            const start = el.selectionStart;
-                            const end = el.selectionEnd;
-                            const text = $wire.content;
-                            $wire.content = text.substring(0, start) + emoji + text.substring(end);
-                            el.focus();
-                            setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
-                        }
-                    }">
-                        <textarea wire:model="content" placeholder="{{ __('Share your recent work...') }}"
-                            class="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--color-brand-purple)]/20 transition-all resize-none"
-                            rows="3"></textarea>
+                    <div class="flex-1 min-w-0 space-y-2" x-data="{
+                                insertEmoji(emoji) {
+                                    const el = $wire.$el.querySelector('textarea');
+                                    const start = el.selectionStart;
+                                    const end = el.selectionEnd;
+                                    const text = $wire.content;
+                                    $wire.content = text.substring(0, start) + emoji + text.substring(end);
+                                    el.focus();
+                                    setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
+                                }
+                            }">
+                        <textarea wire:model="content" placeholder="{{ __('Share your work...') }}"
+                            class="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-3 py-2 text-xs md:text-sm focus:ring-2 focus:ring-[var(--color-brand-purple)]/20 transition-all resize-none"
+                            rows="2"></textarea>
 
                         <div class="flex flex-wrap gap-2 px-1">
                             @foreach (['🔥', '✨', '🛠️', '🎨', '🚀', '👏', '🙌'] as $emoji)
                                 <button type="button" @click="insertEmoji('{{ $emoji }}')"
-                                    class="text-sm hover:scale-125 transition-transform p-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">{{ $emoji }}</button>
+                                    class="text-xs hover:scale-125 transition-transform p-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">{{ $emoji }}</button>
                             @endforeach
                         </div>
 
                         @error('content')
-                            <span class="text-red-500 text-xs">{{ $message }}</span>
+                            <span class="text-red-500 text-[10px]">{{ $message }}</span>
                         @enderror
                         @error('permission')
-                            <span class="text-red-500 text-xs">{{ $message }}</span>
+                            <span class="text-red-500 text-[10px]">{{ $message }}</span>
                         @enderror
 
                         <!-- Image Previews -->
@@ -412,11 +424,10 @@ new class extends Component {
                             <div class="grid grid-cols-2 gap-2">
                                 @foreach ($images as $index => $image)
                                     <div class="relative group">
-                                        <img src="{{ $image->temporaryUrl() }}"
-                                            class="w-full h-32 object-cover rounded-lg">
+                                        <img src="{{ $image->temporaryUrl() }}" class="w-full h-24 object-cover rounded-lg">
                                         <button type="button" wire:click="removeImage({{ $index }})"
-                                            class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <flux:icon name="x-mark" class="size-4" />
+                                            class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <flux:icon name="x-mark" class="size-3" />
                                         </button>
                                     </div>
                                 @endforeach
@@ -426,69 +437,62 @@ new class extends Component {
                         <!-- Video Preview -->
                         @if ($video)
                             <div class="relative group">
-                                <video src="{{ $video->temporaryUrl() }}" class="w-full h-48 object-cover rounded-lg"
+                                <video src="{{ $video->temporaryUrl() }}" class="w-full h-32 object-cover rounded-lg"
                                     controls></video>
                                 <button type="button" wire:click="removeVideo"
-                                    class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <flux:icon name="x-mark" class="size-4" />
+                                    class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <flux:icon name="x-mark" class="size-3" />
                                 </button>
                             </div>
                         @endif
 
                         <!-- Price Range (Optional) -->
-                        <div x-data="{ showPrice: {{ $price_min || $price_max ? 'true' : 'false' }} }" class="space-y-3">
+                        <div x-data="{ showPrice: {{ $price_min || $price_max ? 'true' : 'false' }} }" class="space-y-2">
                             <button type="button" @click="showPrice = !showPrice"
-                                class="flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-[var(--color-brand-purple)] transition-colors">
-                                <flux:icon name="currency-dollar" class="size-4" />
-                                <span
-                                    x-text="showPrice ? '{{ __('Hide Price Range') }}' : '{{ __('Add Price Range') }}'"></span>
+                                class="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-[var(--color-brand-purple)] transition-colors">
+                                <flux:icon name="currency-dollar" class="size-3.5" />
+                                <span x-text="showPrice ? '{{ __('Hide') }}' : '{{ __('Price Range') }}'"></span>
                             </button>
 
-                            <div x-show="showPrice" x-collapse class="grid grid-cols-2 gap-3">
+                            <div x-show="showPrice" x-collapse class="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                                        {{ __('Min Price') }} ({{ auth()->user()->currency_symbol }})
+                                    <label class="block text-[10px] font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                                        {{ __('Min') }} ({{ auth()->user()->currency_symbol }})
                                     </label>
                                     <input type="number" wire:model="price_min" min="0" step="0.01"
-                                        class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
+                                        class="w-full px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
                                         placeholder="0.00">
-                                    @error('price_min')
-                                        <span class="text-xs text-red-500 mt-1">{{ $message }}</span>
-                                    @enderror
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                                        {{ __('Max Price') }} ({{ auth()->user()->currency_symbol }})
+                                    <label class="block text-[10px] font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                                        {{ __('Max') }} ({{ auth()->user()->currency_symbol }})
                                     </label>
                                     <input type="number" wire:model="price_max" min="0" step="0.01"
-                                        class="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
+                                        class="w-full px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
                                         placeholder="0.00">
-                                    @error('price_max')
-                                        <span class="text-xs text-red-500 mt-1">{{ $message }}</span>
-                                    @enderror
                                 </div>
                             </div>
                         </div>
 
-                        <div class="flex items-center justify-between px-1">
-                            <div class="flex items-center gap-4">
+                        <div class="flex items-center justify-between px-1 pt-1">
+                            <div class="flex items-center gap-3">
                                 <label
-                                    class="flex items-center gap-2 text-zinc-500 hover:text-[var(--color-brand-purple)] text-sm font-medium transition-colors cursor-pointer">
-                                    <flux:icon name="photo" class="size-5" />
-                                    <span>{{ __('Image') }}</span>
+                                    class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
+                                    <flux:icon name="photo" class="size-4" />
+                                    <span class="hidden sm:inline">{{ __('Image') }}</span>
                                     <input type="file" wire:model="images" multiple accept="image/*" class="hidden"
                                         :disabled="video != null">
                                 </label>
                                 <label
-                                    class="flex items-center gap-2 text-zinc-500 hover:text-[var(--color-brand-purple)] text-sm font-medium transition-colors cursor-pointer">
-                                    <flux:icon name="video-camera" class="size-5" />
-                                    <span>{{ __('Video') }}</span>
+                                    class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
+                                    <flux:icon name="video-camera" class="size-4" />
+                                    <span class="hidden sm:inline">{{ __('Video') }}</span>
                                     <input type="file" wire:model="video" accept="video/*" class="hidden"
                                         :disabled="images.length > 0">
                                 </label>
                             </div>
                             <button type="submit"
-                                class="bg-[var(--color-brand-purple)] text-white px-6 py-1.5 rounded-full text-sm font-medium hover:bg-[var(--color-brand-purple)]/90 transition-colors shadow-lg shadow-purple-500/20 disabled:opacity-50"
+                                class="bg-[var(--color-brand-purple)] text-white px-4 py-1.5 rounded-full text-xs md:text-sm font-bold hover:bg-[var(--color-brand-purple)]/90 transition-colors shadow-lg shadow-purple-500/20 disabled:opacity-50"
                                 wire:loading.attr="disabled">
                                 <span wire:loading.remove>{{ __('Post') }}</span>
                                 <span wire:loading>{{ __('Posting...') }}</span>
@@ -506,8 +510,8 @@ new class extends Component {
 
     <!-- Suggested Professionals (In-Feed) -->
     {{-- <div class="w-[calc(100-30)]"> --}}
-    <livewire:dashboard.pros-widget :in-feed="true" />
-    {{--
+        <livewire:dashboard.pros-widget :in-feed="true" />
+        {{--
     </div> --}}
 
     <!-- Feed Posts -->
@@ -594,8 +598,7 @@ new class extends Component {
 
                 <div class="flex gap-4">
                     @if ($repostImage)
-                        <div
-                            class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 shadow-sm">
+                        <div class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 shadow-sm">
                             <img src="{{ $repostImage->temporaryUrl() }}" class="size-full object-cover">
                             <button type="button" wire:click="$set('repostImage', null)"
                                 class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

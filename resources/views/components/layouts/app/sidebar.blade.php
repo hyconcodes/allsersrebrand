@@ -164,66 +164,6 @@
                 </flux:menu>
             </flux:dropdown>
         </flux:sidebar>
-
-        <!-- Mobile User Menu -->
-        <flux:header class="lg:hidden">
-
-            <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
-
-            <flux:spacer />
-
-            <flux:dropdown position="top" align="end">
-                <flux:profile :avatar="auth()->user()->profile_picture_url" :initials="auth()->user()->initials()"
-                    icon:trailing="chevron-down" />
-
-                <flux:menu class="w-[220px]">
-                    <flux:menu.radio.group>
-                        <div class="p-0 text-sm font-normal">
-                            <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-                                <span class="relative flex h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                                    @if (auth()->user()->profile_picture_url)
-                                        <img src="{{ auth()->user()->profile_picture_url }}"
-                                            class="h-full w-full object-cover">
-                                    @else
-                                        <span
-                                            class="flex h-full w-full items-center justify-center rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
-                                            {{ auth()->user()->initials() }}
-                                        </span>
-                                    @endif
-                                </span>
-
-                                <div class="grid flex-1 text-start text-sm leading-tight">
-                                    <span class="truncate font-semibold">{{ auth()->user()->name }}</span>
-                                    <span class="truncate text-xs">{{ auth()->user()->email }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </flux:menu.radio.group>
-
-                    <flux:menu.separator />
-
-                    <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('Settings') }}
-                        </flux:menu.item>
-                    </flux:menu.radio.group>
-
-                    <flux:menu.separator />
-                    <flux:radio.group x-data variant="segmented" x-model="$flux.appearance">
-                        <flux:radio value="light" icon="sun">{{ __('Light') }}</flux:radio>
-                        <flux:radio value="dark" icon="moon">{{ __('Dark') }}</flux:radio>
-                    </flux:radio.group>
-                    <flux:menu.separator />
-
-                    <form method="POST" action="{{ route('logout') }}" class="w-full">
-                        @csrf
-                        <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" class="w-full"
-                            data-test="logout-button">
-                            {{ __('Log Out') }}
-                        </flux:menu.item>
-                    </form>
-                </flux:menu>
-            </flux:dropdown>
-        </flux:header>
     @else
         <!-- Guest View: Simplified Header -->
         <flux:header
@@ -251,9 +191,9 @@
         </flux:header>
     @endauth
 
-    <!-- <div class="@auth lg:ml-0 @endauth"> -->
+    {{-- <div class="sm:m-0"></div> --}}
     {{ $slot }}
-    <!-- </div> -->
+    {{-- </div> --}}
 
     <x-ui.toast />
 
@@ -262,47 +202,38 @@
     @auth
         <!-- Mobile Bottom Nav -->
         <nav
-            class="lg:hidden fixed bottom-0 left-0 right-0 z-[500] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 px-6 pb-2 pt-3 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
-            <div class="flex items-center justify-between max-w-md mx-auto">
+            class="lg:hidden fixed bottom-0 left-0 right-0 z-[500] bg-white/90 dark:bg-zinc-900/90 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 pb-safe pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+            <div class="flex items-center justify-around max-w-xs mx-auto pb-2">
                 <!-- Home -->
-                <a href="{{ route('dashboard') }}" wire:navigate class="flex flex-col items-center gap-1 group">
-                    <div
-                        class="p-2 rounded-xl transition-all {{ request()->routeIs('dashboard') ? 'bg-[var(--color-brand-purple)] text-white shadow-lg shadow-purple-500/30' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800' }}">
-                        <flux:icon name="home" :variant="request()->routeIs('dashboard') ? 'solid' : 'outline'"
-                            class="size-6" />
-                    </div>
-                    <span
-                        class="text-[10px] font-black uppercase tracking-widest {{ request()->routeIs('dashboard') ? 'text-[var(--color-brand-purple)]' : 'text-zinc-400' }}">Home</span>
+                <a href="{{ route('dashboard') }}" wire:navigate
+                    class="p-2 rounded-full transition-all {{ request()->routeIs('dashboard') ? 'text-[var(--color-brand-purple)] bg-[var(--color-brand-purple)]/5' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300' }}">
+                    <flux:icon name="home" :variant="request()->routeIs('dashboard') ? 'solid' : 'outline'"
+                        class="size-6" />
                 </a>
 
                 <!-- Lila (Central AI Toggle) -->
-                <button @click="$dispatch('open-lila')" class="relative -mt-12 flex flex-col items-center gap-2">
+                <a href="{{ route('lila') }}" wire:navigate class="relative -mt-8 group">
                     <div
-                        class="size-16 rounded-full bg-gradient-to-tr from-[var(--color-brand-purple)] to-purple-400 p-1 shadow-2xl shadow-purple-500/40 ring-4 ring-white dark:ring-zinc-900">
-                        <div class="size-full rounded-full overflow-hidden border-2 border-white/20">
-                            <img src="{{ asset('assets/lila-avatar.png') }}"
-                                class="size-full object-cover animate-lila-idle">
+                        class="size-12 rounded-full bg-gradient-to-tr from-[var(--color-brand-purple)] to-purple-500 p-0.5 shadow-lg shadow-purple-500/30 ring-4 ring-white dark:ring-zinc-900 transform transition-transform group-active:scale-95">
+                        <div class="size-full rounded-full overflow-hidden border border-white/20">
+                            <img src="{{ asset('assets/lila-avatar.png') }}" class="size-full object-cover">
                         </div>
                     </div>
-                    <span class="text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-purple)]">Ask
-                        Lila</span>
-                </button>
+                </a>
 
                 <!-- Chat -->
-                <a href="{{ route('chat') }}" wire:navigate class="flex flex-col items-center gap-1 group relative">
-                    <div
-                        class="p-2 rounded-xl transition-all {{ request()->routeIs('chat*') ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800' }}">
-                        <flux:icon name="chat-bubble-left-right"
-                            :variant="request()->routeIs('chat*') ? 'solid' : 'outline'" class="size-6" />
-                    </div>
+                <a href="{{ route('chat') }}" wire:navigate
+                    class="relative p-2 rounded-full transition-all {{ request()->routeIs('chat*') ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/10' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300' }}">
+                    <flux:icon name="chat-bubble-left-right" :variant="request()->routeIs('chat*') ? 'solid' : 'outline'"
+                        class="size-6" />
                     @if ($unreadCount = auth()->user()->unreadMessagesCount())
-                        <div
-                            class="absolute top-1 right-2 size-4 bg-red-500 border border-white dark:border-zinc-900 rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-lg">
-                            {{ $unreadCount }}
-                        </div>
+                        <span class="absolute top-1 right-1 flex size-2.5">
+                            <span
+                                class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                            <span
+                                class="relative inline-flex rounded-full size-2.5 bg-red-500 border border-white dark:border-zinc-900"></span>
+                        </span>
                     @endif
-                    <span
-                        class="text-[10px] font-black uppercase tracking-widest {{ request()->routeIs('chat*') ? 'text-blue-600' : 'text-zinc-400' }}">Chat</span>
                 </a>
             </div>
         </nav>

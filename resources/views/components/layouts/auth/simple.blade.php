@@ -18,14 +18,15 @@
 
     <div class="flex min-h-svh flex-col items-center justify-center gap-8 p-6 md:p-10 relative">
         <!-- Logo Header -->
-        <a href="{{ route('home') }}" class="flex flex-col items-center gap-3" wire:navigate>
+        <a href="{{ route('home') }}" class="flex items-center gap-4" wire:navigate>
             <div
-                class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5 text-[var(--color-brand-purple)] transition-transform hover:scale-105 active:scale-95 duration-200">
-                <x-app-logo-icon class="size-8 fill-current" />
+                class="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-black/5 text-[var(--color-brand-purple)] transition-transform hover:scale-105 active:scale-95 duration-200">
+                <x-app-logo-icon class="size-4 fill-current" />
             </div>
-            <div class="flex flex-col items-center">
-                <span class="text-xl font-bold tracking-tight text-black">{{ config('app.name', 'Allsers') }}</span>
-                <span class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Your World of Services</span>
+            <div class="flex flex-col">
+                <span class="text-lg font-bold tracking-tight text-black">{{ config('app.name', 'Allsers') }}</span>
+                <span class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Your World of
+                    Services</span>
             </div>
         </a>
 

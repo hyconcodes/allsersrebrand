@@ -142,7 +142,7 @@
                         confidence. All in one platform.
                     </p>
                     <div class="flex flex-wrap gap-4">
-                        <a href="{{ route('register') }}"
+                        <a href="{{ route('login') }}"
                             class="inline-flex items-center justify-center gap-2 px-8 py-4 text-lg font-bold text-white bg-primary hover:bg-primary-dark rounded-2xl shadow-button hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
                             Find a Service
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

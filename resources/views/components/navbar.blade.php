@@ -3,7 +3,7 @@
         <div class="flex items-center justify-between h-16 sm:h-20 px-4 sm:px-6 lg:px-8">
             <a href="/" class="flex items-center gap-2 text-xl sm:text-2xl font-bold">
                 <img src="{{ asset('assets/allsers.png') }}" alt="{{ config('app.name') }}" class="h-8 w-8" />
-                <span class="gradient-text">{{ config("app.name") }}</span>
+                <span class="gradient-text">{{ config('app.name') }}</span>
             </a>
             <div class="hidden md:flex items-center gap-8">
                 <a href="#how-it-works"
@@ -67,3 +67,28 @@
         </div>
     </div>
 </nav>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const mobileBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        const navbar = document.getElementById('navbar');
+
+        if (mobileBtn && mobileMenu) {
+            mobileBtn.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+        }
+
+        // Scroll effect
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 10) {
+                navbar.classList.remove('bg-transparent');
+                navbar.classList.add('bg-white/80', 'backdrop-blur-md', 'shadow-sm');
+            } else {
+                navbar.classList.add('bg-transparent');
+                navbar.classList.remove('bg-white/80', 'backdrop-blur-md', 'shadow-sm');
+            }
+        });
+    });
+</script>

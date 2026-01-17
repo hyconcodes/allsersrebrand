@@ -3,7 +3,7 @@
 use Livewire\Volt\Component;
 
 new class extends Component {}; ?>
-<x-layouts.app :title="__('Home')">
+<x-layouts.app :title="__('Allsers - Feeds')">
     <div class="flex flex-col lg:flex-row gap-8 w-full max-w-7xl mx-auto px-4 lg:px-0">
         <!-- Main Feed (Left Column) -->
         <div class="flex-1 min-w-0 w-full max-w-2xl mx-auto lg:mx-0">
