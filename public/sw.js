@@ -1,4 +1,4 @@
-const CACHE_NAME = 'allsers-v4.5';
+const CACHE_NAME = 'allsers-v4.6';
 const OFFLINE_URL = '/offline.html';
 const ASSETS_TO_CACHE = [
     '/',
@@ -37,12 +37,42 @@ self.addEventListener('fetch', event => {
     // Only handle GET requests
     if (event.request.method !== 'GET') return;
 
-    // Avoid caching livewire/volt internal calls
     const url = new URL(event.request.url);
-    if (url.pathname.includes('/livewire/') || url.pathname.includes('/volt/')) {
+
+    // Skip caching for Livewire, Volt, and other dynamic endpoints
+    if (
+        url.pathname.includes('/livewire/') || 
+        url.pathname.includes('/volt/') ||
+        url.pathname.includes('/up') || // Health check
+        url.pathname.includes('/login') ||
+        url.pathname.includes('/register')
+    ) {
         return;
     }
 
+    // Strategy: Network First for Navigations (HTML)
+    if (event.request.mode === 'navigate' || event.request.headers.get('accept').includes('text/html')) {
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    // Cache fresh version of the page
+                    const responseClone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(event.request, responseClone);
+                    });
+                    return response;
+                })
+                .catch(() => {
+                    // Offline? Try to get from cache
+                    return caches.match(event.request).then(cachedResponse => {
+                        return cachedResponse || caches.match(OFFLINE_URL);
+                    });
+                })
+        );
+        return;
+    }
+
+    // Strategy: Cache First for static assets (Images, CSS, JS, etc.)
     event.respondWith(
         caches.match(event.request).then(cachedResponse => {
             if (cachedResponse) {
@@ -55,18 +85,13 @@ self.addEventListener('fetch', event => {
                     return response;
                 }
 
-                // Clone the response to store it in cache
+                // Cache static assets
                 const responseToCache = response.clone();
                 caches.open(CACHE_NAME).then(cache => {
                     cache.put(event.request, responseToCache);
                 });
 
                 return response;
-            }).catch(() => {
-                // If the fetch fails (offline) and it's a page navigation, show offline page
-                if (event.request.mode === 'navigate') {
-                    return caches.match(OFFLINE_URL);
-                }
             });
         })
     );
