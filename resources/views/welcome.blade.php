@@ -404,7 +404,88 @@
             </div>
 
             <div class="max-w-7xl mx-auto px-4 mt-12">
-                <livewire:dashboard.pros-widget :in-feed="true" :limit="3" :isWelcome="true" />
+                <livewire:dashboard.pros-widget :in-feed="true" :limit="6" :isWelcome="true" />
+            </div>
+        </div>
+    </section>
+
+    <!-- Recent Projects Showcase (Internal Links for Indexing) -->
+    <section class="px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24 bg-zinc-50">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                <div class="max-w-2xl">
+                    <div
+                        class="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full text-primary text-xs font-bold uppercase tracking-wider mb-6">
+                        Portfolio Gallery
+                    </div>
+                    <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold text-black mb-4">
+                        Featured <span class="gradient-text">Showcases</span>
+                    </h2>
+                    <p class="text-lg text-gray-600">Explore recent work completed by our verified artisans.</p>
+                </div>
+            </div>
+
+            @php
+                $recentPosts = \App\Models\Post::with('user')
+                    ->whereNotNull('images')
+                    ->where('challenge_id', null) // Only regular portfolio posts
+                    ->latest()
+                    ->take(6)
+                    ->get();
+            @endphp
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                @foreach ($recentPosts as $post)
+                    @php
+                        $images = array_filter(explode(',', $post->images));
+                        $firstImage = count($images) > 0 ? trim($images[0]) : null;
+                    @endphp
+                    @if ($firstImage)
+                        <div
+                            class="group bg-white rounded-3xl overflow-hidden border border-zinc-100 shadow-card hover:shadow-card-hover transition-all duration-300 flex flex-col">
+                            <a href="{{ route('posts.show', $post->post_id) }}"
+                                class="block aspect-video overflow-hidden">
+                                <img src="{{ route('images.show', ['path' => $firstImage]) }}"
+                                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                    alt="Project by {{ $post->user->name }}">
+                            </a>
+                            <div class="p-6 flex-1 flex flex-col">
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="size-8 rounded-full bg-primary/10 overflow-hidden">
+                                        @if ($post->user->profile_picture_url)
+                                            <img src="{{ $post->user->profile_picture_url }}"
+                                                class="size-full object-cover">
+                                        @else
+                                            <div
+                                                class="size-full flex items-center justify-center text-[10px] font-bold text-primary">
+                                                {{ $post->user->initials() }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold text-zinc-900">{{ $post->user->name }}</p>
+                                        <p class="text-[10px] text-zinc-500 uppercase tracking-widest">
+                                            {{ $post->user->work ?? 'Artisan' }}</p>
+                                    </div>
+                                </div>
+                                <p class="text-sm text-zinc-600 line-clamp-2 mb-4">
+                                    {{ Str::limit(strip_tags($post->content), 100) }}
+                                </p>
+                                <div class="mt-auto">
+                                    <a href="{{ route('posts.show', $post->post_id) }}"
+                                        class="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2 hover:gap-3 transition-all">
+                                        View Details
+                                        <svg class="size-4" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                                        </svg>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                @endforeach
             </div>
         </div>
     </section>

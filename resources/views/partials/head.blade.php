@@ -1,6 +1,8 @@
 <meta charset="utf-8" />
 <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="robots"
+    content="{{ $metaRobots ?? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' }}" />
 
 <title>{{ $metaTitle ?? ($title ?? config('app.name')) }}</title>
 <meta name="description"
@@ -8,7 +10,7 @@
 <meta name="author" content="Allsers" />
 
 <!-- Open Graph / Facebook -->
-<meta property="og:type" content="website">
+<meta property="og:type" content="{{ $metaType ?? 'website' }}">
 <meta property="og:url" content="{{ $metaUrl ?? url()->current() }}">
 <meta property="og:title" content="{{ $metaTitle ?? ($title ?? config('app.name')) }}">
 <meta property="og:description"

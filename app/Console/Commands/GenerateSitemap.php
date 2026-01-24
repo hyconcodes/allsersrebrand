@@ -64,6 +64,16 @@ class GenerateSitemap extends Command
                 }
             });
 
+        // Add challenges
+        \App\Models\Challenge::latest()->chunk(100, function ($challenges) use ($sitemap) {
+            foreach ($challenges as $challenge) {
+                $sitemap->add(Url::create(route('challenges.show', $challenge->custom_link))
+                    ->setLastModificationDate($challenge->updated_at)
+                    ->setChangeFrequency(Url::CHANGE_FREQUENCY_WEEKLY)
+                    ->setPriority(0.7));
+            }
+        });
+
         // Save sitemap
         $sitemap->writeToFile(public_path('sitemap.xml'));
 

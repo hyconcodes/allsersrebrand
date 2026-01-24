@@ -1,7 +1,6 @@
-const CACHE_NAME = 'allsers-v4.6';
+const CACHE_NAME = 'allsers-v4.7';
 const OFFLINE_URL = '/offline.html';
 const ASSETS_TO_CACHE = [
-    '/',
     OFFLINE_URL,
     '/manifest.json',
     '/favicon.ico',
@@ -50,23 +49,13 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Strategy: Network First for Navigations (HTML)
-    if (event.request.mode === 'navigate' || event.request.headers.get('accept').includes('text/html')) {
+    // Strategy: Network Only for Navigations (HTML) with Offline Fallback
+    if (event.request.mode === 'navigate' || (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'))) {
         event.respondWith(
             fetch(event.request)
-                .then(response => {
-                    // Cache fresh version of the page
-                    const responseClone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => {
-                        cache.put(event.request, responseClone);
-                    });
-                    return response;
-                })
                 .catch(() => {
-                    // Offline? Try to get from cache
-                    return caches.match(event.request).then(cachedResponse => {
-                        return cachedResponse || caches.match(OFFLINE_URL);
-                    });
+                    // Offline? Show the dedicated offline page
+                    return caches.match(OFFLINE_URL);
                 })
         );
         return;

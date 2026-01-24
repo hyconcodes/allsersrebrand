@@ -186,16 +186,8 @@ new class extends Component {
     public function rendering(\Illuminate\View\View $view)
     {
         $title = $this->post->user->name . ' on Allsers: "' . Str::limit($this->post->content, 50) . '"';
-        $view->layout('components.layouts.app', [
-            'title' => $title,
-        ]);
-    }
-}; ?>
-
-@push('head')
-    @php
         $description = Str::limit($this->post->content, 160);
-        $title = $this->post->user->name . ' on Allsers';
+
         $image = null;
         if ($this->post->images) {
             $imageArray = array_filter(explode(',', $this->post->images));
@@ -203,22 +195,17 @@ new class extends Component {
                 $image = route('images.show', ['path' => trim($imageArray[0])]);
             }
         }
-    @endphp
-    <meta name="description" content="{{ $description }}">
-    <meta property="og:title" content="{{ $title }}">
-    <meta property="og:description" content="{{ $description }}">
-    @if ($image)
-        <meta property="og:image" content="{{ $image }}">
-    @endif
-    <meta property="og:type" content="article">
-    <meta property="og:url" content="{{ request()->url() }}">
-    <meta name="twitter:card" content="{{ $image ? 'summary_large_image' : 'summary' }}">
-    <meta name="twitter:title" content="{{ $title }}">
-    <meta name="twitter:description" content="{{ $description }}">
-    @if ($image)
-        <meta name="twitter:image" content="{{ $image }}">
-    @endif
-@endpush
+
+        $view->layout('components.layouts.app', [
+            'title' => $title,
+            'metaTitle' => $title,
+            'metaDescription' => $description,
+            'metaImage' => $image,
+            'metaUrl' => route('posts.show', $this->post->post_id),
+            'metaType' => 'article',
+        ]);
+    }
+}; ?>
 
 
 <div>
@@ -269,8 +256,8 @@ new class extends Component {
                             @auth
                                 @if ($post->user_id === auth()->id())
                                     <flux:menu.item wire:click.stop="deletePost"
-                                        wire:confirm="{{ __('Are you sure you want to delete this post?') }}"
-                                        icon="trash" variant="danger">{{ __('Delete') }}</flux:menu.item>
+                                        wire:confirm="{{ __('Are you sure you want to delete this post?') }}" icon="trash"
+                                        variant="danger">{{ __('Delete') }}</flux:menu.item>
                                 @else
                                     <flux:menu.item wire:click.stop="openReportModal" icon="flag">{{ __('Report') }}
                                     </flux:menu.item>
@@ -346,9 +333,8 @@ new class extends Component {
                 <!-- Video -->
                 @if ($post->video)
                     <div class="rounded-xl overflow-hidden h-80 border border-zinc-100 dark:border-zinc-800">
-                        <video src="{{ route('videos.show', ['path' => $post->video]) }}"
-                            class="w-full h-full object-cover" controls controlsList="nodownload" playsinline
-                            preload="metadata"></video>
+                        <video src="{{ route('videos.show', ['path' => $post->video]) }}" class="w-full h-full object-cover"
+                            controls controlsList="nodownload" playsinline preload="metadata"></video>
                     </div>
                 @endif
 
@@ -406,8 +392,8 @@ new class extends Component {
                                 <div
                                     class="h-32 rounded-lg overflow-hidden bg-black flex items-center justify-center border border-zinc-200/50">
                                     <video src="{{ route('videos.show', ['path' => $post->repostOf->video]) }}"
-                                        class="w-full h-full object-cover" controls controlsList="nodownload"
-                                        playsinline preload="metadata"></video>
+                                        class="w-full h-full object-cover" controls controlsList="nodownload" playsinline
+                                        preload="metadata"></video>
                                 </div>
                             @endif
                         </a>
@@ -453,8 +439,7 @@ new class extends Component {
                                     });
                                 }
                             }
-                        }" @click="share()"
-                            class="flex items-center gap-1.5 transition-colors relative"
+                        }" @click="share()" class="flex items-center gap-1.5 transition-colors relative"
                             :class="copied ? 'text-green-500' : 'text-zinc-500 hover:text-green-500'">
                             <flux:icon name="share" class="size-5" />
                             <span x-show="copied" x-transition
@@ -484,8 +469,7 @@ new class extends Component {
                             <div
                                 class="size-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold text-xs shrink-0 overflow-hidden">
                                 @if ($comment->user->profile_picture_url)
-                                    <img src="{{ $comment->user->profile_picture_url }}"
-                                        class="size-full object-cover">
+                                    <img src="{{ $comment->user->profile_picture_url }}" class="size-full object-cover">
                                 @else
                                     {{ $comment->user->initials() }}
                                 @endif
@@ -568,8 +552,7 @@ new class extends Component {
             class="mt-4 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky bottom-4 shadow-lg">
             @auth
                 @if ($replyToId)
-                    <div
-                        class="flex items-center justify-between mb-2 px-2 py-1 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                    <div class="flex items-center justify-between mb-2 px-2 py-1 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                         <span class="text-[10px] text-purple-700 dark:text-purple-300">
                             {{ __('Replying to') }} <span class="font-bold">{{ $replyToName }}</span>
                         </span>

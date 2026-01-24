@@ -11,6 +11,8 @@
                     Works</a>
                 <a href="#services"
                     class="text-black/80 hover:text-primary font-medium transition-colors duration-200">Services</a>
+                <a href="{{ route('challenges.index') }}"
+                    class="text-black/80 hover:text-primary font-medium transition-colors duration-200">Challenges</a>
                 <a href="#for-providers"
                     class="text-black/80 hover:text-primary font-medium transition-colors duration-200">For
                     Providers</a>
@@ -45,6 +47,8 @@
                 <a href="#how-it-works" class="block py-2 text-black/80 hover:text-primary font-medium">How It
                     Works</a>
                 <a href="#services" class="block py-2 text-black/80 hover:text-primary font-medium">Services</a>
+                <a href="{{ route('challenges.index') }}"
+                    class="block py-2 text-black/80 hover:text-primary font-medium">Challenges</a>
                 <a href="#for-providers" class="block py-2 text-black/80 hover:text-primary font-medium">For
                     Providers</a>
                 <a href="#about" class="block py-2 text-black/80 hover:text-primary font-medium">About</a>
