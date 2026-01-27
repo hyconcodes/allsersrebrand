@@ -319,7 +319,7 @@ new class extends Component {
                 <flux:icon name="chat-bubble-left" class="size-5" />
                 <span class="text-sm font-medium">{{ $post->all_comments_count ?? 0 }}</span>
             </button>
-            @if (auth()->user()->isArtisan() && $post->canBeReposted())
+            @if (auth()->check() && auth()->user()->isArtisan() && $post->canBeReposted())
                 <button wire:click.stop="$parent.openRepostModal({{ $post->id }})"
                     class="flex items-center gap-1.5 text-zinc-500 hover:text-green-500 transition-colors"
                     title="{{ __('Repost Work') }}">

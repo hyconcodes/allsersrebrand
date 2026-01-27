@@ -44,7 +44,7 @@ new class extends Component {
                 {{ __('Join official community challenges, showcase your skills, and earn unique badges.') }}</p>
         </div>
 
-        @if (auth()->user()->isArtisan() || auth()->user()->isAdmin())
+        @if (auth()->check() && (auth()->user()->isArtisan() || auth()->user()->isAdmin()))
             <a href="{{ route('challenges.create') }}"
                 class="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-brand-purple)] text-white font-bold rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-purple-500/20">
                 <flux:icon name="plus" class="size-5" />

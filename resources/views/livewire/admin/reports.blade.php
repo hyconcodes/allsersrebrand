@@ -30,8 +30,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function with()
     {
-        $query = Report::with(['user', 'post.user', 'reviewer'])
-            ->latest();
+        $query = Report::with(['user', 'post.user', 'reviewer'])->latest();
 
         if ($this->filterStatus !== 'all') {
             $query->where('status', $this->filterStatus);
@@ -39,11 +38,13 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $users = [];
         if (strlen($this->userSearchQuery) >= 3) {
-            $users = User::where(function($q) {
+            $users = User::where(function ($q) {
                 $q->where('name', 'like', '%' . $this->userSearchQuery . '%')
-                  ->orWhere('username', 'like', '%' . $this->userSearchQuery . '%')
-                  ->orWhere('email', 'like', '%' . $this->userSearchQuery . '%');
-            })->limit(5)->get();
+                    ->orWhere('username', 'like', '%' . $this->userSearchQuery . '%')
+                    ->orWhere('email', 'like', '%' . $this->userSearchQuery . '%');
+            })
+                ->limit(5)
+                ->get();
         }
 
         return [
@@ -237,44 +238,55 @@ new #[Layout('components.layouts.app')] class extends Component {
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 mb-8">
         <h2 class="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-4">Search Users</h2>
         <div class="max-w-md">
-            <flux:input wire:model.live.debounce.300ms="userSearchQuery" placeholder="Search by name, email, or username..." icon="magnifying-glass" />
+            <flux:input wire:model.live.debounce.300ms="userSearchQuery"
+                placeholder="Search by name, email, or username..." icon="magnifying-glass" />
         </div>
 
-        @if(strlen($userSearchQuery) >= 3)
+        @if (strlen($userSearchQuery) >= 3)
             <div class="mt-6 space-y-4">
                 <h3 class="text-sm font-semibold text-zinc-500 uppercase tracking-wider">Search Results</h3>
                 @forelse($searchResults as $user)
-                    <div class="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    <div
+                        class="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-100 dark:border-zinc-800">
                         <div class="flex items-center gap-4">
-                            <div class="size-10 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center overflow-hidden">
-                                @if($user->profile_picture_url)
+                            <div
+                                class="size-10 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center overflow-hidden">
+                                @if ($user->profile_picture_url)
                                     <img src="{{ $user->profile_picture_url }}" class="size-full object-cover">
                                 @else
-                                    <div class="size-full flex items-center justify-center bg-[var(--color-brand-purple)] text-white font-bold text-sm">
+                                    <div
+                                        class="size-full flex items-center justify-center bg-[var(--color-brand-purple)] text-white font-bold text-sm">
                                         {{ substr($user->name, 0, 1) }}
                                     </div>
                                 @endif
                             </div>
                             <div>
-                                <p class="font-bold text-zinc-900 dark:text-zinc-100">{{ $user->name }} (@<span>{{ $user->username }}</span>)</p>
+                                <p class="font-bold text-zinc-900 dark:text-zinc-100">{{ $user->name }}
+                                    (@<span>{{ $user->username }}</span>)</p>
                                 <p class="text-sm text-zinc-500">{{ $user->email }}</p>
                             </div>
                         </div>
 
                         <div class="flex items-center gap-2">
-                            @if($user->isBanned())
-                                <span class="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium mr-2">Banned until {{ $user->banned_until->format('M d, Y') }}</span>
-                                <button wire:click="unbanUser({{ $user->id }})" class="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium">
+                            @if ($user->isBanned())
+                                <span
+                                    class="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium mr-2">Banned
+                                    until {{ $user->banned_until->format('M d, Y') }}</span>
+                                <button wire:click="unbanUser({{ $user->id }})"
+                                    class="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium">
                                     Unban
                                 </button>
                             @else
-                                <button wire:click="openBanModal({{ $user->id }})" class="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium">
+                                <button wire:click="openBanModal({{ $user->id }})"
+                                    class="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium">
                                     Ban User
                                 </button>
                             @endif
-                            
-                            @if(!$user->isAdmin())
-                                <button wire:click="deleteUser({{ $user->id }})" wire:confirm="Are you sure you want to permanently delete this user?" class="px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors text-xs font-medium">
+
+                            @if (!$user->isAdmin())
+                                <button wire:click="deleteUser({{ $user->id }})"
+                                    wire:confirm="Are you sure you want to permanently delete this user?"
+                                    class="px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors text-xs font-medium">
                                     Delete
                                 </button>
                             @endif
@@ -293,7 +305,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex items-center gap-3">
-                        <div class="size-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                        <div
+                            class="size-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
                             <flux:icon name="flag" class="size-5 text-red-600 dark:text-red-400" />
                         </div>
                         <div>
@@ -314,7 +327,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <div class="flex items-center gap-3">
                             <div
                                 class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
-                                @if($report->user->profile_picture_url)
+                                @if ($report->user->profile_picture_url)
                                     <img src="{{ $report->user->profile_picture_url }}" class="size-full object-cover">
                                 @else
                                     <span class="text-xs font-bold">{{ $report->user->initials() }}</span>
@@ -337,8 +350,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <div class="flex items-center gap-3">
                             <div
                                 class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
-                                @if($report->post->user->profile_picture_url)
-                                    <img src="{{ $report->post->user->profile_picture_url }}" class="size-full object-cover">
+                                @if ($report->post->user->profile_picture_url)
+                                    <img src="{{ $report->post->user->profile_picture_url }}"
+                                        class="size-full object-cover">
                                 @else
                                     <span class="text-xs font-bold">{{ $report->post->user->initials() }}</span>
                                 @endif
@@ -350,12 +364,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                         </div>
                         <div class="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
                             <p class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Post Content:</p>
-                            <p class="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-3">{{ $report->post->content }}
+                            <p class="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-3">
+                                {{ $report->post->content }}
                             </p>
                         </div>
 
-                        @if($report->post->user->isBanned())
-                            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        @if ($report->post->user->isBanned())
+                            <div
+                                class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
                                 <p class="text-sm font-bold text-red-700 dark:text-red-400 mb-1">⛔ User is Banned</p>
                                 <p class="text-xs text-red-600 dark:text-red-400">Until:
                                     {{ $report->post->user->banned_until->format('M d, Y g:i A') }}
@@ -366,9 +382,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </div>
 
                 <!-- Actions -->
-                @if($report->status === 'pending')
+                @if ($report->status === 'pending')
                     <div class="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap gap-3">
-                        @if($report->post->user->isBanned())
+                        @if ($report->post->user->isBanned())
                             <button wire:click="unbanUser({{ $report->post->user_id }})"
                                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
                                 <flux:icon name="check-circle" class="size-4 inline mr-1" /> Unban User
@@ -400,14 +416,16 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </div>
                 @endif
 
-                @if($report->reviewed_by)
+                @if ($report->reviewed_by)
                     <div class="mt-4 text-sm text-zinc-500">
-                        Reviewed by {{ $report->reviewer->name }} on {{ $report->reviewed_at->format('M d, Y g:i A') }}
+                        Reviewed by {{ $report->reviewer->name }} on
+                        {{ $report->reviewed_at->format('M d, Y g:i A') }}
                     </div>
                 @endif
             </div>
         @empty
-            <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-12 text-center">
+            <div
+                class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-12 text-center">
                 <flux:icon name="inbox" class="size-16 text-zinc-300 mx-auto mb-4" />
                 <h3 class="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">No Reports</h3>
                 <p class="text-zinc-500">No reports found for the selected filter.</p>

@@ -96,13 +96,15 @@ new #[Layout('components.layouts.app')] class extends Component {
 
 <div class="max-w-4xl mx-auto py-12 px-4 space-y-12">
     <!-- Back to Challenge -->
-    <a href="{{ route('challenges.show', $challenge->custom_link) }}" class="flex items-center gap-2 text-zinc-500 hover:text-zinc-900 font-bold transition-colors">
+    <a href="{{ route('challenges.show', $challenge->custom_link) }}"
+        class="flex items-center gap-2 text-zinc-500 hover:text-zinc-900 font-bold transition-colors">
         <flux:icon name="arrow-left" class="size-4" />
         {{ __('Back to Challenge Page') }}
     </a>
 
     <!-- Settings Card -->
-    <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+    <div
+        class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
         <div class="p-6 border-b border-zinc-100 dark:border-zinc-800">
             <h2 class="text-xl font-bold text-zinc-900 dark:text-white">{{ __('Challenge Settings') }}</h2>
         </div>
@@ -124,9 +126,10 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <div class="md:col-span-2">
                     <flux:label>{{ __('Banner Image') }}</flux:label>
                     <div class="mt-2 flex items-center gap-6">
-                        @if($challenge->banner_url || $banner)
+                        @if ($challenge->banner_url || $banner)
                             <div class="size-24 rounded-xl overflow-hidden shadow-sm">
-                                <img src="{{ $banner ? $banner->temporaryUrl() : asset('storage/' . $challenge->banner_url) }}" class="size-full object-cover">
+                                <img src="{{ $banner ? $banner->temporaryUrl() : asset('storage/' . $challenge->banner_url) }}"
+                                    class="size-full object-cover">
                             </div>
                         @endif
                         <flux:input type="file" wire:model="banner" />
@@ -149,29 +152,35 @@ new #[Layout('components.layouts.app')] class extends Component {
     </div>
 
     <!-- Reward & Winner Card -->
-    <div class="bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800/50 dark:to-zinc-900 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 p-8 shadow-sm">
+    <div
+        class="bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800/50 dark:to-zinc-900 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 p-8 shadow-sm">
         <div class="max-w-2xl mx-auto text-center space-y-8">
             <div>
                 <h2 class="text-2xl font-black text-zinc-900 dark:text-white">{{ __('Reward & Close Challenge') }}</h2>
-                <p class="text-zinc-500 mt-2">{{ __('Select the winner and award them a unique badge once the challenge ends.') }}</p>
+                <p class="text-zinc-500 mt-2">
+                    {{ __('Select the winner and award them a unique badge once the challenge ends.') }}</p>
             </div>
 
-            @if($challenge->winner_id)
-                <div class="bg-white dark:bg-zinc-900 p-6 rounded-2xl inline-flex items-center gap-4 border border-zinc-200 shadow-xl">
+            @if ($challenge->winner_id)
+                <div
+                    class="bg-white dark:bg-zinc-900 p-6 rounded-2xl inline-flex items-center gap-4 border border-zinc-200 shadow-xl">
                     <flux:icon name="check-circle" class="size-8 text-green-500" />
                     <div class="text-left">
                         <p class="text-sm font-bold">{{ __('Winner Selected') }}</p>
-                        <p class="text-lg font-black text-[var(--color-brand-purple)]">{{ $challenge->winner->name }}</p>
+                        <p class="text-lg font-black text-[var(--color-brand-purple)]">{{ $challenge->winner->name }}
+                        </p>
                     </div>
                 </div>
             @else
                 <form wire:submit.prevent="awardWinner" class="space-y-6 text-left">
                     <div>
                         <flux:label>{{ __('Select Winner') }}</flux:label>
-                        <select wire:model="winnerId" class="w-full rounded-lg border-zinc-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white focus:ring-[var(--color-brand-purple)] focus:border-[var(--color-brand-purple)]">
+                        <select wire:model="winnerId"
+                            class="w-full rounded-lg border-zinc-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white focus:ring-[var(--color-brand-purple)] focus:border-[var(--color-brand-purple)]">
                             <option value="">{{ __('Choose a participant...') }}</option>
-                            @foreach($challenge->participants as $p)
-                                <option value="{{ $p->id }}">{{ $p->name }} (@<span>{{ $p->username }}</span>)</option>
+                            @foreach ($challenge->participants as $p)
+                                <option value="{{ $p->id }}">{{ $p->name }}
+                                    (@<span>{{ $p->username }}</span>)</option>
                             @endforeach
                         </select>
                         <flux:error name="winnerId" />
@@ -194,7 +203,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </div>
 
                     <div class="pt-4">
-                        <flux:button type="submit" variant="primary" class="w-full h-12">{{ __('Award Badge & End Challenge') }}</flux:button>
+                        <flux:button type="submit" variant="primary" class="w-full h-12">
+                            {{ __('Award Badge & End Challenge') }}</flux:button>
                     </div>
                 </form>
             @endif

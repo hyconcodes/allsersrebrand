@@ -596,7 +596,7 @@ new class extends Component {
                                             <div
                                                 class="w-full py-3 bg-green-500/10 text-green-600 font-black rounded-2xl border border-green-500/20 text-center text-xs uppercase tracking-widest flex items-center justify-center gap-2">
                                                 <flux:icon name="check-circle" variant="solid" class="size-4" />
-                                                {{ __('Engagement Confirmed') }}
+                                                {{ __('Deal Confirmed') }}
                                             </div>
                                         @endif
                                     </div>
