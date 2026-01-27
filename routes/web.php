@@ -109,15 +109,15 @@ Route::get('/images/{path}', function ($path) {
 })->where('path', '.*')->name('images.show');
 
 // Utility routes for production maintenance
-Route::get('/run-migrations', function () {
-    Artisan::call('migrate', ['--force' => true]);
-    return '<pre>' . Artisan::output() . '</pre>';
-});
+// Route::get('/run-migrations', function () {
+//     Artisan::call('migrate', ['--force' => true]);
+//     return '<pre>' . Artisan::output() . '</pre>';
+// });
 
-Route::get('/seed-deal', function () {
-    Artisan::call('db:seed', ['--class' => 'ProfessionalDealSeeder', '--force' => true]);
-    return '<pre>' . Artisan::output() . '</pre>';
-});
+// Route::get('/seed-deal', function () {
+//     Artisan::call('db:seed', ['--class' => 'ProfessionalDealSeeder', '--force' => true]);
+//     return '<pre>' . Artisan::output() . '</pre>';
+// });
 
 Route::get('/clear-all-cache', function () {
     Artisan::call('optimize:clear');
