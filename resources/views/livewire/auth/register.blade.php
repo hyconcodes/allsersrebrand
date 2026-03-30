@@ -12,39 +12,40 @@
         <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
 
-        <form method="POST" action="{{ route('register.store') }}" class="flex flex-col gap-4" x-data="{
-            password: '',
-            latitude: null,
-            longitude: null,
-            address: '',
-            status: 'pending', // pending, active, denied
-            requestLocation() {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            this.latitude = position.coords.latitude;
-                            this.longitude = position.coords.longitude;
-                            this.status = 'active';
-                            this.resolveAddress();
-                        },
-                        (error) => {
-                            console.error('Error getting location:', error);
-                            this.status = 'denied';
-                        }
-                    );
+        <form id="register-form" method="POST" action="{{ route('register.store') }}" class="flex flex-col gap-4"
+            x-data="{
+                password: '',
+                latitude: null,
+                longitude: null,
+                address: '',
+                status: 'pending', // pending, active, denied
+                requestLocation() {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                this.latitude = position.coords.latitude;
+                                this.longitude = position.coords.longitude;
+                                this.status = 'active';
+                                this.resolveAddress();
+                            },
+                            (error) => {
+                                console.error('Error getting location:', error);
+                                this.status = 'denied';
+                            }
+                        );
+                    }
+                },
+                async resolveAddress() {
+                    if (!this.latitude || !this.longitude) return;
+                    try {
+                        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.latitude}&lon=${this.longitude}&zoom=18`);
+                        const data = await response.json();
+                        this.address = data.display_name;
+                    } catch (e) {
+                        this.address = 'Location saved';
+                    }
                 }
-            },
-            async resolveAddress() {
-                if (!this.latitude || !this.longitude) return;
-                try {
-                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${this.latitude}&lon=${this.longitude}&zoom=18`);
-                    const data = await response.json();
-                    this.address = data.display_name;
-                } catch (e) {
-                    this.address = 'Location saved';
-                }
-            }
-        }">
+            }">
             @csrf
 
             <!-- Compact Location Request -->
@@ -131,12 +132,20 @@
                     {{ __('Log in') }}
                 </flux:link>
             </div>
-            <flux:button type="submit" variant="primary"
-                class="w-full bg-[var(--color-brand-purple)] hover:bg-[var(--color-brand-purple)]/90 h-10 text-sm"
-                data-test="register-user-button">
+            <flux:button type="button" variant="primary"
+                class="g-recaptcha w-full bg-[var(--color-brand-purple)] hover:bg-[var(--color-brand-purple)]/90 h-10 text-sm"
+                data-sitekey="{{ env('RECAPTCHA_SITE_KEY', '6Lf00Z0sAAAAADaG78Ja2OCCqzx9FXCOAsOVivcq') }}"
+                data-callback="onSubmit" data-action="register" data-test="register-user-button">
                 {{ __('Create Account') }}
             </flux:button>
         </form>
 
     </div>
+
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script>
+        window.onSubmit = function(token) {
+            document.getElementById('register-form').submit();
+        }
+    </script>
 </x-layouts.auth>

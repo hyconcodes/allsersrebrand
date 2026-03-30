@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 use Livewire\Volt\Volt;
@@ -138,3 +139,35 @@ Route::get('/clear-all-cache', function () {
 //     Artisan::call('users:generate-slugs');
 //     return 'User slugs generated successfully.';
 // });
+
+$ignoredEmails = [
+    'hello@allsers.com',
+    'support@allsers.com',
+    'ronkejanet@yahoo.com',
+    'bumtech2008@yahoo.com',
+    'bolaji.2782@bouesti.edu.ng',
+    'ajayiolumuyiwa89@yahoo.com',
+    'adekogbasinaayo@yahoo.com',
+    'kolmic1@yahoo.com'
+];
+
+Route::get('/list-fake-users', function () use ($ignoredEmails) {
+    $users = \App\Models\User::where('email', 'NOT LIKE', '%@gmail.com')
+        ->whereNotIn('email', $ignoredEmails)
+        ->get(['id', 'name', 'username', 'email', 'created_at']);
+        
+    return response()->json([
+        'count' => $users->count(),
+        'users' => $users
+    ]);
+});
+
+Route::get('/delete-fake-users', function () use ($ignoredEmails) {
+    $count = \App\Models\User::where('email', 'NOT LIKE', '%@gmail.com')
+        ->whereNotIn('email', $ignoredEmails)
+        ->delete();
+        
+    return response()->json([
+        'message' => "Successfully deleted {$count} fake users (protected emails ignored)."
+    ]);
+});
