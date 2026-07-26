@@ -3,7 +3,7 @@
 
         <!-- User Profile Header -->
         <div
-            class="bg-white dark:bg-zinc-900 rounded-[2rem] p-6 shadow-sm border border-zinc-100 dark:border-zinc-800 flex flex-col items-center text-center relative overflow-hidden group">
+            class="border-b border-zinc-800 pb-6 flex flex-col items-center text-center relative">
             <div
                 class="absolute top-0 right-0 p-12 bg-[var(--color-brand-purple)]/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-[var(--color-brand-purple)]/10">
             </div>
@@ -13,20 +13,20 @@
                 @if (auth()->user()->profile_picture_url)
                     <img src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
                 @else
-                    <div class="size-full flex items-center justify-center text-2xl font-black text-zinc-400">
+                    <div class="size-full flex items-center justify-center text-2xl font-bold text-zinc-400">
                         {{ auth()->user()->initials() }}
                     </div>
                 @endif
             </div>
 
             <div class="mt-4 relative z-10">
-                <h2 class="text-xl font-black text-zinc-900 dark:text-white tracking-tight">{{ auth()->user()->name }}
+                <h2 class="text-xl font-bold text-zinc-100">{{ auth()->user()->name }}
                 </h2>
                 <p class="text-xs font-bold text-zinc-500 mt-1">{{ auth()->user()->email }}</p>
 
                 @if (auth()->user()->isArtisan())
                     <div
-                        class="mt-2 flex items-center justify-center gap-1.5 font-bold text-[10px] uppercase tracking-widest text-[var(--color-brand-purple)] bg-[var(--color-brand-purple)]/10 px-3 py-1 rounded-full">
+                        class="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-purple-500 bg-purple-500/10 px-3 py-1 rounded-full">
                         <flux:icon name="check-badge" variant="solid" class="size-3" />
                         {{ auth()->user()->work ?? __('Verified Artisan') }}
                     </div>
@@ -127,14 +127,14 @@
 
         <form method="POST" action="{{ route('logout') }}" class="w-full">
             @csrf
-            <flux:button type="submit" variant="danger" class="w-full rounded-2xl py-4 font-black"
+            <flux:button type="submit" variant="danger" class="w-full rounded-xl py-3 font-bold"
                 icon="arrow-right-start-on-rectangle">
                 {{ __('Log Out') }}
             </flux:button>
         </form>
 
         <div class="pt-6 text-center">
-            <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+            <p class="text-xs text-zinc-500">
                 {{ config('app.name') }} &bull; v{{ config('app.version', '4.9') }} &bull; @yield('version', '2026')
             </p>
         </div>

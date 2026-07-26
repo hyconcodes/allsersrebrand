@@ -67,11 +67,11 @@ new class extends Component {
                 $type = $data['type'] ?? '';
             @endphp
             <div
-                class="group relative flex items-start gap-4 p-4 rounded-2xl border transition-all @if ($isRead) bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 @else bg-purple-50/30 dark:bg-purple-900/10 border-purple-100 dark:border-purple-800/50 @endif">
+                class="group relative flex items-start gap-4 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 @if (!$isRead) bg-zinc-50 dark:bg-zinc-900/50 @endif">
                 <!-- Notification Icon/Avatar -->
                 <div class="shrink-0 relative">
                     <div
-                        class="size-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold text-sm">
+                        class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm">
                         {{ strtoupper(substr($data['liker_name'] ?? ($data['commenter_name'] ?? ($data['replier_name'] ?? ($data['sender_name'] ?? ($data['tagger_name'] ?? 'A')))), 0, 1)) }}
                     </div>
                     <div
@@ -106,7 +106,7 @@ new class extends Component {
                             {{ $data['message'] ?? __('interacted with you') }}
                         </p>
                         <span
-                            class="text-[10px] text-zinc-500 mt-1">{{ $notification->created_at->diffForHumans() }}</span>
+                            class="text-xs text-zinc-500 mt-1">{{ $notification->created_at->diffForHumans() }}</span>
                     </div>
 
                     <!-- Action Link -->
@@ -143,11 +143,9 @@ new class extends Component {
                 @endif
             </div>
         @empty
-            <div
-                class="bg-white dark:bg-zinc-900 rounded-2xl p-12 shadow-sm border border-zinc-200 dark:border-zinc-800 text-center">
-                <div
-                    class="size-16 bg-zinc-50 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <flux:icon name="bell" class="size-8 text-zinc-300" />
+            <div class="px-4 py-12 text-center border-b border-zinc-200 dark:border-zinc-800">
+                <div class="size-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <flux:icon name="bell" class="size-8 text-zinc-600" />
                 </div>
                 <h3 class="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">{{ __('Quiet for now') }}</h3>
                 <p class="text-zinc-500 max-w-xs mx-auto text-sm">

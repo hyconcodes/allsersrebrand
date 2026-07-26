@@ -57,7 +57,7 @@ new class extends Component {
 }; ?>
 
 <div
-    class="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden {{ $post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists() ? 'ring-2 ring-[var(--color-brand-purple)] ring-offset-4 dark:ring-offset-zinc-950' : '' }}">
+    class="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden {{ $post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists() ? 'ring-2 ring-[var(--color-brand-purple)] ring-offset-4 dark:ring-offset-zinc-950' : '' }}">
     <!-- Post Body -->
     <div class="p-6">
         <div class="flex items-start justify-between mb-4">
@@ -73,15 +73,15 @@ new class extends Component {
                         <h3 class="font-bold text-zinc-900 dark:text-white capitalize">{{ $post->user->username }}</h3>
                         @if ($post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists())
                             <div
-                                class="px-2 py-0.5 rounded-full bg-[var(--color-brand-purple)] text-[8px] font-black text-white uppercase tracking-widest">
+                                class="px-2 py-0.5 rounded-full bg-[var(--color-brand-purple)] text-xs font-bold text-white uppercase tracking-normal">
                                 {{ __('JUDGE') }}</div>
                         @else
                             <div
-                                class="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[8px] font-black text-zinc-500 uppercase tracking-widest">
+                                class="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-normal">
                                 {{ __('PARTICIPANT') }}</div>
                         @endif
                     </div>
-                    <p class="text-[10px] text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
+                    <p class="text-xs text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
                 </div>
             </div>
 

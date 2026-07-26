@@ -85,15 +85,15 @@ new class extends Component {
     }
 }; ?>
 
-<div class="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm mt-6">
-    <div class="flex items-center justify-between mb-6">
-        <h3 class="font-bold text-lg text-zinc-900 dark:text-zinc-100">{{ __('Reviews & Ratings') }}</h3>
+<div>
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-sm text-zinc-100">{{ __('Reviews & Ratings') }}</h3>
         <div class="flex items-center gap-2">
             <div class="flex items-center gap-1">
-                <flux:icon name="star" variant="solid" class="size-5 text-yellow-400" />
-                <span class="font-black text-xl text-zinc-900 dark:text-zinc-100">{{ number_format($averageRating, 1) }}</span>
+                <flux:icon name="star" variant="solid" class="size-4 text-yellow-500" />
+                <span class="font-bold text-base text-zinc-100">{{ number_format($averageRating, 1) }}</span>
             </div>
-            <span class="text-sm text-zinc-500 dark:text-zinc-400">({{ $totalReviews }} {{ Str::plural('review', $totalReviews) }})</span>
+            <span class="text-xs text-zinc-500">({{ $totalReviews }} {{ Str::plural('review', $totalReviews) }})</span>
         </div>
     </div>
     

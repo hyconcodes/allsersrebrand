@@ -35,7 +35,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                         </svg>
-                        <span>Abuja, NG</span>
+                        <span>Ekiti, NG</span>
                     </div>
                 </div>
             </div>
@@ -125,7 +125,7 @@
 
     <div
         class="absolute bottom-0 left-0 right-0 flex justify-center pointer-events-none select-none opacity-[0.50] -mb-[5vw]">
-        <h1 class="text-[28vw] font-black text-[#6a11cb] leading-none tracking-tighter">
+        <h1 class="text-[28vw] font-bold text-[#6a11cb] leading-none tracking-tighter">
             {{ config('app.name') }}
         </h1>
     </div>

@@ -132,17 +132,16 @@ new class extends Component {
     @forelse($posts as $post)
         <livewire:dashboard.post-item :post="$post" :wire:key="'bookmark-post-'.$post->id" />
     @empty
-        <div
-            class="bg-white dark:bg-zinc-900 rounded-2xl p-12 shadow-sm border border-zinc-200 dark:border-zinc-800 text-center">
-            <div class="size-16 bg-zinc-50 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <flux:icon name="bookmark" class="size-8 text-zinc-400" />
+        <div class="px-4 py-12 text-center border-b border-zinc-200 dark:border-zinc-800">
+            <div class="size-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <flux:icon name="bookmark" class="size-8 text-zinc-600" />
             </div>
             <h3 class="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">{{ __('No bookmarks yet') }}</h3>
             <p class="text-zinc-500 max-w-xs mx-auto text-sm">
                 {{ __('Posts you save will appear here. Start exploring and bookmark your favorite inspirations!') }}
             </p>
             <a href="{{ route('dashboard') }}"
-                class="inline-block mt-6 px-6 py-2 bg-[var(--color-brand-purple)] text-white rounded-full text-sm font-bold">
+                class="inline-block mt-6 px-6 py-2 bg-purple-600 text-white rounded-full text-sm font-bold hover:bg-purple-500 transition-colors">
                 {{ __('Explore Feed') }}
             </a>
         </div>
@@ -177,7 +176,7 @@ new class extends Component {
 
                 <div class="flex gap-4">
                     @if ($repostImage)
-                        <div class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 shadow-sm">
+                        <div class="relative group size-20 rounded-lg overflow-hidden border border-zinc-800">
                             <img src="{{ $repostImage->temporaryUrl() }}" class="size-full object-cover">
                             <button type="button" wire:click="$set('repostImage', null)"
                                 class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -188,8 +187,8 @@ new class extends Component {
 
                     @if ($repostVideo)
                         <div
-                            class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 flex items-center justify-center bg-zinc-100 shadow-sm">
-                            <flux:icon name="video-camera" class="size-8 text-zinc-400" />
+                            class="relative group size-20 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center bg-zinc-900">
+                            <flux:icon name="video-camera" class="size-8 text-zinc-500" />
                             <button type="button" wire:click="$set('repostVideo', null)"
                                 class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 <flux:icon name="x-mark" class="size-4" />

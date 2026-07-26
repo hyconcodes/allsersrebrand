@@ -119,7 +119,7 @@ new class extends Component {
 
         // 5. Notify
         try {
-            Mail::to($artisan->email)->send(new ServiceInquiryMail($sender, $artisan));
+            Mail::to($artisan->email)->queue(new ServiceInquiryMail($sender, $artisan));
             $artisan->notify(new ServiceInquiry($sender));
         } catch (\Exception $e) {
             $artisan->notify(new ServiceInquiry($sender));
@@ -198,7 +198,6 @@ new class extends Component {
     {
         $this->isOpen = !$this->isOpen;
         if ($this->isOpen) {
-            $this->dispatch('play-sound');
             if (!$this->lat) {
                 $this->showLocationRequest = true;
             }
@@ -354,10 +353,7 @@ new class extends Component {
     userMarker: null,
     artisanMarker: null,
     polyline: null,
-    playSound() {
-        let audio = new Audio('{{ asset('assets/mixkit-cartoon-toy-whistle-616.wav') }}');
-        audio.play();
-    },
+    distanceLabel: null,
     initMap() {
         if (!this.selectedArtisan) return;
 
@@ -427,10 +423,14 @@ new class extends Component {
                 (userLng + artisanLng) / 2
             ];
 
+            const userPoint = L.latLng(userLat, userLng);
+            const artisanPoint = L.latLng(artisanLat, artisanLng);
+            const distKm = (userPoint.distanceTo(artisanPoint) / 1000).toFixed(1);
+
             this.distanceLabel = L.marker(midpoint, {
                 icon: L.divIcon({
                     className: 'distance-label',
-                    html: `<div class='bg-white dark:bg-zinc-800 px-3 py-1.5 rounded-full text-[11px] font-black shadow-xl border-2 border-purple-500 dark:border-purple-400 text-purple-600 dark:text-purple-300 animate-in zoom-in duration-300'>${this.selectedArtisan.distance}</div>`,
+                    html: `<div class='bg-white dark:bg-zinc-800 px-3 py-1.5 rounded-full text-xs font-bold border-2 border-purple-500 dark:border-purple-400 text-purple-600 dark:text-purple-300 animate-in zoom-in duration-300'>${distKm} km</div>`,
                     iconSize: [window.innerWidth < 640 ? 60 : 70, 24],
                     iconAnchor: [window.innerWidth < 640 ? 30 : 35, 12]
                 })
@@ -442,8 +442,7 @@ new class extends Component {
             ]);
 
             this.map.fitBounds(bounds, {
-                padding: [70, 70],
-                maxZoom: 15,
+                padding: [50, 50],
                 animate: true,
                 duration: 1
             });
@@ -454,15 +453,15 @@ new class extends Component {
             }, 200);
         }, 600);
     }
-}" x-show="!closed || {{ $fullPage ? 'true' : 'false' }}" x-on:play-sound.window="playSound()"
-    class="{{ $fullPage ? 'w-full h-full flex flex-col' : 'fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-4' }}">
+}" x-show="!closed || {{ $fullPage ? 'true' : 'false' }}"
+    class="{{ $fullPage ? 'w-full h-full flex flex-col' : 'fixed bottom-[4.5rem] md:bottom-6 right-2 md:right-6 z-[9999] flex flex-col items-end gap-4' }}"
 
     <!-- Map Modal -->
     <div x-show="showMap" x-transition.opacity.duration.300ms
         class="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-zinc-900/80 backdrop-blur-md"
         @keydown.escape.window="showMap = false" x-init="$watch('showMap', value => { if (value) initMap() })"
         style="display: none;">
-        <div class="bg-white dark:bg-zinc-900 w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[85vh] border border-white/20 relative"
+        <div class="bg-white dark:bg-zinc-900 w-full max-w-5xl rounded-xl overflow-hidden flex flex-col h-[85vh] border border-white/20 relative"
             @click.away="showMap = false">
 
             <!-- Map Container -->
@@ -473,13 +472,13 @@ new class extends Component {
                 <div class="absolute top-6 left-6 right-6 z-20 flex justify-between items-start pointer-events-none">
                     <!-- User Card (Top Left) -->
                     <div
-                        class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 pointer-events-auto max-w-sm animate-in fade-in slide-in-from-left-4 duration-500">
+                        class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-4 rounded-xl border border-white/20 pointer-events-auto max-w-sm animate-in fade-in slide-in-from-left-4 duration-500">
                         <div class="flex items-center gap-3">
                             <div class="size-10 rounded-full bg-blue-500/10 flex items-center justify-center">
                                 <flux:icon name="map-pin" class="size-5 text-blue-500" />
                             </div>
                             <div class="flex-1">
-                                <p class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Your
+                                <p class="text-xs font-bold uppercase  text-zinc-400">Your
                                     Location</p>
                                 <p class="text-xs font-bold text-zinc-900 dark:text-white leading-tight mt-0.5"
                                     x-text="'{{ $address ?: 'Detecting your coordinates...' }}'"></p>
@@ -489,7 +488,7 @@ new class extends Component {
 
                     <!-- Close Button -->
                     <button @click="showMap = false"
-                        class="pointer-events-auto size-12 flex items-center justify-center bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md rounded-full shadow-xl border border-white/20 hover:scale-110 active:scale-95 transition-all">
+                        class="pointer-events-auto size-12 flex items-center justify-center bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md rounded-full border border-white/20 hover:scale-110 active:scale-95 transition-all">
                         <flux:icon name="x-mark" class="size-6 text-zinc-600 dark:text-zinc-400" />
                     </button>
                 </div>
@@ -497,39 +496,39 @@ new class extends Component {
                 <!-- Artisan Card (Bottom Right) -->
                 <div class="absolute bottom-10 right-10 z-20 pointer-events-none" x-show="selectedArtisan">
                     <div
-                        class="relative bg-white dark:bg-zinc-900 p-4 rounded-3xl shadow-2xl border border-white/20 pointer-events-auto w-64 lg:w-72 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        class="relative bg-white dark:bg-zinc-900 p-4 rounded-xl border border-white/20 pointer-events-auto w-64 lg:w-72 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                         <!-- Close Button -->
                         <button @click.stop="selectedArtisan = null"
-                            class="absolute -top-2 -right-2 size-7 bg-white dark:bg-zinc-800 rounded-full shadow-lg border border-zinc-100 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors z-30">
+                            class="absolute -top-2 -right-2 size-7 bg-white dark:bg-zinc-800 rounded-full border border-zinc-100 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors z-30">
                             <flux:icon name="x-mark" class="size-4" />
                         </button>
 
                         <div class="flex items-start gap-3 mb-3">
                             <div
-                                class="size-10 lg:size-12 rounded-xl overflow-hidden border-2 border-[var(--color-brand-purple)] shrink-0 shadow-lg bg-zinc-100 dark:bg-zinc-800">
+                                class="size-10 lg:size-12 rounded-xl overflow-hidden border-2 border-[var(--color-brand-purple)] shrink-0 bg-zinc-100 dark:bg-zinc-800">
                                 <template x-if="selectedArtisan && selectedArtisan.profile_picture">
                                     <img :src="selectedArtisan.profile_picture" class="size-full object-cover">
                                 </template>
                                 <template x-if="!selectedArtisan || !selectedArtisan.profile_picture">
                                     <div
-                                        class="size-full flex items-center justify-center text-zinc-400 font-black text-xs">
+                                        class="size-full flex items-center justify-center text-zinc-400 font-bold text-xs">
                                         <span
                                             x-text="selectedArtisan ? selectedArtisan.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2) : ''"></span>
                                     </div>
                                 </template>
                             </div>
                             <div class="min-w-0 flex-1">
-                                <h3 class="font-black text-sm lg:text-base text-zinc-900 dark:text-white truncate"
+                                <h3 class="font-bold text-sm lg:text-base text-zinc-900 dark:text-white truncate"
                                     x-text="selectedArtisan.name"></h3>
-                                <p class="text-[9px] lg:text-[10px] font-black uppercase text-[var(--color-brand-purple)] tracking-wider"
+                                <p class="text-xs lg:text-xs font-bold uppercase text-[var(--color-brand-purple)] tracking-normal"
                                     x-text="selectedArtisan.work"></p>
                                 <div class="mt-1 flex flex-wrap items-center gap-1">
                                     <span
-                                        class="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[8px] font-bold text-zinc-500"
+                                        class="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-500"
                                         x-text="selectedArtisan.experience"></span>
                                     <span
-                                        class="px-1.5 py-0.5 rounded-full bg-[var(--color-brand-purple)]/10 text-[8px] font-black text-[var(--color-brand-purple)]"
+                                        class="px-1.5 py-0.5 rounded-full bg-[var(--color-brand-purple)]/10 text-xs font-bold text-[var(--color-brand-purple)]"
                                         x-text="selectedArtisan.distance + ' away'"></span>
                                 </div>
                             </div>
@@ -537,10 +536,10 @@ new class extends Component {
 
                         <button wire:click="pingArtisan(selectedArtisan.id)" wire:loading.attr="disabled"
                             wire:target="pingArtisan"
-                            class="w-full py-2 text-white text-xs font-black rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group px-6"
+                            class="w-full py-2 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group px-6"
                             :disabled="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)" :class="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id) ?
-                                'bg-green-500 shadow-lg shadow-green-500/30' :
-                                'bg-[var(--color-brand-purple)] shadow-lg shadow-purple-500/30 hover:scale-[1.02]'">
+                                'bg-green-500' :
+                                'bg-[var(--color-brand-purple)] hover:opacity-90'">
 
                             {{-- Loading Spinner (Native Livewire) --}}
                             <div wire:loading wire:target="pingArtisan">
@@ -549,7 +548,7 @@ new class extends Component {
                                         class="size-3 border-2 border-white/30 border-t-white rounded-full animate-spin">
                                     </div>
                                     <span
-                                        class="text-[10px] uppercase tracking-widest leading-none">{{ __('Sending...') }}</span>
+                                        class="text-xs uppercase  leading-none">{{ __('Sending...') }}</span>
                                 </div>
                             </div>
 
@@ -560,7 +559,7 @@ new class extends Component {
                                     <div class="flex items-center gap-2">
                                         <flux:icon name="check" class="size-3.5" />
                                         <span
-                                            class="text-[10px] uppercase tracking-widest leading-none">{{ __('Ping Sent!') }}</span>
+                                            class="text-xs uppercase  leading-none">{{ __('Ping Sent!') }}</span>
                                     </div>
                                 </template>
 
@@ -570,7 +569,7 @@ new class extends Component {
                                         <flux:icon name="chat-bubble-left-right"
                                             class="size-3.5 transition-transform group-hover:scale-110" />
                                         <span
-                                            class="text-[10px] uppercase tracking-widest leading-none">{{ __('Ping Now') }}</span>
+                                            class="text-xs uppercase  leading-none">{{ __('Ping Now') }}</span>
                                     </div>
                                 </template>
                             </div>
@@ -587,17 +586,17 @@ new class extends Component {
         x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
         x-transition:leave="transition ease-in duration-200 transform opacity-100 translate-y-0"
     x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-4" @endif
-        class="{{ $fullPage ? 'w-full flex-1 rounded-none border-t-0 shadow-none' : 'w-80 md:w-96 h-[500px] rounded-2xl shadow-2xl' }} bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
+        class="{{ $fullPage ? 'w-full flex-1 rounded-none border-t-0 border-0' : 'w-80 md:w-96 h-[500px] rounded-2xl' }} bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
         <!-- Header -->
         <div class="p-4 bg-[var(--color-brand-purple)] text-white flex justify-between items-center shrink-0">
             <div class="flex items-center gap-2">
                 <div
                     class="size-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden animate-lila-idle">
-                    <img src="{{ asset('assets/lila-avatar.png') }}" alt="Lila" class="size-full object-cover">
+                    <img loading="lazy" src="{{ asset('assets/lila-avatar.png') }}" alt="Lila" class="size-full object-cover">
                 </div>
                 <div>
                     <div class="font-bold text-sm leading-none">Lila</div>
-                    <div class="text-[10px] opacity-80 mt-1 flex items-center gap-1">
+                    <div class="text-xs opacity-80 mt-1 flex items-center gap-1">
                         <span class="size-1.5 bg-green-400 rounded-full animate-pulse"></span>
                         {{ $address ? Str::limit($address, 25) : 'Allsers Assistant' }}
                     </div>
@@ -617,16 +616,16 @@ new class extends Component {
         </div>
 
         <!-- Messages -->
-        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-50 dark:bg-zinc-900/50" x-init="$watch('messages', () => { $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-white dark:bg-zinc-950" x-init="$watch('messages', () => { $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });
             $watch('open', (value) => { if (value) $nextTick(() => { $el.scrollTop = $el.scrollHeight }) });"
             x-on:scroll-to-bottom.window="$nextTick(() => { $el.scrollTop = $el.scrollHeight })">
             @foreach ($messages as $message)
                 <div class="flex {{ $message['role'] === 'user' ? 'justify-end' : 'justify-start' }}">
                     <div
-                        class="max-w-[85%] px-4 py-3 rounded-2xl text-sm {{ $message['role'] === 'user' ? 'bg-[var(--color-brand-purple)] text-white shadow-md' : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 shadow-sm' }}">
+                        class="max-w-[85%] px-4 py-3 rounded-2xl text-sm {{ $message['role'] === 'user' ? 'bg-[var(--color-brand-purple)] text-white' : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 ' }}">
                         @if ($message['role'] === 'assistant')
                             <div
-                                class="mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-purple)] opacity-70">
+                                class="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase  text-[var(--color-brand-purple)] opacity-70">
                                 <flux:icon name="sparkles" class="size-3" />
                                 <span>Lila</span>
                             </div>
@@ -638,10 +637,10 @@ new class extends Component {
                                 <div class="mt-4 space-y-3">
                                     @foreach ($message['artisans'] as $artisan)
                                         <div
-                                            class="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 flex gap-3 shadow-sm hover:border-[var(--color-brand-purple)] transition-colors">
+                                            class="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 flex gap-3  hover:border-[var(--color-brand-purple)] transition-colors">
                                             <div class="size-12 rounded-lg bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0">
                                                 @if ($artisan['profile_picture'])
-                                                    <img src="{{ $artisan['profile_picture'] }}" class="size-full object-cover">
+                                                    <img loading="lazy" src="{{ $artisan['profile_picture'] }}" class="size-full object-cover">
                                                 @else
                                                     <div class="size-full flex items-center justify-center text-zinc-400">
                                                         <flux:icon name="user" class="size-6" />
@@ -652,17 +651,17 @@ new class extends Component {
                                                 <div class="font-bold text-zinc-900 dark:text-white truncate">
                                                     {{ $artisan['name'] }}
                                                 </div>
-                                                <div class="text-[10px] text-zinc-500 font-medium uppercase">
+                                                <div class="text-xs text-zinc-500 font-medium uppercase">
                                                     {{ $artisan['work'] }}
                                                 </div>
-                                                <div class="mt-1 flex items-center gap-2 text-[10px] text-zinc-400">
+                                                <div class="mt-1 flex items-center gap-2 text-xs text-zinc-400">
                                                     <span class="flex items-center gap-0.5">
                                                         <flux:icon name="briefcase" class="size-3" />
                                                         {{ $artisan['experience'] }}
                                                     </span>
                                                 </div>
                                                 <button @click="selectedArtisan = {{ json_encode($artisan) }}; showMap = true"
-                                                    class="mt-2 block w-full text-center py-2 bg-[var(--color-brand-purple)] text-white text-[11px] font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/20 transition-all">
+                                                    class="mt-2 block w-full text-center py-2 bg-[var(--color-brand-purple)] text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all">
                                                     {{ __('View on Map') }}
                                                 </button>
                                             </div>
@@ -680,7 +679,7 @@ new class extends Component {
             @if ($showLocationRequest)
                 <div class="flex justify-start">
                     <div
-                        class="max-w-[85%] bg-white dark:bg-zinc-800 border-2 border-[var(--color-brand-purple)] px-4 py-4 rounded-2xl shadow-lg">
+                        class="max-w-[85%] bg-white dark:bg-zinc-800 border border-[var(--color-brand-purple)] px-4 py-4 rounded-xl">
                         <div class="flex items-center gap-2 mb-3">
                             <flux:icon name="map-pin" class="size-5 text-[var(--color-brand-purple)]" />
                             <span class="font-bold text-zinc-900 dark:text-white">Find local experts nearby</span>
@@ -706,9 +705,9 @@ new class extends Component {
             @if ($isThinking)
                 <div class="flex justify-start">
                     <div
-                        class="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-4 py-3 rounded-2xl shadow-sm">
+                        class="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-4 py-3 rounded-2xl ">
                         <div
-                            class="mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-purple)] opacity-70">
+                            class="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase  text-[var(--color-brand-purple)] opacity-70">
                             <flux:icon name="sparkles" class="size-3" />
                             <span>Lila is thinking...</span>
                         </div>
@@ -739,10 +738,6 @@ new class extends Component {
         </script>
 
         <style>
-            [x-cloak] {
-                display: none !important;
-            }
-
             .markdown-content p {
                 margin-bottom: 0.75rem;
             }
@@ -889,7 +884,7 @@ new class extends Component {
 
         <!-- Input -->
         <form wire:submit="sendMessage"
-            class="p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex gap-2">
+            class="p-4 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 flex gap-2">
             <input type="text" wire:model="input" placeholder="Ask Lila anything..."
                 class="flex-1 bg-zinc-100 dark:bg-zinc-800 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-[var(--color-brand-purple)] dark:text-white">
             <button type="submit"
@@ -902,7 +897,7 @@ new class extends Component {
     <!-- Floating Widget -->
     <div x-show="!open" x-data="{ checklist: false, greeting: false }" x-init="setTimeout(() => greeting = true, 1800);
     setTimeout(() => greeting = false, 8000)"
-        class="hidden lg:flex relative items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full px-4 py-2 shadow-xl cursor-pointer hover:shadow-2xl transition-all group">
+        class="hidden lg:flex relative items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full px-4 py-2 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all group">
 
         <!-- Greeting Bubble -->
         <div x-show="greeting" x-transition:enter="transition ease-out duration-500"
@@ -910,9 +905,9 @@ new class extends Component {
             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
             x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 scale-100"
             x-transition:leave-end="opacity-0 scale-90"
-            class="absolute bottom-full right-0 mb-4 bg-white dark:bg-zinc-800 px-4 py-2 rounded-2xl shadow-2xl border border-zinc-100 dark:border-zinc-700 whitespace-nowrap z-[10000]">
+            class="absolute bottom-full right-0 mb-4 bg-white dark:bg-zinc-800 px-4 py-2 rounded-2xl border border-zinc-100 dark:border-zinc-700 whitespace-nowrap z-[10000]">
             <div class="flex items-center gap-2">
-                <span class="text-sm font-black text-zinc-900 dark:text-white">Hi! I'm Lila</span>
+                <span class="text-sm font-bold text-zinc-900 dark:text-white">Hi! I'm Lila</span>
                 <span class="text-lg animate-waving-hand">👋</span>
             </div>
             <!-- Pointer -->
@@ -929,9 +924,9 @@ new class extends Component {
                 x-transition:leave="transition ease-in duration-150"
                 x-transition:leave-start="opacity-100 translate-y-0 scale-100"
                 x-transition:leave-end="opacity-0 translate-y-4 scale-95" @click.away="checklist = false"
-                class="absolute bottom-full right-0 mb-4 w-72 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50">
+                class="absolute bottom-full right-0 mb-4 w-72 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden z-50">
                 <div class="p-4 border-b border-zinc-100 dark:border-zinc-700 bg-[var(--color-brand-purple)]/5">
-                    <h4 class="font-black text-xs uppercase tracking-wider text-[var(--color-brand-purple)]">
+                    <h4 class="font-bold text-xs uppercase tracking-normal text-[var(--color-brand-purple)]">
                         {{ __('Profile Completion') }}
                     </h4>
                     <div class="mt-2 flex items-center gap-2">
@@ -940,7 +935,7 @@ new class extends Component {
                                 style="width: {{ $completion['percentage'] }}%"></div>
                         </div>
                         <span
-                            class="text-[10px] font-bold text-zinc-600 dark:text-zinc-400">{{ $completion['percentage'] }}%</span>
+                            class="text-xs font-bold text-zinc-600 dark:text-zinc-400">{{ $completion['percentage'] }}%</span>
                     </div>
                 </div>
                 <div class="p-2 max-h-64 overflow-y-auto">
@@ -949,47 +944,47 @@ new class extends Component {
                             <div class="flex items-center gap-2 p-2 rounded-lg bg-green-50/50 dark:bg-green-900/10">
                                 <flux:icon name="check-circle" variant="solid" class="size-3.5 text-green-500" />
                                 <span
-                                    class="text-[11px] text-zinc-600 dark:text-zinc-400 line-through opacity-60">{{ $item['label'] }}</span>
+                                    class="text-xs text-zinc-600 dark:text-zinc-400 line-through opacity-60">{{ $item['label'] }}</span>
                             </div>
                         @endforeach
                         @foreach ($completion['missing'] as $item)
                             <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                                 <div class="size-3.5 border-2 border-zinc-200 dark:border-zinc-600 rounded-full"></div>
                                 <span
-                                    class="text-[11px] font-medium text-zinc-800 dark:text-zinc-200">{{ $item['label'] }}</span>
+                                    class="text-xs font-medium text-zinc-800 dark:text-zinc-200">{{ $item['label'] }}</span>
                             </div>
                         @endforeach
                     </div>
                 </div>
                 <div class="p-3 bg-zinc-50 dark:bg-zinc-700/30 border-t border-zinc-100 dark:border-zinc-700">
                     <a href="{{ route('profile.edit') }}"
-                        class="block w-full text-center py-2 bg-[var(--color-brand-purple)] text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:opacity-90 transition-opacity">
+                        class="block w-full text-center py-2 bg-[var(--color-brand-purple)] text-white text-xs font-bold uppercase  rounded-lg hover:opacity-90 transition-opacity">
                         {{ __('Complete Profile') }}
                     </a>
                 </div>
             </div>
         @endif
 
-        <div class="flex items-center gap-3" @click="playSound(); @this.toggle()">
+        <div class="flex items-center gap-3" @click="@this.toggle()">
             <div class="relative">
                 <div
                     class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border-2 border-[var(--color-brand-purple)] animate-lila-entrance">
-                    <img src="{{ asset('assets/lila-avatar.png') }}" class="size-full object-cover rounded-full">
+                    <img loading="lazy" src="{{ asset('assets/lila-avatar.png') }}" class="size-full object-cover rounded-full">
                 </div>
                 <div
-                    class="absolute -top-1 -right-1 size-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-900">
+                    class="absolute -top-1 -right-1 size-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-900">
                     1
                 </div>
             </div>
 
             <div class="flex flex-col">
                 <div class="flex items-center gap-1">
-                    <span class="text-sm font-black text-zinc-900 dark:text-white">Lila</span>
+                    <span class="text-sm font-bold text-zinc-900 dark:text-white">Lila</span>
                     <span
-                        class="px-1.5 bg-zinc-100 dark:bg-zinc-800 rounded text-[10px] font-bold text-zinc-500">Allsers
+                        class="px-1.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-bold text-zinc-500">Allsers
                         Finder</span>
                 </div>
-                <span class="text-[10px] text-zinc-500 truncate w-32">Welcome to Allsers. How...</span>
+                <span class="text-xs text-zinc-500 truncate w-32">Welcome to Allsers. How...</span>
             </div>
 
             @if ($completion && !$completion['is_complete'])
@@ -1002,7 +997,7 @@ new class extends Component {
                         </circle>
                     </svg>
                     <div
-                        class="absolute inset-0 flex items-center justify-center text-[10px] font-black text-zinc-900 dark:text-white group-hover/stat:text-[var(--color-brand-purple)] transition-colors">
+                        class="absolute inset-0 flex items-center justify-center text-xs font-bold text-zinc-900 dark:text-white group-hover/stat:text-[var(--color-brand-purple)] transition-colors">
                         {{ $completion['percentage'] }}%
                     </div>
                 </div>
@@ -1019,76 +1014,68 @@ new class extends Component {
         </button>
     </div>
     <!-- Structured Inquiry Modal -->
-    <flux:modal wire:model="showInquiryForm" variant="flyout" class="space-y-6">
-        <div class="space-y-6 text-left">
-            <div>
-                <h2 class="text-xl font-black text-zinc-900 dark:text-white">{{ __('Start a Quick Brief') }}</h2>
-                <p class="text-xs text-zinc-500 mt-1">{{ __('Describe your task clearly to get the best quote.') }}
-                </p>
+    <flux:modal wire:model="showInquiryForm" class="w-full sm:max-w-xl">
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-bold text-zinc-900 dark:text-white">{{ __('Ping') }} {{ $selectedArtisanRecord?->name }}</h2>
+                <flux:modal.close>
+                    <flux:icon name="x-mark" class="size-5 text-zinc-400 cursor-pointer hover:text-zinc-600" />
+                </flux:modal.close>
             </div>
 
-            <form wire:submit="submitStructuredInquiry" class="space-y-6">
-                {{-- Task Description --}}
+            <form wire:submit="submitStructuredInquiry" class="space-y-4">
                 <flux:textarea wire:model="inquiryTask" label="What do you need done?"
-                    placeholder="e.g. Broken kitchen pipe needs urgent fixing. It's leaking since morning..."
+                    placeholder="e.g. My kitchen sink is leaking and needs urgent repair..."
                     rows="3" />
 
-                {{-- Location Context --}}
                 <flux:input wire:model="inquiryLocation" label="Location Context" placeholder="e.g. Floor 2, Building B"
                     icon="map-pin" />
 
-                {{-- Urgency Level --}}
-                <flux:radio.group wire:model="inquiryUrgency" label="Urgency Level" variant="segmented">
+                <flux:radio.group wire:model="inquiryUrgency" label="Urgency" variant="segmented">
                     <flux:radio value="low" label="Low" />
                     <flux:radio value="medium" label="Medium" />
-                    <flux:radio value="high" label="High (Urgent)" />
+                    <flux:radio value="high" label="Urgent" />
                 </flux:radio.group>
 
-                {{-- Photos --}}
-                <div class="space-y-3">
-                    <flux:label>{{ __('Photos of the Problem (Optional)') }}</flux:label>
-                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                <div class="space-y-2">
+                    <flux:label>{{ __('Photos (Optional)') }}</flux:label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         @foreach ($inquiryPhotos as $index => $photo)
-                            <div
-                                class="relative aspect-square rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-sm transition-all hover:scale-105">
-                                <img src="{{ $photo->temporaryUrl() }}" class="size-full object-cover">
+                            <div class="relative aspect-square rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                                <img loading="lazy" src="{{ $photo->temporaryUrl() }}" class="size-full object-cover">
                                 <button type="button" @click="$wire.set('inquiryPhotos.{{ $index }}', null)"
-                                    class="absolute top-1.5 right-1.5 size-6 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white ring-2 ring-white/20 transition-transform active:scale-90">
-                                    <flux:icon name="x-mark" class="size-3.5" />
+                                    class="absolute top-1 right-1 size-5 bg-black/60 rounded-full flex items-center justify-center text-white">
+                                    <flux:icon name="x-mark" class="size-3" />
                                 </button>
                             </div>
                         @endforeach
 
-                        <label
-                            class="aspect-square rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-600 flex flex-col items-center justify-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all active:scale-95 group">
-                            <div
-                                class="bg-zinc-100 dark:bg-zinc-800 p-2 rounded-xl group-hover:bg-purple-100 dark:group-hover:bg-purple-900/30 transition-colors">
-                                <flux:icon name="plus" class="size-5 text-zinc-500 group-hover:text-purple-600" />
-                            </div>
-                            <span
-                                class="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 mt-2 tracking-widest group-hover:text-purple-600">{{ __('Photo') }}</span>
+                        <label class="aspect-square rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 flex flex-col items-center justify-center cursor-pointer hover:border-purple-400 transition-colors group">
+                            <flux:icon name="plus" class="size-5 text-zinc-400 group-hover:text-purple-600" />
+                            <span class="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 mt-1 group-hover:text-purple-600">{{ __('Photo') }}</span>
                             <input type="file" wire:model="inquiryPhotos" multiple class="hidden" accept="image/*">
                         </label>
                     </div>
-                    <div wire:loading wire:target="inquiryPhotos" class="flex items-center gap-2 mt-2">
-                        <div class="size-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin">
-                        </div>
-                        <span
-                            class="text-[10px] text-purple-600 font-black uppercase tracking-widest">{{ __('Processing Media...') }}</span>
+                    <div wire:loading wire:target="inquiryPhotos" class="flex items-center gap-1.5 mt-1">
+                        <div class="size-2.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span class="text-[11px] text-purple-600 font-bold">{{ __('Uploading...') }}</span>
                     </div>
                 </div>
 
-                <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex gap-3">
-                    <flux:button type="submit" variant="primary" class="flex-1 rounded-xl py-3"
-                        wire:loading.attr="disabled">
-                        <span wire:loading.remove wire:target="submitStructuredInquiry">
-                            {{ __('Send Brief to') }} {{ $selectedArtisanRecord?->name }}
-                        </span>
-                        <span wire:loading wire:target="submitStructuredInquiry">
-                            {{ __('Sending Inquiry...') }}
-                        </span>
-                    </flux:button>
-                </div>
+                @if ($errors->any())
+                    <div class="bg-red-50 dark:bg-red-900/20 text-red-500 p-3 rounded-lg text-xs font-bold">
+                        {{ $errors->first() }}
+                    </div>
+                @endif
+
+                <button type="submit" wire:loading.attr="disabled"
+                    class="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 active:scale-[0.98] transition-all text-sm disabled:opacity-50">
+                    <span wire:loading.remove wire:target="submitStructuredInquiry">{{ __('Send Ping') }}</span>
+                    <span wire:loading wire:target="submitStructuredInquiry" class="flex items-center justify-center gap-2">
+                        <div class="size-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        {{ __('Sending...') }}
+                    </span>
+                </button>
             </form>
         </div>
     </flux:modal>

@@ -4,9 +4,9 @@ use Livewire\Volt\Component;
 
 new class extends Component {}; ?>
 <x-layouts.app :title="__('Allsers - Feeds')">
-    <div class="flex flex-col lg:flex-row gap-8 w-full max-w-7xl mx-auto px-4 lg:px-0">
+    <div class="dashboard-two-col-layout w-full max-w-7xl mx-auto px-4 lg:px-0">
         <!-- Main Feed (Left Column) -->
-        <div class="flex-1 min-w-0 w-full max-w-2xl mx-auto lg:mx-0">
+        <div class="dashboard-feed-column">
             @if (auth()->user()->role === 'artisan' &&
                     !auth()->user()->is_admin &&
                     ($completion = auth()->user()->profileCompletion()) &&
@@ -20,7 +20,7 @@ new class extends Component {}; ?>
                     </div>
                     <div class="flex-1">
                         <div class="flex items-center justify-between mb-1">
-                            <h3 class="font-black text-sm text-zinc-900">{{ __('Boost your visibility!') }}</h3>
+                            <h3 class="font-bold text-sm text-zinc-900 dark:text-zinc-100">{{ __('Boost your visibility!') }}</h3>
                             <span
                                 class="text-xs font-bold text-[var(--color-brand-purple)]">{{ $completion['percentage'] }}%</span>
                         </div>
@@ -29,10 +29,10 @@ new class extends Component {}; ?>
                         </p>
                         <div class="flex items-center gap-3">
                             <a href="{{ route('profile.edit') }}"
-                                class="text-[11px] font-black uppercase tracking-wider text-[var(--color-brand-purple)] hover:underline">
+                                class="text-xs font-bold uppercase tracking-normal text-[var(--color-brand-purple)] hover:underline">
                                 {{ __('Finish Profile') }}
                             </a>
-                            <div class="flex-1 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                            <div class="flex-1 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                                 <div class="h-full bg-[var(--color-brand-purple)] transition-all duration-500"
                                     style="width: {{ $completion['percentage'] }}%"></div>
                             </div>
@@ -45,7 +45,7 @@ new class extends Component {}; ?>
         </div>
 
         <!-- Right Sidebar (Trending & Pros) -->
-        <div class="hidden lg:block w-80 space-y-6">
+        <div class="dashboard-sidebar space-y-6">
             <livewire:challenge.trending-widget />
             <livewire:dashboard.pros-widget />
         </div>

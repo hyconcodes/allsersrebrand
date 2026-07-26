@@ -100,11 +100,6 @@ class Post extends Model
         return $this->hasMany(Comment::class);
     }
 
-    public function likesCount()
-    {
-        return $this->likes_count ?? $this->likes()->count();
-    }
-
     public function bookmarks()
     {
         return $this->hasMany(Bookmark::class);
@@ -121,11 +116,6 @@ class Post extends Model
         }
 
         return $this->bookmarks()->where('user_id', $user->id)->exists();
-    }
-
-    public function commentsCount()
-    {
-        return $this->all_comments_count ?? $this->allComments()->count();
     }
 
     /**
@@ -153,7 +143,7 @@ class Post extends Model
             return '';
         }
 
-        $escaped = e(trim(htmlspecialchars_decode($content, ENT_QUOTES)), false);
+        $escaped = e(trim($content), false);
 
         // 1. Convert URLs to links
         $urlPattern = '/(https?:\/\/[^\s<]+)/i';
@@ -161,35 +151,55 @@ class Post extends Model
         $escaped = preg_replace($urlPattern, $urlReplacement, $escaped);
 
         // 2. Convert @mentions to links
-        // Matches @username at start of string or after whitespace
         $mentionPattern = '/(^|\s)@([a-zA-Z0-9_]+)/';
+        $usernames = [];
+        preg_match_all($mentionPattern, $content, $mentionMatches);
+        foreach ($mentionMatches[2] as $username) {
+            $usernames[] = $username;
+        }
+        $usernames = array_unique($usernames);
 
-        // We use a callback to generate the route properly
-        $escaped = preg_replace_callback($mentionPattern, function ($matches) {
+        $userSlugs = [];
+        if (!empty($usernames)) {
+            $userSlugs = \App\Models\User::whereIn('username', $usernames)
+                ->pluck('slug', 'username')
+                ->toArray();
+        }
+
+        $escaped = preg_replace_callback($mentionPattern, function ($matches) use ($userSlugs) {
             $whitespace = $matches[1];
             $username = $matches[2];
 
-            // Fetch the user to get their slug
-            $user = \App\Models\User::where('username', $username)->first();
-
-            if ($user) {
-                $url = route('artisan.profile', ['user' => $user->slug]);
+            if (isset($userSlugs[$username])) {
+                $url = route('artisan.profile', ['user' => $userSlugs[$username]]);
                 return $whitespace . '<a href="' . $url . '" class="text-[var(--color-brand-purple)] font-bold hover:underline">@' . $username . '</a>';
             }
 
-            // Fallback to plain text if user doesn't exist
             return $whitespace . '@' . $username;
         }, $escaped);
 
-        // 3. Convert #hashtags to links - Ensure it's not part of an HTML entity
+        // 3. Convert #hashtags to links
         $hashtagPattern = '/(^|\s)#([a-zA-Z0-9_]+)/';
-        $escaped = preg_replace_callback($hashtagPattern, function ($matches) {
+        $hashtags = [];
+        preg_match_all($hashtagPattern, $content, $hashtagMatches);
+        foreach ($hashtagMatches[2] as $hashtag) {
+            $hashtags[] = $hashtag;
+        }
+        $hashtags = array_unique($hashtags);
+
+        $challengeLinks = [];
+        if (!empty($hashtags)) {
+            $challengeLinks = \App\Models\Challenge::whereIn('hashtag', $hashtags)
+                ->pluck('custom_link', 'hashtag')
+                ->toArray();
+        }
+
+        $escaped = preg_replace_callback($hashtagPattern, function ($matches) use ($challengeLinks) {
             $whitespace = $matches[1];
             $hashtag = $matches[2];
-            // Check if this hashtag corresponds to a challenge
-            $challenge = \App\Models\Challenge::where('hashtag', $hashtag)->first();
-            if ($challenge) {
-                $url = route('challenges.show', $challenge->custom_link);
+
+            if (isset($challengeLinks[$hashtag])) {
+                $url = route('challenges.show', $challengeLinks[$hashtag]);
                 return $whitespace . '<a href="' . $url . '" class="text-blue-500 font-bold hover:underline">#' . $hashtag . '</a>';
             }
             return $whitespace . '<span class="text-blue-400">#' . $hashtag . '</span>';

@@ -201,7 +201,7 @@ new class extends Component {
                                 <a @if (auth()->id() !== $post->user_id) href="{{ route('artisan.profile', $post->user) }}"
                                 wire:navigate @endif
                                     @click.stop
-                                    class="size-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm overflow-hidden @if (auth()->id() !== $post->user_id) cursor-pointer hover:ring-2 hover:ring-[var(--color-brand-purple)] transition-all @endif">
+                                    class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm overflow-hidden @if (auth()->id() !== $post->user_id) cursor-pointer transition-all @endif">
                                     @if ($post->user->profile_picture_url)
                                         <img src="{{ $post->user->profile_picture_url }}"
                                             class="size-full object-cover">
@@ -216,9 +216,8 @@ new class extends Component {
                                             {{ $post->user->username }}
                                         </h3>
                                         @if ($post->repost_of_id)
-                                            <div
-                                                class="flex items-center gap-1 text-[10px] text-zinc-500 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
-                                                <flux:icon name="arrow-path-rounded-square" class="size-3" />
+                                            <div class="flex items-center gap-1 text-xs text-zinc-500 font-medium">
+                                                <flux:icon name="arrow-path-rounded-square" class="size-3.5" />
                                                 <span>reposted work</span>
                                             </div>
                                         @endif
@@ -244,29 +243,25 @@ new class extends Component {
                             </flux:dropdown>
                         </div>
 
-                        {{-- Price Range Badge - Prominent Display --}}
                         @if ($post->price_min || $post->price_max)
-                            <div class="mb-4">
+                            <div class="mb-3">
                                 <div
-                                    class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-full shadow-lg shadow-emerald-500/30">
-                                    <flux:icon name="currency-dollar" class="size-5" />
-                                    <div class="flex items-center gap-1.5 font-bold text-sm">
+                                    class="inline-flex items-center gap-1.5 border border-purple-500/50 text-purple-500 px-3 py-1 rounded-full text-xs font-semibold">
+                                    <flux:icon name="currency-dollar" class="size-3.5" />
+                                    <span>
                                         @if ($post->price_min && $post->price_max)
-                                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_min, 0) }}</span>
-                                            <span class="opacity-75">-</span>
-                                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_max, 0) }}</span>
+                                            {{ $post->user->currency_symbol }}{{ number_format($post->price_min, 0) }} - {{ $post->user->currency_symbol }}{{ number_format($post->price_max, 0) }}
                                         @elseif ($post->price_min)
-                                            <span>{{ $post->user->currency_symbol }}{{ number_format($post->price_min, 0) }}</span>
+                                            {{ $post->user->currency_symbol }}{{ number_format($post->price_min, 0) }}
                                         @else
-                                            <span>{{ __('Up to') }}
-                                                {{ $post->user->currency_symbol }}{{ number_format($post->price_max, 0) }}</span>
+                                            {{ __('Up to') }} {{ $post->user->currency_symbol }}{{ number_format($post->price_max, 0) }}
                                         @endif
-                                    </div>
+                                    </span>
                                 </div>
                             </div>
                         @endif
 
-                        <p class="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed whitespace-pre-line">
+                        <p class="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed whitespace-pre-line break-words">
                             {!! $post->formatted_content !!}
                         </p>
 
@@ -298,10 +293,10 @@ new class extends Component {
                         <!-- Original Post Preview (Repost) -->
                         @if ($post->repostOf)
                             <div @click.stop="$dispatch('open-post-detail', { postId: {{ $post->repost_of_id }} })"
-                                class="mb-4 p-4 border border-zinc-100 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer ring-1 ring-transparent hover:ring-[var(--color-brand-purple)]/30">
+                                class="mb-3 border border-zinc-800 rounded-xl p-3 hover:bg-zinc-900/50 transition-colors cursor-pointer">
                                 <div class="flex items-center gap-2 mb-2">
                                     <div
-                                        class="size-6 rounded-full bg-purple-50 flex items-center justify-center text-[10px] overflow-hidden">
+                                        class="size-6 rounded-full bg-zinc-100 flex items-center justify-center text-xs overflow-hidden">
                                         @if ($post->repostOf->user->profile_picture_url)
                                             <img src="{{ $post->repostOf->user->profile_picture_url }}"
                                                 class="size-full object-cover">
@@ -311,30 +306,28 @@ new class extends Component {
                                     </div>
                                     <span
                                         class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ $post->repostOf->user->name }}</span>
-                                    <span class="text-[10px] text-zinc-400">•
+                                    <span class="text-xs text-zinc-500">&bull;
                                         {{ $post->repostOf->created_at->diffForHumans() }}</span>
                                 </div>
-                                <div class="flex items-center gap-1.5 mb-2">
-                                    @if ($post->repostOf->price_min || $post->repostOf->price_max)
+                                @if ($post->repostOf->price_min || $post->repostOf->price_max)
+                                    <div class="flex items-center gap-1.5 mb-2">
                                         <div
-                                            class="inline-flex items-center gap-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                            class="inline-flex items-center gap-1 border border-purple-500/50 text-purple-500 px-2 py-0.5 rounded-full text-xs font-semibold">
                                             <flux:icon name="currency-dollar" class="size-3" />
-                                            @if ($post->repostOf->price_min && $post->repostOf->price_max)
-                                                <span>{{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_min, 0) }}
-                                                    -
-                                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_max, 0) }}</span>
-                                            @elseif ($post->repostOf->price_min)
-                                                <span>From
-                                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_min, 0) }}</span>
-                                            @else
-                                                <span>Up to
-                                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_max, 0) }}</span>
-                                            @endif
+                                            <span>
+                                                @if ($post->repostOf->price_min && $post->repostOf->price_max)
+                                                    {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_min, 0) }} - {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_max, 0) }}
+                                                @elseif ($post->repostOf->price_min)
+                                                    From {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_min, 0) }}
+                                                @else
+                                                    Up to {{ $post->repostOf->user->currency_symbol }}{{ number_format($post->repostOf->price_max, 0) }}
+                                                @endif
+                                            </span>
                                         </div>
-                                    @endif
-                                </div>
+                                    </div>
+                                @endif
                                 <p
-                                    class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2 whitespace-pre-wrap">
+                                    class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2 whitespace-pre-wrap break-words">
                                     {!! $post->repostOf->formatted_content !!}</p>
                                 @if ($post->repostOf->images)
                                     @php $originImages = is_array($post->repostOf->images) ? $post->repostOf->images : array_filter(explode(',', (string)$post->repostOf->images)); @endphp
@@ -360,54 +353,25 @@ new class extends Component {
                             class="flex items-center justify-between pt-4 border-t border-zinc-50 dark:border-zinc-800/50">
                             <div class="flex items-center gap-6">
                                 <button wire:click="toggleLike"
-                                    @click="new Audio('{{ asset('assets/mixkit-cartoon-toy-whistle-616.wav') }}').play()"
-                                    class="flex items-center gap-1.5 transition-colors group {{ $post->isLikedBy(auth()->user()) ? 'text-red-500' : 'text-zinc-500 hover:text-red-500' }}">
+                                    class="flex items-center gap-1.5 transition-colors {{ $post->isLikedBy(auth()->user()) ? 'text-red-500' : 'text-zinc-500 hover:text-red-500' }}">
                                     @if ($post->isLikedBy(auth()->user()))
-                                        <svg class="size-5 fill-current" viewBox="0 0 24 24">
+                                        <svg class="size-[18px] fill-current" viewBox="0 0 24 24">
                                             <path
                                                 d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
                                         </svg>
                                     @else
-                                        <flux:icon name="heart" class="size-5" />
+                                        <flux:icon name="heart" class="size-[18px]" />
                                     @endif
-                                    <span class="text-sm font-medium">{{ $post->likes_count }}</span>
+                                    <span class="text-xs">{{ $post->likes_count }}</span>
                                 </button>
                                 <span class="flex items-center gap-1.5 text-zinc-500">
-                                    <flux:icon name="chat-bubble-left" class="size-5" />
-                                    <span class="text-sm font-medium">{{ $post->all_comments_count }}</span>
+                                    <flux:icon name="chat-bubble-left" class="size-[18px]" />
+                                    <span class="text-xs">{{ $post->all_comments_count }}</span>
                                 </span>
-                                {{-- <button x-data="{
-                                    copied: false,
-                                    share() {
-                                        const shareData = {
-                                            title: 'Post by {{ $post->user->username }}',
-                                            text: 'Check out this post on Allsers: {{ Str::limit($post->content, 50) }}',
-                                            url: window.location.origin + '/dashboard?post={{ $post->post_id }}'
-                                        };
-                                
-                                        if (navigator.share) {
-                                            navigator.share(shareData).catch(console.error);
-                                        } else {
-                                            navigator.clipboard.writeText(shareData.url).then(() => {
-                                                this.copied = true;
-                                                setTimeout(() => this.copied = false, 2000);
-                                            });
-                                        }
-                                    }
-                                }" @click="share()"
-                                    class="flex items-center gap-1.5 transition-colors relative"
-                                    :class="copied ? 'text-green-500' : 'text-zinc-500 hover:text-green-500'">
-                                    <flux:icon name="share" class="size-5" />
-                                    <span x-show="copied" x-transition
-                                        class="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap">
-                                        {{ __('Link Copied!') }}
-                                    </span>
-                                </button> --}}
                                 @if ($post->user_id !== auth()->id())
                                     <button wire:click="startConversation"
-                                        class="flex items-center gap-1.5 border border-[var(--color-brand-purple)] text-[var(--color-brand-purple)] px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-[var(--color-brand-purple)] hover:text-white transition-all">
-                                        <flux:icon name="chat-bubble-left-right" class="size-3.5" />
-                                        {{ __('Chat') }}
+                                        class="flex items-center gap-1.5 text-zinc-500 hover:text-purple-500 transition-colors">
+                                        <flux:icon name="chat-bubble-left-right" class="size-[18px]" />
                                     </button>
                                 @endif
                             </div>
@@ -422,7 +386,7 @@ new class extends Component {
                             @forelse($post->comments as $comment)
                                 <div class="flex gap-3">
                                     <div
-                                        class="size-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold text-xs shrink-0 overflow-hidden">
+                                        class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-xs shrink-0 overflow-hidden">
                                         @if ($comment->user->profile_picture_url)
                                             <img src="{{ $comment->user->profile_picture_url }}"
                                                 class="size-full object-cover">
@@ -435,14 +399,14 @@ new class extends Component {
                                             <span
                                                 class="font-bold text-sm text-zinc-900 dark:text-zinc-100">{{ $comment->user->name }}</span>
                                             <span
-                                                class="text-[10px] text-zinc-400">{{ $comment->created_at->diffForHumans() }}</span>
+                                                class="text-xs text-zinc-500">{{ $comment->created_at->diffForHumans() }}</span>
                                         </div>
                                         <p class="text-sm text-zinc-600 dark:text-zinc-400">
                                             {{ htmlspecialchars_decode($comment->content, ENT_QUOTES) }}
                                         </p>
                                         @if (!$post->challenge_id)
                                             <button wire:click="setReplyTo({{ $comment->id }})"
-                                                class="text-[10px] font-bold text-[var(--color-brand-purple)] hover:underline">
+                                                class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
                                                 {{ __('Reply') }}
                                             </button>
                                         @endif
@@ -453,26 +417,26 @@ new class extends Component {
                                                 class="mt-4 space-y-4 pl-4 border-l-2 border-zinc-50 dark:border-zinc-800">
                                                 @foreach ($comment->replies as $reply)
                                                     <div class="flex gap-2">
-                                                        <div
-                                                            class="size-6 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-500 font-bold text-[8px] shrink-0 overflow-hidden">
-                                                            @if ($reply->user->profile_picture_url)
-                                                                <img src="{{ $reply->user->profile_picture_url }}"
-                                                                    class="size-full object-cover">
-                                                            @else
-                                                                {{ $reply->user->initials() }}
-                                                            @endif
+                                                    <div
+                                                        class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 font-bold text-xs shrink-0 overflow-hidden">
+                                                        @if ($reply->user->profile_picture_url)
+                                                            <img src="{{ $reply->user->profile_picture_url }}"
+                                                                class="size-full object-cover">
+                                                        @else
+                                                            {{ $reply->user->initials() }}
+                                                        @endif
+                                                    </div>
+                                                    <div class="flex-1 min-w-0">
+                                                        <div class="flex items-center gap-2">
+                                                            <span
+                                                                class="font-bold text-xs text-zinc-900 dark:text-zinc-100">{{ $reply->user->name }}</span>
+                                                            <span
+                                                                class="text-xs text-zinc-500">{{ $reply->created_at->diffForHumans() }}</span>
                                                         </div>
-                                                        <div class="flex-1 space-y-0.5">
-                                                            <div class="flex items-center gap-2">
-                                                                <span
-                                                                    class="font-bold text-xs text-zinc-900 dark:text-zinc-100">{{ $reply->user->name }}</span>
-                                                                <span
-                                                                    class="text-[8px] text-zinc-400">{{ $reply->created_at->diffForHumans() }}</span>
-                                                            </div>
-                                                            <p class="text-xs text-zinc-600 dark:text-zinc-400">
-                                                                {{ htmlspecialchars_decode($reply->content, ENT_QUOTES) }}
-                                                            </p>
-                                                        </div>
+                                                        <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                                                            {{ htmlspecialchars_decode($reply->content, ENT_QUOTES) }}
+                                                        </p>
+                                                    </div>
                                                     </div>
                                                 @endforeach
                                             </div>
@@ -493,50 +457,31 @@ new class extends Component {
                 <!-- Footer (Comment Input) -->
                 <div class="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30">
                     @if ($replyToId)
-                        <div
-                            class="flex items-center justify-between mb-2 px-2 py-1 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                            <span class="text-[10px] text-purple-700 dark:text-purple-300">
-                                {{ __('Replying to') }} <span class="font-bold">{{ $replyToName }}</span>
+                        <div class="flex items-center justify-between mb-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg">
+                            <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ __('Replying to') }} <span class="font-bold text-zinc-700 dark:text-zinc-300">{{ $replyToName }}</span>
                             </span>
-                            <button wire:click="cancelReply" class="text-[10px] text-zinc-400 hover:text-red-500">
-                                <flux:icon name="x-mark" class="size-3" />
+                            <button wire:click="cancelReply" class="text-zinc-500 hover:text-red-500">
+                                <flux:icon name="x-mark" class="size-4" />
                             </button>
                         </div>
                     @endif
                     <div class="flex items-center gap-2">
                         <div
-                            class="size-8 rounded-full bg-[var(--color-brand-purple)]/10 flex items-center justify-center text-[var(--color-brand-purple)] text-xs font-bold shrink-0 overflow-hidden">
+                            class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 text-xs font-bold shrink-0 overflow-hidden">
                             @if (auth()->user()->profile_picture_url)
                                 <img src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
                             @else
                                 {{ auth()->user()->initials() }}
                             @endif
                         </div>
-                        <div class="flex-1 relative" x-data="{
-                            insertEmoji(emoji) {
-                                const el = $wire.$el.querySelector('input[type=text]');
-                                const start = el.selectionStart;
-                                const end = el.selectionEnd;
-                                const text = $wire.commentContent;
-                                $wire.commentContent = text.substring(0, start) + emoji + text.substring(end);
-                                el.focus();
-                                setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
-                            }
-                        }">
+                        <div class="flex-1 flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2 border border-zinc-200 dark:border-zinc-800 focus-within:border-purple-500 transition-colors">
                             <input wire:model="commentContent" type="text"
                                 placeholder="{{ __('Write a comment...') }}"
-                                class="w-full bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 rounded-full pl-4 pr-20 py-2 text-sm focus:ring-1 focus:ring-[var(--color-brand-purple)] focus:border-[var(--color-brand-purple)]"
+                                class="flex-1 bg-transparent border-0 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-0 outline-none"
                                 wire:keydown.enter="addComment">
-
-                            <div class="absolute right-10 top-2 flex items-center gap-1">
-                                @foreach (['🔥', '👍', '❤️'] as $emoji)
-                                    <button type="button" @click="insertEmoji('{{ $emoji }}')"
-                                        class="hover:scale-125 transition-transform text-xs p-1">{{ $emoji }}</button>
-                                @endforeach
-                            </div>
-
                             <button wire:click="addComment"
-                                class="absolute right-2 top-1.5 text-[var(--color-brand-purple)] hover:scale-110 transition-transform p-1">
+                                class="text-purple-500 hover:text-purple-400 transition-colors p-1 shrink-0">
                                 <flux:icon name="paper-airplane" class="size-4" />
                             </button>
                         </div>

@@ -79,7 +79,7 @@ new class extends Component {
                 'user',
                 'repostOf.user',
                 'comments' => function ($q) {
-                    $q->latest()->limit(1)->with('user');
+                    $q->latest()->limit(2)->with('user');
                 },
                 'likes' => function ($query) {
                     $query->where('user_id', auth()->id());
@@ -93,16 +93,30 @@ new class extends Component {
         if ($this->tab === 'local' && auth()->check() && auth()->user()->latitude && auth()->user()->longitude) {
             $lat = auth()->user()->latitude;
             $lng = auth()->user()->longitude;
+            $radiusKm = 50;
+
+            // Bounding box pre-filter to enable index usage
+            $latDelta = $radiusKm / 111.32;
+            $lngDelta = $radiusKm / (111.32 * cos(deg2rad($lat)));
+            $minLat = $lat - $latDelta;
+            $maxLat = $lat + $latDelta;
+            $minLng = $lng - $lngDelta;
+            $maxLng = $lng + $lngDelta;
 
             $query
                 ->join('users', 'posts.user_id', '=', 'users.id')
                 ->select('posts.*')
                 ->selectRaw('(6371 * acos(cos(radians(?)) * cos(radians(users.latitude)) * cos(radians(users.longitude) - radians(?)) + sin(radians(?)) * sin(radians(users.latitude)))) AS distance', [$lat, $lng, $lat])
                 ->where('posts.user_id', '!=', auth()->id())
+                ->where('users.latitude', '>=', $minLat)
+                ->where('users.latitude', '<=', $maxLat)
+                ->where('users.longitude', '>=', $minLng)
+                ->where('users.longitude', '<=', $maxLng)
                 ->whereIn('posts.id', function ($q) {
                     $q->selectRaw('max(id)')->from('posts')->groupBy('user_id');
                 })
                 ->whereNotNull('users.latitude')
+                ->having('distance', '<', $radiusKm)
                 ->orderBy('distance', 'asc')
                 ->orderBy('posts.created_at', 'desc')
                 ->orderBy('posts.id', 'desc');
@@ -133,6 +147,7 @@ new class extends Component {
     #[Livewire\Attributes\On('post-liked')]
     #[Livewire\Attributes\On('post-bookmarked')]
     #[Livewire\Attributes\On('post-deleted')]
+    #[Livewire\Attributes\On('post-created')]
     public function refreshFeed()
     {
         $this->loadPosts(true);
@@ -140,8 +155,6 @@ new class extends Component {
 
     public function checkNewPosts()
     {
-        // First, check if all current posts still exist in the database
-        // This prevents Livewire from 404ing during hydration if a post was deleted in another tab
         $currentIds = collect($this->posts)->pluck('id');
         if ($currentIds->isNotEmpty()) {
             $existingCount = Post::whereIn('id', $currentIds)->count();
@@ -161,7 +174,7 @@ new class extends Component {
             $query->where('user_id', '!=', auth()->id());
         }
 
-        $this->newPostsCount = $query->count();
+        $this->newPostsCount = $query->exists() ? $query->count() : 0;
     }
 
     public function loadNewPosts()
@@ -274,56 +287,50 @@ new class extends Component {
     }
 }; ?>
 
-<div class="space-y-6">
-    <div wire:poll.10s="checkNewPosts"></div>
+{{-- Note: no divide-y — each post-item already has its own border-b --}}
+<div x-data="{
+    insertEmoji(emoji) {
+        const el = $wire.$el.querySelector('textarea');
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const text = $wire.content;
+        $wire.content = text.substring(0, start) + emoji + text.substring(end);
+        el.focus();
+        setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
+    }
+}">
+    <div wire:poll.10s.visible="checkNewPosts"></div>
 
     <livewire:dashboard.navigation />
 
     @if ($newPostsCount > 0)
-        <div class="fixed top-20 md:top-24 left-1/2 -translate-x-1/2 z-40">
+        <div class="px-4 py-2 border-b border-[var(--color-brand-purple)]/20 bg-[var(--color-brand-purple)]/[0.03]">
             <button wire:click="loadNewPosts"
-                class="px-3 py-1.5 bg-[var(--color-brand-purple)] text-white text-[10px] md:text-xs font-black uppercase tracking-widest rounded-full shadow-xl shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 animate-in slide-in-from-top-4 fade-in duration-300">
-                <flux:icon name="arrow-up" class="size-3 md:size-4" />
-                <span>{{ $newPostsCount }} New</span>
+                class="w-full text-center text-sm font-semibold text-[var(--color-brand-purple)] hover:underline flex items-center justify-center gap-1.5 transition-colors">
+                <flux:icon name="arrow-up" class="size-4" />
+                <span>{{ $newPostsCount }} {{ __('new posts') }}</span>
             </button>
         </div>
     @endif
 
-    <livewire:global-search />
-
     @auth
         @if (auth()->user()->isArtisan())
-            <!-- Create Post Widget -->
-            <div
-                class="bg-white dark:bg-zinc-900 rounded-2xl md:rounded-2xl p-3 md:p-4 shadow-none md:shadow-sm border-b md:border border-zinc-200 dark:border-zinc-800">
+            <div class="px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50">
                 <form wire:submit="createPost">
-                    <div class="flex items-start gap-3 md:gap-4">
-                        <div class="shrink-0">
-                            <div
-                                class="size-8 md:size-10 rounded-full bg-[var(--color-brand-purple)]/10 flex items-center justify-center text-[var(--color-brand-purple)] font-bold overflow-hidden">
-                                @if (auth()->user()->profile_picture_url)
-                                    <img src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
-                                @else
-                                    {{ auth()->user()->initials() }}
-                                @endif
-                            </div>
+                    <div class="flex items-start gap-3">
+                        <div class="shrink-0 size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-sm overflow-hidden">
+                            @if (auth()->user()->profile_picture_url)
+                                <img loading="lazy" src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
+                            @else
+                                {{ auth()->user()->initials() }}
+                            @endif
                         </div>
-                        <div class="flex-1 min-w-0 space-y-2" x-data="{
-                                    insertEmoji(emoji) {
-                                        const el = $wire.$el.querySelector('textarea');
-                                        const start = el.selectionStart;
-                                        const end = el.selectionEnd;
-                                        const text = $wire.content;
-                                        $wire.content = text.substring(0, start) + emoji + text.substring(end);
-                                        el.focus();
-                                        setTimeout(() => el.setSelectionRange(start + emoji.length, start + emoji.length), 0);
-                                    }
-                                }">
+                        <div class="flex-1 min-w-0 space-y-2">
                             <textarea wire:model="content" placeholder="{{ __('Share your work...') }}"
-                                class="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-3 py-2 text-xs md:text-sm focus:ring-2 focus:ring-[var(--color-brand-purple)]/20 transition-all resize-none"
-                                rows="2"></textarea>
+                                class="w-full bg-transparent border-none rounded-none px-0 py-1 text-sm focus:ring-0 transition-all resize-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+                                rows="1"></textarea>
 
-                            <div class="flex flex-wrap gap-2 px-1">
+                            <div class="flex flex-wrap gap-2">
                                 @foreach (['🔥', '✨', '🛠️', '🎨', '🚀', '👏', '🙌'] as $emoji)
                                     <button type="button" @click="insertEmoji('{{ $emoji }}')"
                                         class="text-xs hover:scale-125 transition-transform p-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">{{ $emoji }}</button>
@@ -331,18 +338,17 @@ new class extends Component {
                             </div>
 
                             @error('content')
-                                <span class="text-red-500 text-[10px]">{{ $message }}</span>
+                                <span class="text-red-500 text-xs">{{ $message }}</span>
                             @enderror
                             @error('permission')
-                                <span class="text-red-500 text-[10px]">{{ $message }}</span>
+                                <span class="text-red-500 text-xs">{{ $message }}</span>
                             @enderror
 
-                            <!-- Image Previews -->
                             @if (!empty($images))
                                 <div class="grid grid-cols-2 gap-2">
                                     @foreach ($images as $index => $image)
                                         <div class="relative group">
-                                            <img src="{{ $image->temporaryUrl() }}" class="w-full h-24 object-cover rounded-lg">
+                                            <img loading="lazy" src="{{ $image->temporaryUrl() }}" class="w-full h-24 object-cover rounded-lg">
                                             <button type="button" wire:click="removeImage({{ $index }})"
                                                 class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                                 <flux:icon name="x-mark" class="size-4" />
@@ -352,11 +358,9 @@ new class extends Component {
                                 </div>
                             @endif
 
-                            <!-- Video Preview -->
                             @if ($video)
                                 <div class="relative group">
-                                    <video src="{{ $video->temporaryUrl() }}" class="w-full h-32 object-cover rounded-lg"
-                                        controls></video>
+                                    <video src="{{ $video->temporaryUrl() }}" class="w-full h-32 object-cover rounded-lg" controls></video>
                                     <button type="button" wire:click="removeVideo"
                                         class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                         <flux:icon name="x-mark" class="size-4" />
@@ -364,57 +368,44 @@ new class extends Component {
                                 </div>
                             @endif
 
-                            <!-- Price Range (Optional) -->
-                            <div x-data="{ showPrice: {{ $price_min || $price_max ? 'true' : 'false' }} }" class="space-y-2">
-                                <button type="button" @click="showPrice = !showPrice"
-                                    class="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-[var(--color-brand-purple)] transition-colors">
-                                    <flux:icon name="currency-dollar" class="size-3.5" />
-                                    <span x-text="showPrice ? '{{ __('Hide') }}' : '{{ __('Price Range') }}'"></span>
-                                </button>
+                            <div x-data="{ showPrice: false }" class="space-y-2 pt-1">
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-3">
+                                        <label class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
+                                            <flux:icon name="photo" class="size-4" />
+                                            <span class="hidden sm:inline">{{ __('Photo') }}</span>
+                                            <input type="file" wire:model="images" multiple accept="image/*" class="hidden" :disabled="video != null">
+                                        </label>
+                                        <label class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
+                                            <flux:icon name="video-camera" class="size-4" />
+                                            <span class="hidden sm:inline">{{ __('Video') }}</span>
+                                            <input type="file" wire:model="video" accept="video/*" class="hidden" :disabled="images.length > 0">
+                                        </label>
+                                        <button type="button" @click="showPrice = !showPrice"
+                                            class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors">
+                                            <flux:icon name="currency-dollar" class="size-4" />
+                                        </button>
+                                    </div>
+                                    <button type="submit"
+                                        class="bg-[var(--color-brand-purple)] text-white px-4 py-1.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
+                                        wire:loading.attr="disabled" wire:target="createPost">
+                                        <span wire:loading.remove wire:target="createPost">{{ __('Post') }}</span>
+                                        <span wire:loading wire:target="createPost">{{ __('Posting') }}</span>
+                                    </button>
+                                </div>
 
                                 <div x-show="showPrice" x-collapse class="grid grid-cols-2 gap-2">
                                     <div>
-                                        <label class="block text-[10px] font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                                            {{ __('Min') }} ({{ auth()->user()->currency_symbol }})
-                                        </label>
                                         <input type="number" wire:model="price_min" min="0" step="0.01"
-                                            class="w-full px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
-                                            placeholder="0.00">
+                                            class="w-full px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-transparent"
+                                            placeholder="{{ __('Min price') }}">
                                     </div>
                                     <div>
-                                        <label class="block text-[10px] font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                                            {{ __('Max') }} ({{ auth()->user()->currency_symbol }})
-                                        </label>
                                         <input type="number" wire:model="price_max" min="0" step="0.01"
-                                            class="w-full px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-white dark:bg-zinc-800"
-                                            placeholder="0.00">
+                                            class="w-full px-2 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-[var(--color-brand-purple)] focus:border-transparent bg-transparent"
+                                            placeholder="{{ __('Max price') }}">
                                     </div>
                                 </div>
-                            </div>
-
-                            <div class="flex items-center justify-between px-1 pt-1">
-                                <div class="flex items-center gap-3">
-                                    <label
-                                        class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
-                                        <flux:icon name="photo" class="size-4" />
-                                        <span class="hidden sm:inline">{{ __('Image') }}</span>
-                                        <input type="file" wire:model="images" multiple accept="image/*" class="hidden"
-                                            :disabled="video != null">
-                                    </label>
-                                    <label
-                                        class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
-                                        <flux:icon name="video-camera" class="size-4" />
-                                        <span class="hidden sm:inline">{{ __('Video') }}</span>
-                                        <input type="file" wire:model="video" accept="video/*" class="hidden"
-                                            :disabled="images.length > 0">
-                                    </label>
-                                </div>
-                                <button type="submit"
-                                    class="bg-[var(--color-brand-purple)] text-white px-4 py-1.5 rounded-full text-xs md:text-sm font-bold hover:bg-[var(--color-brand-purple)]/90 transition-colors shadow-lg shadow-purple-500/20 disabled:opacity-50"
-                                    wire:loading.attr="disabled" wire:target="createPost">
-                                    <span wire:loading.remove wire:target="createPost">{{ __('Post') }}</span>
-                                    <span wire:loading wire:target="createPost">{{ __('Posting...') }}</span>
-                                </button>
                             </div>
 
                             <div wire:loading wire:target="images,video" class="text-xs text-zinc-500">
@@ -427,62 +418,45 @@ new class extends Component {
         @endif
     @endauth
 
-    <!-- Suggested Professionals (In-Feed) -->
-    {{-- <div class="w-[calc(100-30)]"> --}}
-        <livewire:dashboard.pros-widget :in-feed="true" />
-        {{--
-    </div> --}}
+    <livewire:dashboard.pros-widget :in-feed="true" />
 
-    <!-- Feed Posts -->
-    <div class="space-y-6">
+    <div>
         @forelse($posts as $post)
             <livewire:dashboard.post-item :post="$post" :wire:key="'post-'.$post->id" />
         @empty
-            <div
-                class="bg-white dark:bg-zinc-900 rounded-2xl p-8 shadow-sm border border-zinc-200 dark:border-zinc-800 text-center">
-                <p class="text-zinc-500">{{ __('No posts yet. Be the first to share!') }}</p>
+            <div wire:loading.remove.delay.class="hidden"
+                class="px-4 py-12 text-center text-zinc-500 text-sm">
+                {{ __('No posts yet. Be the first to share!') }}
+            </div>
+            <div wire:loading.delay.longer class="px-4 space-y-0 opacity-50 pointer-events-none">
+                @for ($i = 0; $i < 3; $i++)
+                    <div class="px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50 animate-pulse">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="size-10 rounded-full bg-zinc-200 dark:bg-zinc-800"></div>
+                            <div class="space-y-1.5 flex-1">
+                                <div class="h-3 w-24 bg-zinc-200 dark:bg-zinc-800 rounded"></div>
+                                <div class="h-2.5 w-16 bg-zinc-100 dark:bg-zinc-700 rounded"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-2 pl-13">
+                            <div class="h-2.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded"></div>
+                            <div class="h-2.5 w-4/5 bg-zinc-100 dark:bg-zinc-800 rounded"></div>
+                            <div class="h-2.5 w-3/5 bg-zinc-100 dark:bg-zinc-800 rounded"></div>
+                        </div>
+                    </div>
+                @endfor
             </div>
         @endforelse
 
-        <!-- Manual Load More Trigger -->
         @if ($hasMore)
-            <div
-                class="w-full py-12 flex flex-col items-center justify-center border-t border-dashed border-zinc-100 dark:border-zinc-800">
-
-                {{-- Button --}}
+            <div class="px-4 py-8 text-center">
                 <button wire:click="loadMore" wire:loading.remove wire:target="loadMore"
-                    class="group flex flex-col items-center gap-2 text-zinc-400 hover:text-[var(--color-brand-purple)] transition-colors p-4">
-                    <div
-                        class="size-10 rounded-full border-2 border-current flex items-center justify-center group-hover:scale-110 transition-transform bg-white dark:bg-zinc-900">
-                        <flux:icon name="chevron-down" class="size-5" />
-                    </div>
+                    class="text-sm font-semibold text-[var(--color-brand-purple)] hover:underline transition-colors">
+                    {{ __('Show more') }}
                 </button>
-
-                {{-- Loading State --}}
-                <div wire:loading wire:target="loadMore" class="flex flex-col gap-6 w-full px-4 items-center">
-                    <div class="flex justify-center mb-4">
-                        <span
-                            class="text-xs font-bold text-[var(--color-brand-purple)] uppercase tracking-widest animate-pulse">
-                            {{ __('Loading...') }}
-                        </span>
-                    </div>
-                    {{-- Skeleton Loader --}}
-                    <div class="w-full space-y-6 opacity-50">
-                        <div
-                            class="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 animate-pulse">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="size-10 rounded-full bg-zinc-200 dark:bg-zinc-800"></div>
-                                <div class="space-y-1">
-                                    <div class="h-3 w-24 bg-zinc-200 dark:bg-zinc-800 rounded"></div>
-                                    <div class="h-2 w-16 bg-zinc-100 dark:bg-zinc-700 rounded"></div>
-                                </div>
-                            </div>
-                            <div class="space-y-2">
-                                <div class="h-3 w-full bg-zinc-100 dark:bg-zinc-800 rounded"></div>
-                                <div class="h-3 w-4/5 bg-zinc-100 dark:bg-zinc-800 rounded"></div>
-                            </div>
-                        </div>
-                    </div>
+                <div wire:loading wire:target="loadMore"
+                    class="text-sm font-semibold text-zinc-400 animate-pulse">
+                    {{ __('Loading...') }}
                 </div>
             </div>
         @endif

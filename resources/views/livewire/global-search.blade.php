@@ -41,7 +41,7 @@ new class extends Component {
         <flux:icon name="magnifying-glass" class="absolute left-3 top-2.5 size-4 text-zinc-400 pointer-events-none" />
         <input type="text" wire:model.live.debounce.300ms="query" @focus="focused = true"
             placeholder="{{ __('Search...') }}"
-            class="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl py-2.5 pl-9 pr-8 text-sm focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 shadow-sm transition-all hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+            class="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl py-2.5 pl-9 pr-8 text-sm focus:ring-2 focus:ring-[var(--color-brand-purple)] focus:border-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 transition-all hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
         @if ($query)
             <button wire:click="$set('query', '')"
                 class="absolute right-2 top-2 text-zinc-400 hover:text-zinc-600 p-0.5">

@@ -41,11 +41,11 @@
             <input type="hidden" name="longitude" x-model="longitude">
 
             <!-- Location Status (Subtle) -->
-            <div class="flex items-center gap-2 px-1 text-[10px]" x-show="status === 'active'" x-transition>
+            <div class="flex items-center gap-2 px-1 text-xs" x-show="status === 'active'" x-transition>
                 <div class="size-1.5 bg-green-500 rounded-full animate-pulse"></div>
                 <span class="text-zinc-500 font-medium lowercase tracking-tight">{{ __('Location sync active') }}</span>
             </div>
-            <div class="flex items-center gap-2 px-1 text-[10px]"
+            <div class="flex items-center gap-2 px-1 text-xs"
                 x-show="status === 'detecting' && navigator.geolocation" x-transition>
                 <div class="size-1.5 bg-[var(--color-brand-purple)] rounded-full animate-bounce"></div>
                 <span

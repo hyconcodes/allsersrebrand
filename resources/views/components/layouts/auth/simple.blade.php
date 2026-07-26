@@ -5,7 +5,7 @@
     @include('partials.head')
 </head>
 
-<body class="min-h-screen bg-[var(--color-brand-light)] antialiased">
+<body class="min-h-screen bg-[var(--color-brand-light)] dark:bg-zinc-950 antialiased">
     <!-- Background ambient shapes -->
     <div class="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
         <div
@@ -20,11 +20,11 @@
         <!-- Logo Header -->
         <a href="{{ route('home') }}" class="flex items-center gap-4" wire:navigate>
             <div
-                class="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-black/5 text-[var(--color-brand-purple)] transition-transform hover:scale-105 active:scale-95 duration-200">
+                class="flex h-12 w-12 items-center justify-center rounded-xl bg-white dark:bg-zinc-900 shadow-sm ring-1 ring-black/5 dark:ring-white/10 text-[var(--color-brand-purple)] transition-transform hover:scale-105 active:scale-95 duration-200">
                 <x-app-logo-icon class="size-4 fill-current" />
             </div>
             <div class="flex flex-col">
-                <span class="text-lg font-bold tracking-tight text-black">{{ config('app.name', 'Allsers') }}</span>
+                <span class="text-lg font-bold tracking-tight text-black dark:text-white">{{ config('app.name', 'Allsers') }}</span>
                 <span class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Your World of
                     Services</span>
             </div>
@@ -32,7 +32,7 @@
 
         <!-- Card -->
         <div
-            class="auth-card flex w-full max-w-[420px] flex-col gap-6 bg-white p-8 md:p-10 rounded-[2rem] shadow-2xl shadow-[var(--color-brand-purple)]/10 ring-1 ring-black/5">
+            class="auth-card flex w-full max-w-[420px] flex-col gap-6 bg-white dark:bg-zinc-900 p-8 md:p-10 rounded-[2rem] shadow-2xl shadow-[var(--color-brand-purple)]/10 ring-1 ring-black/5 dark:ring-white/10">
             {{ $slot }}
         </div>
     </div>

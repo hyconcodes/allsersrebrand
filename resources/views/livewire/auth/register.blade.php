@@ -53,11 +53,11 @@
                 class="flex items-center justify-between w-full rounded-lg border border-dashed border-[var(--color-brand-purple)]/40 bg-[#f7f1fe]/50 px-3 py-2 text-left hover:bg-[#f7f1fe] transition-colors group">
                 <div class="flex items-center gap-2">
                     <flux:icon name="map-pin" class="size-3.5 text-[var(--color-brand-purple)]" />
-                    <span class="text-[10px] font-medium text-zinc-600 group-hover:text-[var(--color-brand-purple)]">
+                    <span class="text-xs font-medium text-zinc-600 group-hover:text-[var(--color-brand-purple)]">
                         {{ __('Enable location to find artisans near you') }}
                     </span>
                 </div>
-                <span class="text-[10px] font-bold text-[var(--color-brand-purple)]">{{ __('Enable') }}</span>
+                <span class="text-xs font-bold text-[var(--color-brand-purple)]">{{ __('Enable') }}</span>
             </button>
 
             <div class="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2 border border-green-100"
@@ -86,7 +86,7 @@
             <!-- Compact Role Selection -->
             <div class="grid grid-cols-2 gap-3">
                 <label
-                    class="relative flex items-center gap-3 cursor-pointer rounded-xl border bg-white px-3 py-2 shadow-sm focus:outline-none hover:border-[var(--color-brand-purple)] has-[:checked]:border-[var(--color-brand-purple)] has-[:checked]:bg-[#f7f1fe] transition-all">
+                    class="relative flex items-center gap-3 cursor-pointer rounded-xl border bg-white px-3 py-2 focus:outline-none hover:border-[var(--color-brand-purple)] has-[:checked]:border-[var(--color-brand-purple)] has-[:checked]:bg-[#f7f1fe] transition-all">
                     <input type="radio" name="role" value="guest"
                         class="size-4 text-[var(--color-brand-purple)] border-gray-300 focus:ring-[var(--color-brand-purple)]"
                         checked>
@@ -95,7 +95,7 @@
                     </div>
                 </label>
                 <label
-                    class="relative flex items-center gap-3 cursor-pointer rounded-xl border bg-white px-3 py-2 shadow-sm focus:outline-none hover:border-[var(--color-brand-purple)] has-[:checked]:border-[var(--color-brand-purple)] has-[:checked]:bg-[#f7f1fe] transition-all">
+                    class="relative flex items-center gap-3 cursor-pointer rounded-xl border bg-white px-3 py-2 focus:outline-none hover:border-[var(--color-brand-purple)] has-[:checked]:border-[var(--color-brand-purple)] has-[:checked]:bg-[#f7f1fe] transition-all">
                     <input type="radio" name="role" value="artisan"
                         class="size-4 text-[var(--color-brand-purple)] border-gray-300 focus:ring-[var(--color-brand-purple)]">
                     <div class="flex flex-col">
@@ -116,7 +116,7 @@
                 </div>
             </div>
 
-            <p class="text-[10px] text-zinc-400 text-center leading-tight">
+            <p class="text-xs text-zinc-400 text-center leading-tight">
                 {{ __('By joining, you agree to our') }}
                 <a href="{{ route('terms') }}" class="text-zinc-600 hover:underline"
                     target="_blank">{{ __('Terms') }}</a>

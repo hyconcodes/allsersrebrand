@@ -14,7 +14,7 @@
         this.notifications = this.notifications.filter(n => n.id !== id);
     }
 }" @toast.window="add($event)"
-    class="fixed bottom-24 sm:bottom-10 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-3 w-[calc(100%-2rem)] max-w-xs sm:max-w-sm pointer-events-none">
+    class="fixed bottom-[5.5rem] sm:bottom-10 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-3 w-[calc(100%-2rem)] max-w-xs sm:max-w-sm pointer-events-none">
     <template x-for="notification in notifications" :key="notification.id">
         <div x-data="{
             show: false,

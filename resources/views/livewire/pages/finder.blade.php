@@ -73,30 +73,17 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
 
     public function selectArtisan($id)
     {
-        $this->selectedArtisan = User::find($id);
-        $this->dispatch(
-            'artisan-selected',
-            artisan: [
-                'id' => $this->selectedArtisan->id,
-                'name' => $this->selectedArtisan->name,
-                'work' => $this->selectedArtisan->work ?: 'Professional',
-                'latitude' => $this->selectedArtisan->latitude,
-                'longitude' => $this->selectedArtisan->longitude,
-                'distance' => round($this->calculateDistance($this->selectedArtisan), 1) . ' km',
-                'profile_picture_url' => $this->selectedArtisan->profile_picture_url,
-                'experience_year' => $this->selectedArtisan->experience_year ?: '0',
-            ],
-        );
-    }
-
-    protected function calculateDistance($artisan)
-    {
-        $theta = $this->lng - $artisan->longitude;
-        $dist = sin(deg2rad($this->lat)) * sin(deg2rad($artisan->latitude)) + cos(deg2rad($this->lat)) * cos(deg2rad($artisan->latitude)) * cos(deg2rad($theta));
-        $dist = acos($dist);
-        $dist = rad2deg($dist);
-        $miles = $dist * 60 * 1.1515;
-        return $miles * 1.609344;
+        $artisan = User::find($id);
+        $this->selectedArtisan = $artisan;
+        $this->dispatch('artisan-selected', artisan: [
+            'id' => $artisan->id,
+            'name' => $artisan->name,
+            'work' => $artisan->work ?: 'Professional',
+            'latitude' => $artisan->latitude,
+            'longitude' => $artisan->longitude,
+            'profile_picture_url' => $artisan->profile_picture_url,
+            'experience_year' => $artisan->experience_year ?: '0',
+        ]);
     }
 
     public function startInquiry($artisanId)
@@ -169,7 +156,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
 
         // 5. Notify
         try {
-            Mail::to($artisan->email)->send(new ServiceInquiryMail($sender, $artisan));
+            Mail::to($artisan->email)->queue(new ServiceInquiryMail($sender, $artisan));
             $artisan->notify(new ServiceInquiry($sender));
         } catch (\Exception $e) {
             $artisan->notify(new ServiceInquiry($sender));
@@ -297,6 +284,10 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                     dashArray: '5, 10',
                     lineCap: 'round'
                 }).addTo(this.map);
+
+                const userPoint = L.latLng(this.userLat, this.userLng);
+                const artisanPoint = L.latLng(aLat, aLng);
+                const distKm = (userPoint.distanceTo(artisanPoint) / 1000).toFixed(1);
     
                 const midpoint = [
                     (this.userLat + aLat) / 2,
@@ -306,7 +297,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                 this.distanceLabel = L.marker(midpoint, {
                     icon: L.divIcon({
                         className: 'distance-label',
-                        html: `<div class='bg-white dark:bg-zinc-800 px-3 py-1.5 rounded-full text-[11px] font-black shadow-xl border-2 border-purple-500 dark:border-purple-400 text-purple-600 dark:text-purple-300 animate-in zoom-in duration-300'>${artisan.distance}</div>`,
+                        html: `<div class='bg-white dark:bg-zinc-800 px-3 py-1.5 rounded-full text-xs font-bold shadow-xl border-2 border-purple-500 dark:border-purple-400 text-purple-600 dark:text-purple-300 animate-in zoom-in duration-300'>${distKm} km</div>`,
                         iconSize: [window.innerWidth < 640 ? 60 : 70, 24],
                         iconAnchor: [window.innerWidth < 640 ? 30 : 35, 12]
                     })
@@ -318,8 +309,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                 ]);
     
                 this.map.fitBounds(bounds, {
-                    padding: [70, 70],
-                    maxZoom: 15,
+                    padding: [50, 50],
                     animate: true,
                     duration: 1
                 });
@@ -331,16 +321,16 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
 
     <!-- Mobile View Toggle -->
     <div
-        class="lg:hidden flex border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20 overflow-hidden shadow-sm shrink-0">
+        class="lg:hidden flex border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20 overflow-hidden  shrink-0">
         <button @click="mobileView = 'list'"
-            class="flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all relative"
+            class="flex-1 py-4 text-xs font-bold uppercase  transition-all relative"
             :class="mobileView === 'list' ? 'text-purple-600' : 'text-zinc-400'">
             {{ __('List View') }}
             <div x-show="mobileView === 'list'" class="absolute bottom-0 left-0 right-0 h-1 bg-purple-600" x-transition>
             </div>
         </button>
         <button @click="mobileView = 'map'; setTimeout(() => map.invalidateSize(), 100)"
-            class="flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all relative"
+            class="flex-1 py-4 text-xs font-bold uppercase  transition-all relative"
             :class="mobileView === 'map' ? 'text-purple-600' : 'text-zinc-400'">
             {{ __('Map View') }}
             <div x-show="mobileView === 'map'" class="absolute bottom-0 left-0 right-0 h-1 bg-purple-600" x-transition>
@@ -354,7 +344,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
         :class="mobileView === 'list' ? 'flex' : 'hidden lg:flex'">
         <div class="p-4 lg:p-6 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
             <h1
-                class="text-lg lg:text-xl font-black text-zinc-900 dark:text-white mb-4 items-center gap-2 hidden lg:flex">
+                class="text-lg lg:text-xl font-bold text-zinc-900 dark:text-white mb-4 items-center gap-2 hidden lg:flex">
                 <flux:icon name="magnifying-glass-circle" class="size-6 text-purple-600" />
                 Finder
             </h1>
@@ -367,7 +357,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                     class="flex items-center gap-2 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-800">
                     <flux:icon name="map-pin" class="size-4 text-zinc-400" />
                     <div class="flex-1 min-w-0">
-                        <p class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Base Location</p>
+                        <p class="text-xs font-bold uppercase text-zinc-400 ">Base Location</p>
                         <p class="text-xs font-bold text-zinc-600 dark:text-zinc-300 truncate">
                             {{ $address ?: 'Lagos, Nigeria' }}</p>
                     </div>
@@ -389,27 +379,27 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                         class="size-full object-cover">
                                 @else
                                     <div
-                                        class="size-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-lg lg:text-xl font-black text-zinc-500">
+                                        class="size-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-lg lg:text-xl font-bold text-zinc-500">
                                         {{ $selectedArtisan->initials() }}
                                     </div>
                                 @endif
                             </div>
                             <div class="min-w-0 flex-1">
-                                <h2 class="text-base lg:text-lg font-black text-zinc-900 dark:text-white truncate">
+                                <h2 class="text-base lg:text-lg font-bold text-zinc-900 dark:text-white truncate">
                                     {{ $selectedArtisan->name }}</h2>
                                 <p
-                                    class="text-[10px] lg:text-xs font-black uppercase text-purple-600 tracking-widest mt-0.5">
+                                    class="text-xs lg:text-xs font-bold uppercase text-purple-600  mt-0.5">
                                     {{ $selectedArtisan->work ?: 'Expert' }}</p>
                                 <div class="flex items-center gap-3 mt-3">
                                     <div class="flex items-center gap-1">
                                         <flux:icon name="star" variant="solid" class="size-3 text-yellow-500" />
                                         <span
-                                            class="text-[10px] font-black dark:text-zinc-400">{{ $selectedArtisan->reviews_avg_rating ? number_format($selectedArtisan->reviews_avg_rating, 1) : 'New' }}</span>
+                                            class="text-xs font-bold dark:text-zinc-400">{{ $selectedArtisan->reviews_avg_rating ? number_format($selectedArtisan->reviews_avg_rating, 1) : 'New' }}</span>
                                     </div>
                                     <div class="flex items-center gap-1">
                                         <flux:icon name="briefcase" class="size-3 text-zinc-400" />
                                         <span
-                                            class="text-[10px] font-black text-zinc-500">{{ $selectedArtisan->experience_year ?: '0' }}Y
+                                            class="text-xs font-bold text-zinc-500">{{ $selectedArtisan->experience_year ?: '0' }}Y
                                             Exp</span>
                                     </div>
                                 </div>
@@ -421,7 +411,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                 variant="ghost" class="flex-1 rounded-xl">View Profile</flux:button>
 
                             <button wire:click="pingArtisan('{{ $selectedArtisan->id }}')" wire:loading.attr="disabled"
-                                class="flex-1 bg-purple-600 text-white font-black py-2.5 rounded-xl hover:bg-purple-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 disabled:opacity-50">
+                                class="flex-1 bg-purple-600 text-white font-bold py-2.5 rounded-xl hover:bg-purple-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 disabled:opacity-50">
                                 {{-- Loading Spinner --}}
                                 <div wire:loading wire:target="pingArtisan('{{ $selectedArtisan->id }}')"
                                     class="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin">
@@ -455,7 +445,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                 @if ($nearby->isNotEmpty())
                     <div>
                         <h3
-                            class="flex items-center gap-2 text-[10px] font-black uppercase text-zinc-400 tracking-widest mb-4">
+                            class="flex items-center gap-2 text-xs font-bold uppercase text-zinc-400  mb-4">
                             <span class="size-1.5 bg-green-500 rounded-full animate-pulse"></span>
                             Nearby Professionals
                         </h3>
@@ -463,6 +453,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                             @foreach ($nearby as $artisan)
                                 <div wire:key="nearby-{{ $artisan->id }}"
                                     wire:click="selectArtisan('{{ $artisan->id }}')"
+                                    x-on:click="$dispatch('artisan-selected', { artisan: { id: '{{ $artisan->id }}', name: '{{ $artisan->name }}', work: '{{ $artisan->work ?: 'Professional' }}', latitude: '{{ $artisan->latitude }}', longitude: '{{ $artisan->longitude }}', profile_picture_url: '{{ $artisan->profile_picture_url }}' } })"
                                     class="group p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/30 border {{ $selectedArtisan && $selectedArtisan->id == $artisan->id ? 'border-purple-500 ring-2 ring-purple-500/10' : 'border-zinc-100 dark:border-zinc-800' }} hover:border-purple-200 dark:hover:border-purple-800 transition-all cursor-pointer">
                                     <div class="flex items-center gap-3">
                                         <div class="size-10 rounded-xl overflow-hidden shrink-0">
@@ -471,7 +462,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                                     class="size-full object-cover">
                                             @else
                                                 <div
-                                                    class="size-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-black text-zinc-500">
+                                                    class="size-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-500">
                                                     {{ $artisan->initials() }}
                                                 </div>
                                             @endif
@@ -481,9 +472,9 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                                 <p class="text-sm font-bold text-zinc-900 dark:text-white truncate">
                                                     {{ $artisan->name }}</p>
                                                 <span
-                                                    class="shrink-0 text-[10px] font-black text-purple-600 bg-purple-50 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">{{ round($artisan->distance, 1) }}km</span>
+                                                    class="shrink-0 text-xs font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">{{ round($artisan->distance, 1) }}km</span>
                                             </div>
-                                            <p class="text-[10px] text-zinc-500 font-medium uppercase truncate">
+                                            <p class="text-xs text-zinc-500 font-medium uppercase truncate">
                                                 {{ $artisan->work ?: 'Professional' }}</p>
                                         </div>
                                     </div>
@@ -496,12 +487,13 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                 <!-- Suggested List (Only on search) -->
                 @if ($search && $suggested->isNotEmpty())
                     <div>
-                        <h3 class="text-[10px] font-black uppercase text-zinc-400 tracking-widest mb-4">Suggested
+                        <h3 class="text-xs font-bold uppercase text-zinc-400  mb-4">Suggested
                             Experts</h3>
                         <div class="space-y-3">
                             @foreach ($suggested as $artisan)
                                 <div wire:key="suggested-{{ $artisan->id }}"
                                     wire:click="selectArtisan('{{ $artisan->id }}')"
+                                    x-on:click="$dispatch('artisan-selected', { artisan: { id: '{{ $artisan->id }}', name: '{{ $artisan->name }}', work: '{{ $artisan->work ?: 'Professional' }}', latitude: '{{ $artisan->latitude }}', longitude: '{{ $artisan->longitude }}', profile_picture_url: '{{ $artisan->profile_picture_url }}' } })"
                                     class="p-4 rounded-2xl bg-white dark:bg-zinc-900 border {{ $selectedArtisan && $selectedArtisan->id == $artisan->id ? 'border-purple-500 ring-2 ring-purple-500/10' : 'border-zinc-100 dark:border-zinc-800' }} hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all cursor-pointer">
                                     <div class="flex items-center gap-3">
                                         <div class="size-10 rounded-xl overflow-hidden shrink-0 grayscale opacity-70">
@@ -510,7 +502,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                                     class="size-full object-cover">
                                             @else
                                                 <div
-                                                    class="size-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-black text-zinc-500">
+                                                    class="size-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-500">
                                                     {{ $artisan->initials() }}
                                                 </div>
                                             @endif
@@ -520,9 +512,9 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                                 <p class="text-sm font-bold text-zinc-600 dark:text-zinc-400 truncate">
                                                     {{ $artisan->name }}</p>
                                                 <span
-                                                    class="shrink-0 text-[10px] font-bold text-zinc-400">{{ round($artisan->distance, 1) }}km</span>
+                                                    class="shrink-0 text-xs font-bold text-zinc-400">{{ round($artisan->distance, 1) }}km</span>
                                             </div>
-                                            <p class="text-[10px] text-zinc-500 font-medium uppercase truncate">
+                                            <p class="text-xs text-zinc-500 font-medium uppercase truncate">
                                                 {{ $artisan->work ?: 'Professional' }}</p>
                                         </div>
                                     </div>
@@ -555,14 +547,14 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
             <div
                 class="px-4 lg:px-6 py-3 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 flex items-center gap-4">
                 <div class="flex items-center gap-2">
-                    <div class="size-3 bg-blue-500 rounded-full border border-white shadow-sm"></div>
-                    <span class="text-[10px] font-black uppercase text-zinc-500 tracking-wider">You</span>
+                    <div class="size-3 bg-blue-500 rounded-full border border-white "></div>
+                    <span class="text-xs font-bold uppercase text-zinc-500 tracking-wider">You</span>
                 </div>
                 <div class="w-px h-4 bg-zinc-200 dark:bg-zinc-700"></div>
                 <div class="flex items-center gap-2">
-                    <div class="size-3 bg-purple-600 rounded-full border border-white shadow-sm"></div>
+                    <div class="size-3 bg-purple-600 rounded-full border border-white "></div>
                     <span
-                        class="text-[10px] font-black uppercase text-zinc-500 tracking-wider text-nowrap">Expert</span>
+                        class="text-xs font-bold uppercase text-zinc-500 tracking-wider text-nowrap">Expert</span>
                 </div>
             </div>
 
@@ -578,7 +570,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                 class="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md px-3 lg:px-4 py-2 rounded-xl border border-white/20 flex items-center gap-2">
                 <span class="size-2 bg-green-500 rounded-full animate-ping"></span>
                 <span
-                    class="text-[9px] lg:text-[10px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400 whitespace-nowrap">Live
+                    class="text-xs lg:text-xs font-bold uppercase  text-zinc-600 dark:text-zinc-400 whitespace-nowrap">Live
                     Network</span>
             </div>
         </div>
@@ -602,23 +594,23 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                             <img :src="selectedArtisan.profile_picture_url" class="size-full object-cover">
                         </template>
                         <template x-if="!selectedArtisan || !selectedArtisan.profile_picture_url">
-                            <div class="size-full flex items-center justify-center text-zinc-400 font-black text-xs">
+                            <div class="size-full flex items-center justify-center text-zinc-400 font-bold text-xs">
                                 <span
                                     x-text="selectedArtisan ? selectedArtisan.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2) : ''"></span>
                             </div>
                         </template>
                     </div>
                     <div class="min-w-0 flex-1">
-                        <h3 class="font-black text-sm lg:text-base text-zinc-900 dark:text-white truncate"
+                        <h3 class="font-bold text-sm lg:text-base text-zinc-900 dark:text-white truncate"
                             x-text="selectedArtisan ? selectedArtisan.name : ''"></h3>
-                        <p class="text-[9px] lg:text-[10px] font-black uppercase text-purple-600 tracking-wider"
+                        <p class="text-xs lg:text-xs font-bold uppercase text-purple-600 tracking-wider"
                             x-text="selectedArtisan ? (selectedArtisan.work || 'Expert') : ''"></p>
                         <div class="mt-1 flex flex-wrap items-center gap-1">
                             <span
-                                class="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[8px] font-bold text-zinc-500"
+                                class="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-500"
                                 x-text="selectedArtisan ? (selectedArtisan.experience_year || '0') + 'Y Exp' : ''"></span>
                             <span
-                                class="px-1.5 py-0.5 rounded-full bg-purple-600/10 text-[8px] font-black text-purple-600"
+                                class="px-1.5 py-0.5 rounded-full bg-purple-600/10 text-xs font-bold text-purple-600"
                                 x-text="selectedArtisan ? selectedArtisan.distance + ' away' : ''"></span>
                         </div>
                     </div>
@@ -627,7 +619,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                 <div class="flex flex-col gap-1.5">
                     <button wire:click="pingArtisan(selectedArtisan.id)" wire:loading.attr="disabled"
                         wire:target="pingArtisan"
-                        class="block w-full py-2 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group shadow-lg"
+                        class="block w-full py-2 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group shadow-lg"
                         :disabled="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id)"
                         :class="selectedArtisan && $wire.sentPings.includes(selectedArtisan.id) ?
                             'bg-green-500 shadow-green-500/20' :
@@ -639,7 +631,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                 <div class="size-3 border-2 border-white/30 border-t-white rounded-full animate-spin">
                                 </div>
                                 <span
-                                    class="text-[10px] uppercase tracking-widest leading-none">{{ __('Sending...') }}</span>
+                                    class="text-xs uppercase  leading-none">{{ __('Sending...') }}</span>
                             </div>
                         </div>
 
@@ -650,7 +642,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                 <div class="flex items-center gap-2">
                                     <flux:icon name="check" class="size-3.5" />
                                     <span
-                                        class="text-[10px] uppercase tracking-widest leading-none">{{ __('Ping Sent!') }}</span>
+                                        class="text-xs uppercase  leading-none">{{ __('Ping Sent!') }}</span>
                                 </div>
                             </template>
 
@@ -660,14 +652,14 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                                     <flux:icon name="chat-bubble-left-right"
                                         class="size-3.5 transition-transform group-hover:scale-110" />
                                     <span
-                                        class="text-[10px] uppercase tracking-widest leading-none">{{ __('Ping Now') }}</span>
+                                        class="text-xs uppercase  leading-none">{{ __('Ping Now') }}</span>
                                 </div>
                             </template>
                         </div>
                     </button>
 
                     <button @click="mobileView = 'list'"
-                        class="lg:hidden text-[9px] font-black uppercase text-zinc-400 tracking-widest py-1 hover:text-zinc-600 transition-colors">
+                        class="lg:hidden text-xs font-bold uppercase text-zinc-400  py-1 hover:text-zinc-600 transition-colors">
                         Back to List
                     </button>
                 </div>
@@ -676,77 +668,68 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
     </div>
 
     <!-- Structured Inquiry Modal -->
-    <flux:modal wire:model="showInquiryForm" variant="flyout" class="space-y-6">
-        <div class="space-y-6">
-            <div>
-                <h2 class="text-xl font-black text-zinc-900 dark:text-white">{{ __('Start a Quick Brief') }}</h2>
-                <p class="text-xs text-zinc-500 mt-1">{{ __('Describe your task clearly to get the best quote.') }}
-                </p>
+    <flux:modal wire:model="showInquiryForm" class="w-full sm:max-w-xl">
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-bold text-zinc-900 dark:text-white">{{ __('Ping') }} {{ $selectedArtisan?->name }}</h2>
+                <flux:modal.close>
+                    <flux:icon name="x-mark" class="size-5 text-zinc-400 cursor-pointer hover:text-zinc-600" />
+                </flux:modal.close>
             </div>
 
-            <form wire:submit="submitStructuredInquiry" class="space-y-6">
-                {{-- Task Description --}}
+            <form wire:submit="submitStructuredInquiry" class="space-y-4">
                 <flux:textarea wire:model="inquiryTask" label="What do you need done?"
-                    placeholder="e.g. Broken kitchen pipe needs urgent fixing. It's leaking since morning..."
+                    placeholder="e.g. My kitchen sink is leaking and needs urgent repair..."
                     rows="3" />
 
-                {{-- Location Context --}}
-                <flux:input wire:model="inquiryLocation" label="Location Context"
-                    placeholder="e.g. Floor 2, Building B" icon="map-pin" />
+                <flux:input wire:model="inquiryLocation" label="Location Context" placeholder="e.g. Floor 2, Building B, Ikeja"
+                    icon="map-pin" />
 
-                {{-- Urgency Level --}}
-                <flux:radio.group wire:model="inquiryUrgency" label="Urgency Level" variant="segmented">
+                <flux:radio.group wire:model="inquiryUrgency" label="Urgency" variant="segmented">
                     <flux:radio value="low" label="Low" />
                     <flux:radio value="medium" label="Medium" />
-                    <flux:radio value="high" label="High (Urgent)" />
+                    <flux:radio value="high" label="Urgent" />
                 </flux:radio.group>
 
-                {{-- Photos --}}
-                <div class="space-y-3">
-                    <flux:label>{{ __('Photos of the Problem (Optional)') }}</flux:label>
-                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                <div class="space-y-2">
+                    <flux:label>{{ __('Photos (Optional)') }}</flux:label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         @foreach ($inquiryPhotos as $index => $photo)
-                            <div
-                                class="relative aspect-square rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-sm transition-all hover:scale-105">
-                                <img src="{{ $photo->temporaryUrl() }}" class="size-full object-cover">
+                            <div class="relative aspect-square rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                                <img loading="lazy" src="{{ $photo->temporaryUrl() }}" class="size-full object-cover">
                                 <button type="button" @click="$wire.set('inquiryPhotos.{{ $index }}', null)"
-                                    class="absolute top-1.5 right-1.5 size-6 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white ring-2 ring-white/20 transition-transform active:scale-90">
-                                    <flux:icon name="x-mark" class="size-3.5" />
+                                    class="absolute top-1 right-1 size-5 bg-black/60 rounded-full flex items-center justify-center text-white">
+                                    <flux:icon name="x-mark" class="size-3" />
                                 </button>
                             </div>
                         @endforeach
 
-                        <label
-                            class="aspect-square rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-600 flex flex-col items-center justify-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all active:scale-95 group">
-                            <div
-                                class="bg-zinc-100 dark:bg-zinc-800 p-2 rounded-xl group-hover:bg-purple-100 dark:group-hover:bg-purple-900/30 transition-colors">
-                                <flux:icon name="plus" class="size-5 text-zinc-500 group-hover:text-purple-600" />
-                            </div>
-                            <span
-                                class="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 mt-2 tracking-widest group-hover:text-purple-600">{{ __('Photo') }}</span>
-                            <input type="file" wire:model="inquiryPhotos" multiple class="hidden"
-                                accept="image/*">
+                        <label class="aspect-square rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 flex flex-col items-center justify-center cursor-pointer hover:border-purple-400 transition-colors group">
+                            <flux:icon name="plus" class="size-5 text-zinc-400 group-hover:text-purple-600" />
+                            <span class="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 mt-1 group-hover:text-purple-600">{{ __('Photo') }}</span>
+                            <input type="file" wire:model="inquiryPhotos" multiple class="hidden" accept="image/*">
                         </label>
                     </div>
-                    <div wire:loading wire:target="inquiryPhotos" class="flex items-center gap-2 mt-2">
-                        <div class="size-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin">
-                        </div>
-                        <span
-                            class="text-[10px] text-purple-600 font-black uppercase tracking-widest">{{ __('Processing Media...') }}</span>
+                    <div wire:loading wire:target="inquiryPhotos" class="flex items-center gap-1.5 mt-1">
+                        <div class="size-2.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span class="text-[11px] text-purple-600 font-bold">{{ __('Uploading...') }}</span>
                     </div>
                 </div>
 
-                <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex gap-3">
-                    <flux:button type="submit" variant="primary" class="flex-1 rounded-xl py-3"
-                        wire:loading.attr="disabled">
-                        <span wire:loading.remove wire:target="submitStructuredInquiry">
-                            {{ __('Send Brief to') }} {{ $selectedArtisan?->name }}
-                        </span>
-                        <span wire:loading wire:target="submitStructuredInquiry">
-                            {{ __('Sending Inquiry...') }}
-                        </span>
-                    </flux:button>
-                </div>
+                @if ($errors->any())
+                    <div class="bg-red-50 dark:bg-red-900/20 text-red-500 p-3 rounded-lg text-xs font-bold">
+                        {{ $errors->first() }}
+                    </div>
+                @endif
+
+                <button type="submit" wire:loading.attr="disabled"
+                    class="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 active:scale-[0.98] transition-all text-sm disabled:opacity-50">
+                    <span wire:loading.remove wire:target="submitStructuredInquiry">{{ __('Send Ping') }}</span>
+                    <span wire:loading wire:target="submitStructuredInquiry" class="flex items-center justify-center gap-2">
+                        <div class="size-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        {{ __('Sending...') }}
+                    </span>
+                </button>
             </form>
         </div>
     </flux:modal>

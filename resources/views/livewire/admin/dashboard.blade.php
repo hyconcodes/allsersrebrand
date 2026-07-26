@@ -5,6 +5,7 @@ use App\Models\Post;
 use App\Models\Report;
 use Livewire\Volt\Component;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
 new class extends Component {
@@ -64,25 +65,39 @@ new class extends Component {
 
     public function loadStats()
     {
-        $this->totalUsers = User::count();
-        $this->totalPosts = Post::count();
-        $this->totalReports = Report::where('status', 'pending')->count();
+        $stats = Cache::remember('admin:dashboard:stats', 300, function () {
+            $currentMonth = Carbon::now()->startOfMonth();
+            $lastMonth = Carbon::now()->subMonth()->startOfMonth();
+            $endOfLastMonth = Carbon::now()->subMonth()->endOfMonth();
 
-        $currentMonth = Carbon::now()->startOfMonth();
-        $lastMonth = Carbon::now()->subMonth()->startOfMonth();
-        $endOfLastMonth = Carbon::now()->subMonth()->endOfMonth();
+            $newUsersThisMonth = User::where('created_at', '>=', $currentMonth)->count();
+            $lastMonthUsers = User::whereBetween('created_at', [$lastMonth, $endOfLastMonth])->count();
 
-        $this->newUsersThisMonth = User::where('created_at', '>=', $currentMonth)->count();
-        $lastMonthUsers = User::whereBetween('created_at', [$lastMonth, $endOfLastMonth])->count();
+            $growthPercentage = 0;
+            if ($lastMonthUsers > 0) {
+                $growthPercentage = (($newUsersThisMonth - $lastMonthUsers) / $lastMonthUsers) * 100;
+            } elseif ($newUsersThisMonth > 0) {
+                $growthPercentage = 100;
+            }
 
-        if ($lastMonthUsers > 0) {
-            $this->growthPercentage = (($this->newUsersThisMonth - $lastMonthUsers) / $lastMonthUsers) * 100;
-        } else {
-            $this->growthPercentage = $this->newUsersThisMonth > 0 ? 100 : 0;
-        }
+            return [
+                'totalUsers' => User::count(),
+                'totalPosts' => Post::count(),
+                'totalReports' => Report::where('status', 'pending')->count(),
+                'newUsersThisMonth' => $newUsersThisMonth,
+                'growthPercentage' => $growthPercentage,
+                'artisansCount' => User::where('role', 'artisan')->count(),
+                'guestsCount' => User::where('role', 'guest')->count(),
+            ];
+        });
 
-        $this->artisansCount = User::where('role', 'artisan')->count();
-        $this->guestsCount = User::where('role', 'guest')->count();
+        $this->totalUsers = $stats['totalUsers'];
+        $this->totalPosts = $stats['totalPosts'];
+        $this->totalReports = $stats['totalReports'];
+        $this->newUsersThisMonth = $stats['newUsersThisMonth'];
+        $this->growthPercentage = $stats['growthPercentage'];
+        $this->artisansCount = $stats['artisansCount'];
+        $this->guestsCount = $stats['guestsCount'];
     }
 
     public function loadChartData()
@@ -144,7 +159,7 @@ new class extends Component {
         if ($action === 'delete') {
             $report->post?->delete();
             $report->update([
-                'status' => 'resolved',
+                'status' => 'reviewed',
                 'reviewed_by' => auth()->id(),
                 'reviewed_at' => now(),
                 'admin_notes' => 'Post deleted by admin.',
@@ -167,34 +182,34 @@ new class extends Component {
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-black text-zinc-900 dark:text-zinc-100 italic uppercase tracking-tighter">
+            <h1 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 italic uppercase tracking-tighter">
                 {{ __('Control Center') }}</h1>
             <p class="text-sm text-zinc-500">{{ __('Overview of your social ecosystem') }}</p>
         </div>
         <div class="flex items-center gap-2">
             <span class="size-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">{{ __('Live System Data') }}</span>
+            <span class="text-xs font-bold text-zinc-400 uppercase ">{{ __('Live System Data') }}</span>
         </div>
     </div>
 
     <!-- Tab Navigation -->
     <div class="flex overflow-x-auto gap-2 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-2xl w-fit">
         <button @click="activeTab = 'overview'"
-            :class="activeTab === 'overview' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' :
+            :class="activeTab === 'overview' ? 'bg-white dark:bg-zinc-700  text-zinc-900 dark:text-white' :
                 'text-zinc-500 hover:text-zinc-700'"
-            class="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+            class="px-6 py-2 rounded-xl text-xs font-bold uppercase  transition-all">
             {{ __('Overview') }}
         </button>
         <button @click="activeTab = 'posts'"
-            :class="activeTab === 'posts' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' :
+            :class="activeTab === 'posts' ? 'bg-white dark:bg-zinc-700  text-zinc-900 dark:text-white' :
                 'text-zinc-500 hover:text-zinc-700'"
-            class="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+            class="px-6 py-2 rounded-xl text-xs font-bold uppercase  transition-all">
             {{ __('Posts') }}
         </button>
         <button @click="activeTab = 'users'"
-            :class="activeTab === 'users' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' :
+            :class="activeTab === 'users' ? 'bg-white dark:bg-zinc-700  text-zinc-900 dark:text-white' :
                 'text-zinc-500 hover:text-zinc-700'"
-            class="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+            class="px-6 py-2 rounded-xl text-xs font-bold uppercase  transition-all">
             {{ __('Users') }}
         </button>
     </div>
@@ -204,14 +219,14 @@ new class extends Component {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <!-- Total Users -->
             <div
-                class="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden relative group">
+                class="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800  overflow-hidden relative group">
                 <div
                     class="absolute -right-4 -top-4 size-24 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all">
                 </div>
                 <div class="relative z-10 flex flex-col justify-between h-full">
                     <div class="flex items-center justify-between mb-4">
                         <div
-                            class="size-10 rounded-xl bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                            class="size-10 rounded-xl bg-zinc-100 dark:bg-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
                             <flux:icon name="users" class="size-5" />
                         </div>
                         @if ($growthPercentage > 0)
@@ -222,9 +237,9 @@ new class extends Component {
                         @endif
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-1">
+                        <p class="text-xs uppercase font-bold  text-zinc-400 mb-1">
                             {{ __('Total Users') }}</p>
-                        <h2 class="text-3xl font-black text-zinc-900 dark:text-zinc-100">
+                        <h2 class="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
                             {{ number_format($totalUsers) }}
                         </h2>
                     </div>
@@ -233,7 +248,7 @@ new class extends Component {
 
             <!-- Total Posts -->
             <div
-                class="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden relative group">
+                class="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800  overflow-hidden relative group">
                 <div
                     class="absolute -right-4 -top-4 size-24 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all">
                 </div>
@@ -245,9 +260,9 @@ new class extends Component {
                         </div>
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-1">
+                        <p class="text-xs uppercase font-bold  text-zinc-400 mb-1">
                             {{ __('Total Posts') }}</p>
-                        <h2 class="text-3xl font-black text-zinc-900 dark:text-zinc-100">
+                        <h2 class="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
                             {{ number_format($totalPosts) }}
                         </h2>
                     </div>
@@ -256,7 +271,7 @@ new class extends Component {
 
             <!-- Pending Reports -->
             <div
-                class="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden relative group">
+                class="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800  overflow-hidden relative group">
                 <div
                     class="absolute -right-4 -top-4 size-24 bg-red-500/10 rounded-full blur-2xl group-hover:bg-red-500/20 transition-all">
                 </div>
@@ -271,9 +286,9 @@ new class extends Component {
                         @endif
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-1">
+                        <p class="text-xs uppercase font-bold  text-zinc-400 mb-1">
                             {{ __('Pending Reports') }}</p>
-                        <h2 class="text-3xl font-black text-zinc-900 dark:text-zinc-100">
+                        <h2 class="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
                             {{ number_format($totalReports) }}
                         </h2>
                     </div>
@@ -282,7 +297,7 @@ new class extends Component {
 
             <!-- New Artisans -->
             <div
-                class="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden relative group">
+                class="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800  overflow-hidden relative group">
                 <div
                     class="absolute -right-4 -top-4 size-24 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all">
                 </div>
@@ -294,10 +309,10 @@ new class extends Component {
                         </div>
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-1">
+                        <p class="text-xs uppercase font-bold  text-zinc-400 mb-1">
                             {{ __('Artisans') }}
                         </p>
-                        <h2 class="text-3xl font-black text-zinc-900 dark:text-zinc-100">
+                        <h2 class="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
                             {{ number_format($artisansCount) }}</h2>
                     </div>
                 </div>
@@ -308,8 +323,8 @@ new class extends Component {
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- User Growth (Line Chart) -->
             <div
-                class="lg:col-span-2 bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-8">
+                class="lg:col-span-2 bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 ">
+                <h3 class="text-sm font-bold uppercase  text-zinc-900 dark:text-white mb-8">
                     {{ __('User Growth - Current Month') }}</h3>
                 <div class="h-[300px]">
                     <canvas id="growthChart"></canvas>
@@ -318,8 +333,8 @@ new class extends Component {
 
             <!-- Role Distribution (Pie Chart) -->
             <div
-                class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-8">
+                class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 ">
+                <h3 class="text-sm font-bold uppercase  text-zinc-900 dark:text-white mb-8">
                     {{ __('Community Mix') }}</h3>
                 <div class="h-[300px] flex items-center justify-center">
                     <canvas id="roleChart"></canvas>
@@ -331,11 +346,11 @@ new class extends Component {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Recent Reports -->
             <div
-                class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 ">
                 <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">
+                    <h3 class="text-sm font-bold uppercase  text-zinc-900 dark:text-white">
                         {{ __('Critical Reports') }}</h3>
-                    <flux:button :href="route('admin.reports')" variant="ghost" size="sm" class="text-[10px]">
+                    <flux:button :href="route('admin.reports')" variant="ghost" size="sm" class="text-xs">
                         {{ __('Manage All Reports') }}</flux:button>
                 </div>
 
@@ -353,9 +368,9 @@ new class extends Component {
                                         {{ $report->reason }}
                                     </p>
                                     <span
-                                        class="text-[8px] text-zinc-400 whitespace-nowrap">{{ $report->created_at->diffForHumans() }}</span>
+                                        class="text-xs text-zinc-400 whitespace-nowrap">{{ $report->created_at->diffForHumans() }}</span>
                                 </div>
-                                <p class="text-[10px] text-zinc-500 mb-3 truncate">
+                                <p class="text-xs text-zinc-500 mb-3 truncate">
                                     {{ __('Reported by') }} <span
                                         class="font-bold text-zinc-700 dark:text-zinc-300">{{ $report->user->name }}</span>
                                     @if ($report->post)
@@ -387,8 +402,8 @@ new class extends Component {
 
             <!-- System Intelligence (Top Artisans) -->
             <div
-                class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-6">
+                class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 ">
+                <h3 class="text-sm font-bold uppercase  text-zinc-900 dark:text-white mb-6">
                     {{ __('Top Performing Artisans') }}</h3>
 
                 <div class="space-y-4">
@@ -400,7 +415,7 @@ new class extends Component {
                                 @if ($artisan->profile_picture_url)
                                     <img src="{{ $artisan->profile_picture_url }}" class="size-full object-cover">
                                 @else
-                                    <span class="text-xs font-black text-zinc-500">{{ $artisan->initials() }}</span>
+                                    <span class="text-xs font-bold text-zinc-500">{{ $artisan->initials() }}</span>
                                 @endif
                             </div>
                             <div class="flex-1 min-w-0">
@@ -410,10 +425,10 @@ new class extends Component {
                                     <div class="flex items-center gap-1">
                                         <flux:icon name="star" variant="solid" class="size-3 text-yellow-400" />
                                         <span
-                                            class="text-xs font-black text-zinc-900 dark:text-white">{{ number_format($artisan->smart_rating, 1) }}</span>
+                                            class="text-xs font-bold text-zinc-900 dark:text-white">{{ number_format($artisan->smart_rating, 1) }}</span>
                                     </div>
                                 </div>
-                                <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter">
+                                <p class="text-xs text-zinc-500 font-bold uppercase tracking-tighter">
                                     {{ $artisan->work ?: __('Professional') }} • {{ $artisan->posts()->count() }}
                                     {{ __('posts') }}</p>
                             </div>
@@ -430,8 +445,8 @@ new class extends Component {
 
     <!-- Post Management Tab -->
     <div x-show="activeTab === 'posts'" x-cloak class="space-y-6">
-        <div class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-6">
+        <div class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 ">
+            <h3 class="text-sm font-bold uppercase  text-zinc-900 dark:text-white mb-6">
                 {{ __('Find & Manage Posts') }}</h3>
 
             <div class="max-w-md">
@@ -455,14 +470,14 @@ new class extends Component {
                                 @endif
                             </div>
                             <div class="min-w-0">
-                                <p class="text-xs font-black text-zinc-900 dark:text-white">
+                                <p class="text-xs font-bold text-zinc-900 dark:text-white">
                                     {{ $post->user->username }}
                                     <span
                                         class="text-zinc-400 font-normal">@<span>{{ $post->user->username }}</span></span>
                                 </p>
                                 <p class="text-xs text-zinc-500 mt-2 line-clamp-3 leading-relaxed">
                                     {{ $post->content }}</p>
-                                <p class="text-[10px] text-zinc-400 mt-2">
+                                <p class="text-xs text-zinc-400 mt-2">
                                     {{ $post->created_at->format('M d, Y • g:i A') }}</p>
                             </div>
                         </div>
@@ -483,7 +498,7 @@ new class extends Component {
                     @else
                         <div
                             class="text-center py-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-3xl">
-                            <p class="text-xs text-zinc-400 font-bold uppercase tracking-widest">
+                            <p class="text-xs text-zinc-400 font-bold uppercase ">
                                 {{ __('Enter at least 3 characters to search') }}</p>
                         </div>
                     @endif
@@ -494,8 +509,8 @@ new class extends Component {
 
     <!-- User Management Tab -->
     <div x-show="activeTab === 'users'" x-cloak class="space-y-6">
-        <div class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <h3 class="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-6">
+        <div class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 ">
+            <h3 class="text-sm font-bold uppercase  text-zinc-900 dark:text-white mb-6">
                 {{ __('Find & Manage Users') }}</h3>
 
             <div class="max-w-md">
@@ -514,15 +529,15 @@ new class extends Component {
                                     <img src="{{ $user->profile_picture_url }}" class="size-full object-cover">
                                 @else
                                     <div
-                                        class="size-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700 text-sm font-black">
+                                        class="size-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700 text-sm font-bold">
                                         {{ $user->initials() }}</div>
                                 @endif
                             </div>
                             <div class="min-w-0">
-                                <p class="text-sm font-black text-zinc-900 dark:text-white flex items-center gap-2">
+                                <p class="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                                     {{ $user->name }}
                                     <span
-                                        class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest {{ $user->role === 'artisan' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600' }}">
+                                        class="px-2 py-0.5 rounded text-xs font-bold uppercase  {{ $user->role === 'artisan' ? 'bg-zinc-100 text-purple-600' : 'bg-blue-100 text-blue-600' }}">
                                         {{ $user->role }}
                                     </span>
                                 </p>
@@ -535,13 +550,13 @@ new class extends Component {
                             @if ($user->role === 'artisan')
                                 <flux:button wire:click="updateUserRole({{ $user->id }}, 'guest')"
                                     variant="outline" size="sm"
-                                    class="font-black text-[10px] uppercase tracking-widest">
+                                    class="font-bold text-xs uppercase ">
                                     {{ __('Make Guest') }}
                                 </flux:button>
                             @else
                                 <flux:button wire:click="updateUserRole({{ $user->id }}, 'artisan')"
                                     variant="primary" size="sm"
-                                    class="font-black text-[10px] uppercase tracking-widest">
+                                    class="font-bold text-xs uppercase ">
                                     {{ __('Make Artisan') }}
                                 </flux:button>
                             @endif
@@ -558,7 +573,7 @@ new class extends Component {
                     @else
                         <div
                             class="text-center py-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-3xl">
-                            <p class="text-xs text-zinc-400 font-bold uppercase tracking-widest">
+                            <p class="text-xs text-zinc-400 font-bold uppercase ">
                                 {{ __('Enter at least 3 characters to search users') }}</p>
                         </div>
                     @endif

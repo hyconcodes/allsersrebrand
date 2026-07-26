@@ -81,7 +81,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 }; ?>
 
 <div
-    class="h-[calc(100vh-5rem)] sm:h-[calc(100vh-6rem)] snap-y snap-mandatory overflow-y-scroll no-scrollbar -mx-4 sm:mx-auto max-w-md w-full relative sm:rounded-[2rem] overflow-hidden bg-black">
+    class="h-[calc(100vh-5rem)] sm:h-[calc(100vh-6rem)] snap-y snap-mandatory overflow-y-scroll no-scrollbar -mx-4 sm:mx-auto max-w-md w-full relative sm:rounded-xl overflow-hidden bg-black">
     @forelse($posts as $post)
         <div class="snap-start snap-always relative w-full h-full flex items-center justify-center bg-black overflow-hidden"
             x-data="{
@@ -136,7 +136,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <!-- Like -->
                 <button wire:click="toggleLike({{ $post->id }})" class="flex flex-col items-center gap-0.5 group">
                     <div
-                        class="bg-zinc-800/50 backdrop-blur-md p-2 rounded-full transition-all group-hover:scale-110 {{ $post->isLikedBy(auth()->user()) ? 'text-red-500' : 'text-white' }}">
+                        class="bg-zinc-900/50 backdrop-blur-md p-2 rounded-full transition-all group-hover:scale-110 {{ $post->isLikedBy(auth()->user()) ? 'text-red-500' : 'text-white' }}">
                         @if ($post->isLikedBy(auth()->user()))
                             <svg class="size-6 fill-current" viewBox="0 0 24 24">
                                 <path
@@ -147,25 +147,25 @@ new #[Layout('components.layouts.app')] class extends Component {
                         @endif
                     </div>
                     <span
-                        class="text-[10px] font-bold text-white shadow-black drop-shadow-md">{{ $post->likes_count }}</span>
+                        class="text-xs font-bold text-white shadow-black drop-shadow-md">{{ $post->likes_count }}</span>
                 </button>
 
                 <!-- Comment -->
                 <button @click="$dispatch('open-post-detail', { postId: {{ $post->id }} })"
                     class="flex flex-col items-center gap-0.5 group">
                     <div
-                        class="bg-zinc-800/50 backdrop-blur-md p-2 rounded-full text-white transition-all group-hover:scale-110 group-hover:bg-blue-500/50">
+                        class="bg-zinc-900/50 backdrop-blur-md p-2 rounded-full text-white transition-all group-hover:scale-110 group-hover:bg-blue-500/50">
                         <flux:icon name="chat-bubble-left" class="size-6" />
                     </div>
                     <span
-                        class="text-[10px] font-bold text-white shadow-black drop-shadow-md">{{ $post->all_comments_count }}</span>
+                        class="text-xs font-bold text-white shadow-black drop-shadow-md">{{ $post->all_comments_count }}</span>
                 </button>
 
                 <!-- Bookmark -->
                 <button wire:click="toggleBookmark({{ $post->id }})"
                     class="flex flex-col items-center gap-0.5 group">
                     <div
-                        class="bg-zinc-800/50 backdrop-blur-md p-2 rounded-full transition-all group-hover:scale-110 {{ $post->isBookmarkedBy(auth()->user()) ? 'text-[var(--color-brand-purple)]' : 'text-white' }}">
+                        class="bg-zinc-900/50 backdrop-blur-md p-2 rounded-full transition-all group-hover:scale-110 {{ $post->isBookmarkedBy(auth()->user()) ? 'text-[var(--color-brand-purple)]' : 'text-white' }}">
                         @if ($post->isBookmarkedBy(auth()->user()))
                             <svg class="size-6 fill-current" viewBox="0 0 24 24">
                                 <path d="M6 2c-1.1 0-2 .9-2 2v18l8-3.5 8 3.5V4c0-1.1-.9-2-2-2H6z" />
@@ -179,7 +179,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <!-- More Options -->
                 <flux:dropdown position="left" align="end">
                     <button
-                        class="bg-zinc-800/50 backdrop-blur-md p-2 rounded-full text-white transition-all hover:bg-zinc-700">
+                        class="bg-zinc-900/50 backdrop-blur-md p-2 rounded-full text-white transition-all hover:bg-zinc-700">
                         <flux:icon name="ellipsis-horizontal" class="size-5" />
                     </button>
                     <flux:menu>
@@ -189,12 +189,12 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 <!-- Creator Avatar (Navigates to profile) -->
                 <a href="{{ route('artisan.profile', $post->user) }}" wire:navigate class="relative mt-2">
-                    <div class="size-10 rounded-full border-2 border-white overflow-hidden bg-zinc-800">
+                    <div class="size-10 rounded-full border-2 border-white overflow-hidden bg-zinc-900">
                         @if ($post->user->profile_picture_url)
                             <img src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
                         @else
                             <span
-                                class="flex items-center justify-center h-full w-full text-white text-[10px] font-bold">{{ $post->user->initials() }}</span>
+                                class="flex items-center justify-center h-full w-full text-white text-xs font-bold">{{ $post->user->initials() }}</span>
                         @endif
                     </div>
                     <div
@@ -210,7 +210,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     class="flex items-center gap-2 mb-2 hover:opacity-80 transition-opacity w-fit">
                     <h3 class="font-bold text-lg drop-shadow-md text-sm">{{ $post->user->username }}</h3>
                     <span
-                        class="bg-[var(--color-brand-purple)] text-white text-[8px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide border border-white/20">
+                        class="bg-[var(--color-brand-purple)] text-white text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wide border border-white/20">
                         {{ $post->user->work ?? __('Artisan') }}
                     </span>
                     <span class="text-xs text-white/80">• {{ $post->created_at->diffForHumans() }}</span>
@@ -218,7 +218,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 @if ($post->content)
                     <div class="max-h-24 overflow-y-auto pr-2 no-scrollbar">
-                        <p class="text-xs text-white/90 drop-shadow-md font-medium leading-relaxed whitespace-pre-line">
+                        <p class="text-xs text-white/90 drop-shadow-md font-medium leading-relaxed whitespace-pre-line break-words">
                             {!! $post->formatted_content !!}
                         </p>
                     </div>

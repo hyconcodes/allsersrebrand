@@ -5,15 +5,16 @@ use App\Models\Post;
 use App\Models\Conversation;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 use App\Traits\HandlesPostActions;
 use function Livewire\Volt\layout;
 
 layout('components.layouts.app');
 
 new class extends Component {
-    use WithFileUploads, HandlesPostActions;
+    use WithPagination, WithFileUploads, HandlesPostActions;
     public User $user;
-    public $posts = [];
+    public $posts;
 
     public function rendering($view)
     {
@@ -44,7 +45,7 @@ new class extends Component {
             ])
             ->withCount(['likes', 'allComments'])
             ->latest()
-            ->get();
+            ->paginate(20);
     }
 
     public function startConversation()
@@ -52,19 +53,23 @@ new class extends Component {
         $userId = $this->user->id;
         $authId = auth()->id();
 
-        // Find conversation with both users
-        $conversation = auth()
-            ->user()
-            ->conversations()
-            ->whereHas('users', function ($query) use ($userId) {
-                $query->where('users.id', $userId);
-            })
-            ->first();
+        $conversation = \Illuminate\Support\Facades\DB::transaction(function () use ($userId, $authId) {
+            $existing = auth()
+                ->user()
+                ->conversations()
+                ->whereHas('users', function ($query) use ($userId) {
+                    $query->where('users.id', $userId);
+                })
+                ->first();
 
-        if (!$conversation) {
+            if ($existing) {
+                return $existing;
+            }
+
             $conversation = Conversation::create();
             $conversation->users()->attach([$authId, $userId]);
-        }
+            return $conversation;
+        });
 
         return $this->redirect(route('chat', $conversation->id), navigate: true);
     }
@@ -82,16 +87,15 @@ new class extends Component {
     }
 }; ?>
 
-<div class="max-w-4xl mx-auto px-4 py-8">
+<div class="max-w-4xl mx-auto">
     <!-- Profile Header -->
-    <div
-        class="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm mb-8">
-        <div class="h-32 bg-gradient-to-r from-purple-500 to-blue-500"></div>
-        <div class="px-8 pb-8">
-            <div class="relative flex justify-between items-end -mt-12 mb-6">
-                <div class="size-24 rounded-2xl bg-white dark:bg-zinc-900 p-1 shadow-lg">
-                    <div
-                        class="w-full h-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold text-3xl overflow-hidden">
+    <div>
+        <div class="h-32 sm:h-48 bg-gradient-to-r from-purple-600 to-blue-700"></div>
+
+        <div class="px-4 pb-4">
+            <div class="flex justify-between items-end -mt-12 sm:-mt-16 mb-4">
+                <div class="size-20 sm:size-28 rounded-full bg-zinc-950 p-0.5">
+                    <div class="size-full rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold text-2xl sm:text-4xl overflow-hidden">
                         @if ($user->profile_picture_url)
                             <img src="{{ $user->profile_picture_url }}" class="size-full object-cover">
                         @else
@@ -100,7 +104,7 @@ new class extends Component {
                     </div>
                 </div>
 
-                <div class="flex gap-3" x-data="{
+                <div class="flex gap-2 mb-1" x-data="{
                     copy(text) {
                         navigator.clipboard.writeText(text).then(() => {
                             $dispatch('toast', { type: 'success', title: 'Link Copied!', message: 'Profile link copied to clipboard.' });
@@ -108,105 +112,97 @@ new class extends Component {
                     }
                 }">
                     @if (auth()->id() !== $user->id)
-                        <flux:button wire:click="startConversation" variant="primary" icon="chat-bubble-left-right"
-                            class="rounded-full px-6">
+                        <button wire:click="startConversation"
+                            class="px-4 py-1.5 border border-zinc-700 text-zinc-100 rounded-full text-sm font-bold hover:bg-zinc-800 transition-colors">
                             {{ __('Chat') }}
-                        </flux:button>
+                        </button>
                     @endif
-                    {{-- <flux:button @click="copy('{{ route('artisan.profile', $user->username ?? $user->id) }}')"
-                        variant="outline" icon="share" class="rounded-full shadow-none">
-                        {{ __('Share') }}
-                    </flux:button> --}}
                 </div>
             </div>
 
             <div class="space-y-1">
-                <h1 class="text-2xl font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <h1 class="text-xl font-bold text-zinc-100 flex items-center gap-2">
                     {{ $user->name }}
                     @if ($user->isArtisan())
-                        <flux:icon name="check-badge" class="size-6 text-blue-500 fill-current" />
+                        <flux:icon name="check-badge" class="size-5 text-blue-500 fill-current" />
                     @endif
                 </h1>
-                <p class="text-[var(--color-brand-purple)] font-bold uppercase tracking-wide text-xs">
-                    {{ $user->work ?? __('Guest') }}
-                </p>
-            </div>
-
-            <div class="mt-4 flex gap-6 text-sm">
-                <div class="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
-                    <flux:icon name="map-pin" class="size-4" />
-                    {{ $user->address ?? __('Global') }}
-                </div>
-                <div class="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
-                    <flux:icon name="calendar-days" class="size-4" />
-                    {{ __('Joined') }} {{ \Carbon\Carbon::parse($user->created_at)->format('M Y') }}
-                </div>
-                <div class="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
-                    <span class="font-bold text-zinc-900 dark:text-zinc-100">{{ count($posts) }}</span>
-                    {{ __('Posts') }}
-                </div>
+                <p class="text-sm text-zinc-500">{{ '@' . $user->username }}</p>
+                @if ($user->work)
+                    <p class="text-sm text-purple-500 font-medium">{{ $user->work }}</p>
+                @endif
             </div>
 
             @if ($user->bio)
-                <p class="mt-6 text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed max-w-2xl">
+                <p class="mt-3 text-sm text-zinc-400 leading-relaxed max-w-2xl">
                     {{ $user->bio }}
                 </p>
             @endif
 
-            <!-- Awarded Badges Section -->
-            @if ($user->badges->count() > 0)
-                <div class="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800">
-                    <h3 class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-4">
-                        {{ __('Special Badges & Awards') }}</h3>
-                    <div class="flex flex-wrap gap-4">
-                        @foreach ($user->badges as $badge)
-                            <div class="group relative flex flex-col items-center gap-2">
-                                <div
-                                    class="size-16 rounded-2xl bg-gradient-to-br from-yellow-400/20 to-orange-500/20 dark:from-yellow-400/10 dark:to-orange-500/10 p-2 border border-yellow-400/30 flex items-center justify-center transition-all hover:scale-110 hover:shadow-lg shadow-yellow-500/10">
-                                    @if ($badge->icon_url)
-                                        <img src="{{ asset('storage/' . $badge->icon_url) }}"
-                                            class="size-full object-contain">
-                                    @else
-                                        <flux:icon name="trophy" class="size-8 text-yellow-500" />
-                                    @endif
-                                </div>
-                                <span
-                                    class="text-[10px] font-black text-zinc-900 dark:text-white text-center w-20 leading-tight uppercase tracking-tighter">{{ $badge->name }}</span>
-
-                                <!-- Tooltip on hover -->
-                                <div
-                                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-zinc-900 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity text-center z-20">
-                                    <p class="font-bold">{{ $badge->name }}</p>
-                                    <p class="text-zinc-400 mt-1">{{ $badge->description }}</p>
-                                    <p class="text-[8px] mt-2 text-yellow-400">{{ __('Awarded') }}:
-                                        {{ \Carbon\Carbon::parse($badge->pivot->awarded_at)->format('M Y') }}</p>
-                                    <div
-                                        class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-zinc-900">
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
+            <div class="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <span class="flex items-center gap-1.5 text-zinc-500">
+                    <flux:icon name="map-pin" class="size-3.5" />
+                    {{ $user->address ?? __('Global') }}
+                </span>
+                <span class="flex items-center gap-1.5 text-zinc-500">
+                    <flux:icon name="calendar-days" class="size-3.5" />
+                    {{ __('Joined') }} {{ \Carbon\Carbon::parse($user->created_at)->format('M Y') }}
+                </span>
+                <span class="flex items-center gap-1.5 text-zinc-500">
+                    <flux:icon name="document-text" class="size-3.5" />
+                    <span class="font-bold text-zinc-100">{{ $posts->total() }}</span> {{ __('Posts') }}
+                </span>
+            </div>
         </div>
     </div>
 
-    <!-- User Posts -->
-    <div class="space-y-6 max-w-2xl">
-        <h2 class="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-4 px-2">{{ __('Portfolio & Posts') }}</h2>
-
-        @forelse($posts as $post)
-            <livewire:dashboard.post-item :post="$post" :wire:key="'user-post-'.$post->id" />
-        @empty
-            <div
-                class="bg-white dark:bg-zinc-900 rounded-2xl p-12 shadow-sm border border-zinc-200 dark:border-zinc-800 text-center">
-                <p class="text-zinc-500 text-sm">{{ __('This user hasn\'t posted anything yet.') }}</p>
+    <!-- Badges -->
+    @if ($user->badges->count() > 0)
+        <div class="border-b border-zinc-800 px-4 py-4">
+            <div class="flex flex-wrap gap-3">
+                @foreach ($user->badges as $badge)
+                    <div class="group relative">
+                        <div class="size-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                            @if ($badge->icon_url)
+                                <img src="{{ asset('storage/' . $badge->icon_url) }}" class="size-6 object-contain">
+                            @else
+                                <flux:icon name="trophy" class="size-5 text-yellow-500" />
+                            @endif
+                        </div>
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 p-2 bg-zinc-900 border border-zinc-800 text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity text-center z-20 shadow-lg">
+                            <p class="font-bold text-zinc-100">{{ $badge->name }}</p>
+                            <p class="text-zinc-400 mt-1">{{ $badge->description }}</p>
+                            <p class="text-xs mt-2 text-yellow-500">{{ __('Awarded') }}: {{ \Carbon\Carbon::parse($badge->pivot->awarded_at)->format('M Y') }}</p>
+                        </div>
+                    </div>
+                @endforeach
             </div>
-        @endforelse
+        </div>
+    @endif
+
+    <!-- Posts -->
+    <div>
+        <div class="border-b border-zinc-800 px-4">
+            <span class="inline-block px-4 py-3 text-sm font-bold text-zinc-100 border-b-2 border-purple-500">{{ __('Posts') }}</span>
+        </div>
+
+        <div>
+            @forelse($posts as $post)
+                <livewire:dashboard.post-item :post="$post" :wire:key="'user-post-'.$post->id" />
+            @empty
+                <div class="px-4 py-12 text-center border-b border-zinc-800">
+                    <p class="text-sm text-zinc-500">{{ __('This user hasn\'t posted anything yet.') }}</p>
+                </div>
+            @endforelse
+        </div>
+
+        @if ($posts instanceof \Illuminate\Pagination\LengthAwarePaginator && $posts->hasPages())
+            <div class="px-4 py-4">
+                {{ $posts->links(data: ['wire:navigate' => true]) }}
+            </div>
+        @endif
     </div>
 
-    <!-- Integrate Post Detail Drawer -->
     <livewire:dashboard.post-detail />
     @include('partials.post-modals')
 </div>

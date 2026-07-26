@@ -49,7 +49,7 @@
     <main class="pt-32 pb-24">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
-                <h1 class="text-4xl sm:text-5xl font-black text-zinc-900 mb-4 tracking-tight">
+                <h1 class="text-4xl sm:text-5xl font-bold text-zinc-900 mb-4 tracking-tight">
                     Privacy <span class="gradient-text">Policy</span>
                 </h1>
                 <p class="text-zinc-600 font-medium">Last updated: {{ date('F j, Y') }}</p>

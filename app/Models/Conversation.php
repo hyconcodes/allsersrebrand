@@ -42,6 +42,10 @@ class Conversation extends Model
 
     public function getOtherUserAttribute()
     {
-        return $this->users->where('id', '!=', auth()->id())->first();
+        $userId = auth()->id();
+        if (!$userId) {
+            return $this->users->first();
+        }
+        return $this->users->where('id', '!=', $userId)->first();
     }
 }

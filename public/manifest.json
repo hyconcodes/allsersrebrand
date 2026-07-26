@@ -7,6 +7,8 @@
     "background_color": "#ffffff",
     "theme_color": "#6a11cb",
     "orientation": "portrait",
+    "categories": ["business", "lifestyle", "social"],
+    "lang": "en",
     "icons": [
         {
             "src": "/favicon.ico",
@@ -23,7 +25,19 @@
             "src": "/apple-touch-icon.png",
             "sizes": "180x180",
             "type": "image/png",
-            "purpose": "any"
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-192x192.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-512x512.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
         }
     ],
     "shortcuts": [

@@ -46,4 +46,9 @@ return [
         'rest_api_key' => env('ONESIGNAL_REST_API_KEY'),
     ],
 
+    'recaptcha' => [
+        'site_key' => env('RECAPTCHA_SITE_KEY', '6Lf00Z0sAAAAADaG78Ja2OCCqzx9FXCOAsOVivcq'),
+        'secret' => env('RECAPTCHA_SECRET_KEY', ''),
+    ],
+
 ];

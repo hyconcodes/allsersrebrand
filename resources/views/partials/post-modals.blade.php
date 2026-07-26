@@ -27,7 +27,7 @@
 
             <div class="flex gap-4">
                 @if ($repostImage)
-                    <div class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 shadow-sm">
+                    <div class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200">
                         <img src="{{ $repostImage->temporaryUrl() }}" class="size-full object-cover">
                         <button type="button" wire:click="$set('repostImage', null)"
                             class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -38,7 +38,7 @@
 
                 @if ($repostVideo)
                     <div
-                        class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 flex items-center justify-center bg-zinc-100 shadow-sm">
+                        class="relative group size-20 rounded-lg overflow-hidden border border-zinc-200 flex items-center justify-center bg-zinc-100">
                         <flux:icon name="video-camera" class="size-8 text-zinc-400" />
                         <button type="button" wire:click="$set('repostVideo', null)"
                             class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">

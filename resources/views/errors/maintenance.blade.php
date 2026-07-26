@@ -33,7 +33,7 @@
         </div>
 
         <div class="space-y-4">
-            <h1 class="text-4xl font-black tracking-tight text-zinc-900 dark:text-white">
+            <h1 class="text-4xl font-bold tracking-tight text-zinc-900 dark:text-white">
                 We're currently under maintenance
             </h1>
             <p class="text-lg text-zinc-600 dark:text-zinc-400 max-w-md mx-auto">

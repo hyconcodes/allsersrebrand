@@ -134,7 +134,7 @@
                         <span class="text-sm font-bold text-primary">Trusted by 10,000+ users</span>
                     </div>
                     <h1
-                        class="text-5xl sm:text-6xl lg:text-7xl font-black text-zinc-900 leading-[1.1] mb-6 tracking-tight">
+                        class="text-5xl sm:text-6xl lg:text-7xl font-bold text-zinc-900 leading-[1.1] mb-6 tracking-tight">
                         Find Trusted <br><span class="gradient-text">Artisans</span> Near You
                     </h1>
                     <p class="text-xl text-zinc-600 max-w-xl mb-10 leading-relaxed font-medium">
@@ -158,15 +158,15 @@
 
                     <div class="grid grid-cols-3 gap-6 mt-16 lg:mt-24 border-t border-zinc-100 pt-8">
                         <div>
-                            <div class="text-3xl font-black text-zinc-900">50K+</div>
+                            <div class="text-3xl font-bold text-zinc-900">50K+</div>
                             <div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mt-1">Providers</div>
                         </div>
                         <div>
-                            <div class="text-3xl font-black text-zinc-900">100K+</div>
+                            <div class="text-3xl font-bold text-zinc-900">100K+</div>
                             <div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mt-1">Jobs</div>
                         </div>
                         <div>
-                            <div class="text-3xl font-black text-zinc-900">4.9</div>
+                            <div class="text-3xl font-bold text-zinc-900">4.9</div>
                             <div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mt-1">Rating</div>
                         </div>
                     </div>
@@ -174,7 +174,7 @@
 
                 <div class="relative lg:block hidden animate-fade-up" style="animation-delay: 0.2s">
                     <div class="relative rounded-[40px] overflow-hidden shadow-2xl border-8 border-white group">
-                        <img src="{{ asset('assets/hero_artisan_work_1768047879333.png') }}" alt="Professional Artisan"
+                        <img loading="lazy" src="{{ asset('assets/hero_artisan_work_1768047879333.png') }}" alt="Professional Artisan"
                             class="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700">
                         <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
                         </div>
@@ -306,7 +306,7 @@
                     class="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full text-primary text-xs font-bold uppercase tracking-wider mb-6">
                     What we offer
                 </div>
-                <h2 class="text-4xl sm:text-5xl font-black text-zinc-900 mb-6 leading-tight">Explore <span
+                <h2 class="text-4xl sm:text-5xl font-bold text-zinc-900 mb-6 leading-tight">Explore <span
                         class="gradient-text">Services</span></h2>
                 <p class="text-xl text-zinc-600 max-w-2xl mx-auto font-medium">Find experts across all categories,
                     ready to help you with your next project.</p>
@@ -365,7 +365,7 @@
                     <div
                         class="group p-8 rounded-[32px] bg-zinc-50 border border-zinc-100 hover:bg-white hover:border-primary/20 hover:shadow-card-hover transition-all duration-300 hover:-translate-y-2 cursor-pointer text-center">
                         <div
-                            class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm group-hover:bg-primary group-hover:scale-110 transition-all duration-500">
+                            class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary group-hover:scale-110 transition-all duration-500">
                             <svg class="w-8 h-8 text-primary group-hover:text-white transition-colors duration-300"
                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -405,87 +405,6 @@
 
             <div class="max-w-7xl mx-auto px-4 mt-12">
                 <livewire:dashboard.pros-widget :in-feed="true" :limit="6" :isWelcome="true" />
-            </div>
-        </div>
-    </section>
-
-    <!-- Recent Projects Showcase (Internal Links for Indexing) -->
-    <section class="px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24 bg-zinc-50 hidden">
-        <div class="max-w-7xl mx-auto">
-            <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-                <div class="max-w-2xl">
-                    <div
-                        class="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full text-primary text-xs font-bold uppercase tracking-wider mb-6">
-                        Portfolio Gallery
-                    </div>
-                    <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold text-black mb-4">
-                        Featured <span class="gradient-text">Showcases</span>
-                    </h2>
-                    <p class="text-lg text-gray-600">Explore recent work completed by our verified artisans.</p>
-                </div>
-            </div>
-
-            @php
-                $recentPosts = \App\Models\Post::with('user')
-                    ->whereNotNull('images')
-                    ->where('challenge_id', null) // Only regular portfolio posts
-                    ->latest()
-                    ->take(6)
-                    ->get();
-            @endphp
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                @foreach ($recentPosts as $post)
-                    @php
-                        $images = array_filter(explode(',', $post->images));
-                        $firstImage = count($images) > 0 ? trim($images[0]) : null;
-                    @endphp
-                    @if ($firstImage)
-                        <div
-                            class="group bg-white rounded-3xl overflow-hidden border border-zinc-100 shadow-card hover:shadow-card-hover transition-all duration-300 flex flex-col">
-                            <a href="{{ route('posts.show', $post->post_id) }}"
-                                class="block aspect-video overflow-hidden">
-                                <img src="{{ route('images.show', ['path' => $firstImage]) }}"
-                                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                    alt="Project by {{ $post->user->name }}">
-                            </a>
-                            <div class="p-6 flex-1 flex flex-col">
-                                <div class="flex items-center gap-3 mb-4">
-                                    <div class="size-8 rounded-full bg-primary/10 overflow-hidden">
-                                        @if ($post->user->profile_picture_url)
-                                            <img src="{{ $post->user->profile_picture_url }}"
-                                                class="size-full object-cover">
-                                        @else
-                                            <div
-                                                class="size-full flex items-center justify-center text-[10px] font-bold text-primary">
-                                                {{ $post->user->initials() }}
-                                            </div>
-                                        @endif
-                                    </div>
-                                    <div>
-                                        <p class="text-xs font-bold text-zinc-900">{{ $post->user->name }}</p>
-                                        <p class="text-[10px] text-zinc-500 uppercase tracking-widest">
-                                            {{ $post->user->work ?? 'Artisan' }}</p>
-                                    </div>
-                                </div>
-                                <p class="text-sm text-zinc-600 line-clamp-2 mb-4">
-                                    {{ Str::limit(strip_tags($post->content), 100) }}
-                                </p>
-                                <div class="mt-auto">
-                                    <a href="{{ route('posts.show', $post->post_id) }}"
-                                        class="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2 hover:gap-3 transition-all">
-                                        View Details
-                                        <svg class="size-4" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
-                                        </svg>
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    @endif
-                @endforeach
             </div>
         </div>
     </section>
@@ -552,7 +471,7 @@
                         class="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full text-primary text-xs font-bold uppercase tracking-wider mb-6">
                         For Professionals
                     </div>
-                    <h2 class="text-4xl sm:text-5xl font-black text-zinc-900 mb-6 leading-tight">
+                    <h2 class="text-4xl sm:text-5xl font-bold text-zinc-900 mb-6 leading-tight">
                         Grow Your <span class="gradient-text">Business</span><br>With Allsers
                     </h2>
                     <p class="text-lg text-zinc-600 mb-8 leading-relaxed font-medium">
@@ -597,7 +516,7 @@
                 </div>
 
                 <div class="relative animate-fade-up" style="animation-delay: 0.2s">
-                    <img src="{{ asset('assets/pros_community_1768047934852.png') }}" alt="Pros Community"
+                    <img loading="lazy" src="{{ asset('assets/pros_community_1768047934852.png') }}" alt="Pros Community"
                         class="rounded-[40px] shadow-2xl border-4 border-white">
                 </div>
             </div>
@@ -613,7 +532,7 @@
                         class="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full text-primary text-xs font-bold uppercase tracking-wider mb-6">
                         Location Based
                     </div>
-                    <h2 class="text-4xl sm:text-5xl font-black text-zinc-900 mb-6 leading-tight">
+                    <h2 class="text-4xl sm:text-5xl font-bold text-zinc-900 mb-6 leading-tight">
                         Discover Services <br><span class="gradient-text">On the Map</span>
                     </h2>
                     <p class="text-lg text-zinc-600 mb-8 leading-relaxed font-medium">
@@ -649,7 +568,7 @@
 
                 <div class="relative animate-fade-up" style="animation-delay: 0.2s">
                     <div class="absolute -inset-4 bg-primary/5 rounded-[40px] blur-2xl"></div>
-                    <img src="{{ asset('assets/map_discovery_mockup_1768047916310.png') }}"
+                    <img loading="lazy" src="{{ asset('assets/map_discovery_mockup_1768047916310.png') }}"
                         alt="Map Discovery Mockup"
                         class="relative rounded-[32px] shadow-2xl border-4 border-white w-full h-auto object-cover">
                 </div>
@@ -671,7 +590,7 @@
                         class="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-white text-xs font-bold uppercase tracking-wider mb-6">
                         Seamless Communication
                     </div>
-                    <h2 class="text-4xl sm:text-5xl font-black text-white mb-6 leading-tight">
+                    <h2 class="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
                         Connect <span class="text-primary">Instantly</span><br>With Direct Chat
                     </h2>
                     <p class="text-lg text-zinc-400 mb-8 leading-relaxed">
@@ -711,7 +630,7 @@
 
                 <div class="lg:order-1 animate-fade-up" style="animation-delay: 0.2s">
                     <div class="max-w-md mx-auto">
-                        <img src="{{ asset('assets/chat_interface_mockup_1768047896438.png') }}"
+                        <img loading="lazy" src="{{ asset('assets/chat_interface_mockup_1768047896438.png') }}"
                             alt="Chat Interface Mockup" class="rounded-[40px] shadow-2xl">
                     </div>
                 </div>
@@ -889,11 +808,11 @@
             const navbar = document.getElementById('navbar');
             if (window.scrollY > 20) {
                 navbar.classList.remove('bg-transparent');
-                navbar.classList.add('bg-white/95', 'backdrop-blur-md', 'shadow-sm', 'border-b',
+                navbar.classList.add('bg-white/95', 'backdrop-blur-md', 'border-b',
                     'border-gray-200');
             } else {
                 navbar.classList.add('bg-transparent');
-                navbar.classList.remove('bg-white/95', 'backdrop-blur-md', 'shadow-sm', 'border-b',
+                navbar.classList.remove('bg-white/95', 'backdrop-blur-md', 'border-b',
                     'border-gray-200');
             }
         });

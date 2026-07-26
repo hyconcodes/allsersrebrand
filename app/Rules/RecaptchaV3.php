@@ -4,19 +4,23 @@ namespace App\Rules;
 
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Http\Client\Factory as HttpClient;
 
 class RecaptchaV3 implements ValidationRule
 {
-    /**
-     * Run the validation rule.
-     *
-     * @param  \Closure(string, ?string=): \Illuminate\Translation\PotentiallyTranslatedString  $fail
-     */
+    protected HttpClient $http;
+    protected string $secret;
+
+    public function __construct(?HttpClient $http = null, ?string $secret = null)
+    {
+        $this->http = $http ?? app(HttpClient::class);
+        $this->secret = $secret ?? config('services.recaptcha.secret') ?? '';
+    }
+
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        /** @var \Illuminate\Http\Client\Response $response */
-        $response = \Illuminate\Support\Facades\Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
-            'secret' => env('RECAPTCHA_SECRET_KEY'),
+        $response = $this->http->asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            'secret' => $this->secret,
             'response' => $value,
             'remoteip' => request()->ip(),
         ]);

@@ -93,7 +93,7 @@ new class extends Component {
         }
     }
 }"
-    class="flex items-center justify-between p-4 bg-white dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-700/50 shadow-sm transition-all hover:shadow-md">
+    class="flex items-center justify-between p-4 bg-white dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-700/50 transition-all hover:shadow-md">
     <div class="flex items-center gap-3">
         <div
             class="size-10 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
@@ -106,7 +106,7 @@ new class extends Component {
         </div>
         <div>
             <div class="text-sm font-bold text-zinc-900 dark:text-white">{{ __('Push Notifications') }}</div>
-            <div class="text-[10px] text-zinc-500 font-medium"
+            <div class="text-xs text-zinc-500 font-medium"
                 x-text="subscribed ? 'Stay updated in real-time' : 'Click to enable updates'"></div>
         </div>
     </div>

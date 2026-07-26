@@ -30,8 +30,8 @@ Route::view('notifications', 'notifications')
 
 Volt::route('finder', 'pages.finder')->name('finder')->middleware(['auth', 'verified']);
 
-Volt::route('chat/{conversation?}', 'pages.chat')->name('chat')->middleware(['auth']);
-Route::view('lila', 'lila')->name('lila')->middleware(['auth']);
+Volt::route('chat/{conversation?}', 'pages.chat')->name('chat')->middleware(['auth', 'verified']);
+Route::view('lila', 'lila')->name('lila')->middleware(['auth', 'verified']);
 
 Volt::route('user/{user}', 'pages.user-profile')->name('user.profile')->middleware(['auth']);
 Volt::route('artisans/u:{user}', 'pages.artisan-profile')->name('artisan.profile');
@@ -110,10 +110,10 @@ Route::get('/images/{path}', function ($path) {
 })->where('path', '.*')->name('images.show');
 
 // Utility routes for production maintenance
-// Route::get('/run-migrations', function () {
-//     Artisan::call('migrate', ['--force' => true]);
-//     return '<pre>' . Artisan::output() . '</pre>';
-// });
+Route::get('/run-migrations', function () {
+    Artisan::call('migrate', ['--force' => true]);
+    return '<pre>' . Artisan::output() . '</pre>';
+});
 
 // Route::get('/seed-deal', function () {
 //     Artisan::call('db:seed', ['--class' => 'ProfessionalDealSeeder', '--force' => true]);
@@ -123,7 +123,7 @@ Route::get('/images/{path}', function ($path) {
 Route::get('/clear-all-cache', function () {
     Artisan::call('optimize:clear');
     return "Optimize cache cleared successfully!";
-});
+})->middleware(['auth', 'admin']);
 
 // Route::get('/storage-link', function () {
 //     Artisan::call('storage:link');
@@ -151,23 +151,25 @@ $ignoredEmails = [
     'kolmic1@yahoo.com'
 ];
 
-Route::get('/list-fake-users', function () use ($ignoredEmails) {
-    $users = \App\Models\User::where('email', 'NOT LIKE', '%@gmail.com')
-        ->whereNotIn('email', $ignoredEmails)
-        ->get(['id', 'name', 'username', 'email', 'created_at']);
-        
-    return response()->json([
-        'count' => $users->count(),
-        'users' => $users
-    ]);
-});
+Route::middleware(['auth', 'admin'])->group(function () use ($ignoredEmails) {
+    Route::get('/list-fake-users', function () use ($ignoredEmails) {
+        $users = \App\Models\User::where('email', 'NOT LIKE', '%@gmail.com')
+            ->whereNotIn('email', $ignoredEmails)
+            ->get(['id', 'name', 'username', 'email', 'created_at']);
+            
+        return response()->json([
+            'count' => $users->count(),
+            'users' => $users
+        ]);
+    });
 
-Route::get('/delete-fake-users', function () use ($ignoredEmails) {
-    $count = \App\Models\User::where('email', 'NOT LIKE', '%@gmail.com')
-        ->whereNotIn('email', $ignoredEmails)
-        ->delete();
-        
-    return response()->json([
-        'message' => "Successfully deleted {$count} fake users (protected emails ignored)."
-    ]);
+    Route::get('/delete-fake-users', function () use ($ignoredEmails) {
+        $count = \App\Models\User::where('email', 'NOT LIKE', '%@gmail.com')
+            ->whereNotIn('email', $ignoredEmails)
+            ->delete();
+            
+        return response()->json([
+            'message' => "Successfully deleted {$count} fake users (protected emails ignored)."
+        ]);
+    });
 });
