@@ -216,7 +216,8 @@ new class extends Component {
 
         <div class="px-4 pb-4">
             <div class="flex justify-between items-end -mt-12 sm:-mt-16 mb-4">
-                <div class="size-20 sm:size-28 rounded-full bg-zinc-950 p-0.5">
+                <div class="size-20 sm:size-28 rounded-full bg-zinc-950 p-0.5 cursor-pointer"
+                    @click="$dispatch('open-lightbox', { images: ['{{ $user->profile_picture_url }}'], index: 0 })">
                     <div class="size-full rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold text-2xl sm:text-4xl overflow-hidden">
                         @if ($user->profile_picture_url)
                             <img src="{{ $user->profile_picture_url }}" class="size-full object-cover">
@@ -329,10 +330,16 @@ new class extends Component {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 @foreach ($showcases as $showcase)
+                    @php
+                        $showcaseUrls = [];
+                        if (isset($showcase->showcase_photos['before'])) $showcaseUrls[] = \App\Models\Setting::asset($showcase->showcase_photos['before']);
+                        if (isset($showcase->showcase_photos['after'])) $showcaseUrls[] = \App\Models\Setting::asset($showcase->showcase_photos['after']);
+                    @endphp
                     <div class="border border-zinc-800 rounded-xl overflow-hidden hover:bg-zinc-900/50 transition-colors"
                         x-data="{ view: 'after' }">
                         @if (isset($showcase->showcase_photos['before']) && isset($showcase->showcase_photos['after']))
-                            <div class="relative aspect-[16/10] bg-zinc-900">
+                            <div class="relative aspect-[16/10] bg-zinc-900 cursor-pointer"
+                                @click="$dispatch('open-lightbox', { images: {{ Js::from($showcaseUrls) }}, index: view === 'before' ? 0 : 1 })">
                                 <div class="absolute inset-0 transition-opacity duration-500"
                                     :class="view === 'before' ? 'opacity-100' : 'opacity-0'">
                                     <img src="{{ \App\Models\Setting::asset($showcase->showcase_photos['before']) }}" class="size-full object-cover">
@@ -342,16 +349,17 @@ new class extends Component {
                                     <img src="{{ \App\Models\Setting::asset($showcase->showcase_photos['after']) }}" class="size-full object-cover">
                                 </div>
                                 <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex bg-zinc-950/80 rounded-full p-0.5 border border-zinc-700 z-10">
-                                    <button @click="view = 'before'"
+                                    <button @click.stop="view = 'before'"
                                         :class="view === 'before' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400'"
                                         class="px-3 py-1 rounded-full text-xs font-medium transition-all">Before</button>
-                                    <button @click="view = 'after'"
+                                    <button @click.stop="view = 'after'"
                                         :class="view === 'after' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400'"
                                         class="px-3 py-1 rounded-full text-xs font-medium transition-all">After</button>
                                 </div>
                             </div>
                         @elseif(isset($showcase->showcase_photos['after']))
-                            <div class="aspect-[16/10] bg-zinc-900">
+                            <div class="aspect-[16/10] bg-zinc-900 cursor-pointer"
+                                @click="$dispatch('open-lightbox', { images: {{ Js::from($showcaseUrls) }}, index: 0 })">
                                 <img src="{{ \App\Models\Setting::asset($showcase->showcase_photos['after']) }}" class="size-full object-cover">
                             </div>
                         @endif

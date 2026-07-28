@@ -105,12 +105,18 @@ new class extends Component {
 
         <!-- Media Display (Up to 4 images or 1 video) -->
         @if ($post->images)
-            @php $imgs = is_array($post->images) ? $post->images : array_filter(explode(',', (string)$post->images)); @endphp
+            @php
+                $imgs = is_array($post->images) ? $post->images : array_filter(explode(',', (string)$post->images));
+                $imgUrls = array_map(fn($i) => asset('storage/' . $i), $imgs);
+            @endphp
             <div
                 class="grid {{ count($imgs) > 1 ? 'grid-cols-2' : 'grid-cols-1' }} gap-2 rounded-2xl overflow-hidden mb-6">
-                @foreach ($imgs as $img)
-                    <img src="{{ asset('storage/' . $img) }}"
-                        class="w-full h-auto max-h-[400px] object-cover hover:scale-[1.02] transition-transform duration-500">
+                @foreach ($imgUrls as $index => $imgUrl)
+                    <div class="cursor-pointer overflow-hidden rounded-2xl"
+                        @click="$dispatch('open-lightbox', { images: {{ Js::from($imgUrls) }}, index: {{ $index }} })">
+                        <img src="{{ $imgUrl }}"
+                            class="w-full h-auto max-h-[400px] object-cover hover:scale-[1.02] transition-transform duration-500">
+                    </div>
                 @endforeach
             </div>
         @elseif($post->video)

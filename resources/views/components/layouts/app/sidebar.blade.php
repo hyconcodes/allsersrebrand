@@ -183,6 +183,8 @@
 
     <x-ui.toast />
 
+    <x-lightbox />
+
     <livewire:ai-chat />
 
     @auth

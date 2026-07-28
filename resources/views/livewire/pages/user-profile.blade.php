@@ -94,7 +94,8 @@ new class extends Component {
 
         <div class="px-4 pb-4">
             <div class="flex justify-between items-end -mt-12 sm:-mt-16 mb-4">
-                <div class="size-20 sm:size-28 rounded-full bg-zinc-950 p-0.5">
+                <div class="size-20 sm:size-28 rounded-full bg-zinc-950 p-0.5 cursor-pointer"
+                    @click="$dispatch('open-lightbox', { images: ['{{ $user->profile_picture_url }}'], index: 0 })">
                     <div class="size-full rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold text-2xl sm:text-4xl overflow-hidden">
                         @if ($user->profile_picture_url)
                             <img src="{{ $user->profile_picture_url }}" class="size-full object-cover">

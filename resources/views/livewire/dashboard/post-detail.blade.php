@@ -267,12 +267,16 @@ new class extends Component {
 
                         <!-- Images -->
                         @if ($post->images)
-                            @php $imageArray = is_array($post->images) ? $post->images : array_filter(explode(',', (string)$post->images)); @endphp
+                            @php
+                                $imageArray = is_array($post->images) ? $post->images : array_filter(explode(',', (string)$post->images));
+                                $imageUrls = array_map(fn($img) => route('images.show', ['path' => trim($img)]), $imageArray);
+                            @endphp
                             @if (count($imageArray) > 0)
                                 <div class="space-y-2">
-                                    @foreach ($imageArray as $image)
+                                    @foreach ($imageArray as $index => $image)
                                         <div
-                                            class="rounded-xl overflow-hidden border border-zinc-100 dark:border-zinc-800">
+                                            class="rounded-xl overflow-hidden border border-zinc-100 dark:border-zinc-800 cursor-pointer"
+                                            @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: {{ $index }} })">
                                             <img src="{{ route('images.show', ['path' => trim($image)]) }}"
                                                 class="w-full h-auto object-cover">
                                         </div>
@@ -330,9 +334,13 @@ new class extends Component {
                                     class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 mb-2 whitespace-pre-wrap break-words">
                                     {!! $post->repostOf->formatted_content !!}</p>
                                 @if ($post->repostOf->images)
-                                    @php $originImages = is_array($post->repostOf->images) ? $post->repostOf->images : array_filter(explode(',', (string)$post->repostOf->images)); @endphp
+                                    @php
+                                        $originImages = is_array($post->repostOf->images) ? $post->repostOf->images : array_filter(explode(',', (string)$post->repostOf->images));
+                                        $originUrls = array_map(fn($o) => route('images.show', ['path' => trim($o)]), $originImages);
+                                    @endphp
                                     @if (count($originImages) > 0)
-                                        <div class="h-32 rounded-lg overflow-hidden border border-zinc-200/50">
+                                        <div class="h-32 rounded-lg overflow-hidden border border-zinc-200/50 cursor-pointer"
+                                            @click="$dispatch('open-lightbox', { images: {{ Js::from($originUrls) }}, index: 0 })">
                                             <img src="{{ route('images.show', ['path' => trim($originImages[0])]) }}"
                                                 class="size-full object-cover">
                                         </div>

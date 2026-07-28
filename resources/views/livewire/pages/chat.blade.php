@@ -557,13 +557,14 @@ window.addEventListener('offline', () => isOnline = false);"
                                             @endif
 
                                             @if ($msg->engagement?->inquiry_photos)
+                                                @php $inquiryUrls = array_map(fn($p) => \App\Models\Setting::asset($p), $msg->engagement->inquiry_photos); @endphp
                                                 <div class="grid grid-cols-4 gap-2">
-                                                    @foreach ($msg->engagement->inquiry_photos as $iPhoto)
+                                                    @foreach ($inquiryUrls as $i => $iPhoto)
                                                         <div
-                                                            class="aspect-square rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
-                                                            <img src="{{ \App\Models\Setting::asset($iPhoto) }}"
-                                                                class="size-full object-cover cursor-pointer hover:scale-110 transition-transform"
-                                                                @click="window.open('{{ \App\Models\Setting::asset($iPhoto) }}', '_blank')">
+                                                            class="aspect-square rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 cursor-pointer"
+                                                            @click="$dispatch('open-lightbox', { images: {{ Js::from($inquiryUrls) }}, index: {{ $i }} })">
+                                                            <img src="{{ $iPhoto }}"
+                                                                class="size-full object-cover hover:scale-110 transition-transform">
                                                         </div>
                                                     @endforeach
                                                 </div>
@@ -752,11 +753,12 @@ window.addEventListener('offline', () => isOnline = false);"
                                                                                                                                                                                                 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-100 dark:border-zinc-700 rounded-tl-none @endif">
 
                                     @if ($msg->image_path)
+                                        @php $chatImageUrl = \App\Models\Setting::asset($msg->image_path); @endphp
                                         <div
-                                            class="mb-2 rounded-lg overflow-hidden border border-white/20 bg-zinc-100/10 -mx-1">
-                                            <img src="{{ \App\Models\Setting::asset($msg->image_path) }}"
-                                                class="max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity w-full object-cover"
-                                                @click="window.open('{{ \App\Models\Setting::asset($msg->image_path) }}', '_blank')">
+                                            class="mb-2 rounded-lg overflow-hidden border border-white/20 bg-zinc-100/10 -mx-1 cursor-pointer"
+                                            @click="$dispatch('open-lightbox', { images: ['{{ $chatImageUrl }}'], index: 0 })">
+                                            <img src="{{ $chatImageUrl }}"
+                                                class="max-w-full h-auto hover:opacity-90 transition-opacity w-full object-cover">
                                         </div>
                                     @endif
 

@@ -258,18 +258,21 @@ new class extends Component {
                     $imageArray = is_array($post->images)
                         ? $post->images
                         : array_filter(explode(',', (string) $post->images));
+                    $imageUrls = array_map(fn($img) => route('images.show', ['path' => trim($img)]), $imageArray);
                 @endphp
                 @if (count($imageArray) > 0)
                     <div class="mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 shadow-sm">
                         @if (count($imageArray) === 1)
-                            <div class="max-h-[400px] overflow-hidden bg-black/5 dark:bg-black/40">
+                            <div class="max-h-[400px] overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
                                 <img loading="lazy" src="{{ route('images.show', ['path' => trim($imageArray[0])]) }}" alt="Post image"
                                     class="w-full h-auto max-h-[400px] object-cover hover:scale-[1.01] transition-transform duration-300">
                             </div>
                         @else
                             <div class="grid gap-0.5 @if (count($imageArray) === 2) grid-cols-2 @elseif(count($imageArray) >= 3) grid-cols-2 @endif">
                                 @foreach ($imageArray as $index => $image)
-                                    <div class="overflow-hidden bg-black/5 dark:bg-black/40 @if (count($imageArray) === 3 && $index === 0) row-span-2 @endif">
+                                    <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer @if (count($imageArray) === 3 && $index === 0) row-span-2 @endif"
+                                        @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: {{ $index }} })">
                                         <img loading="lazy" src="{{ route('images.show', ['path' => trim($image)]) }}" alt="Post image"
                                             class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
                                     </div>
@@ -320,9 +323,11 @@ new class extends Component {
                             $originImages = is_array($post->repostOf->images)
                                 ? $post->repostOf->images
                                 : array_filter(explode(',', (string) $post->repostOf->images));
+                            $originUrls = array_map(fn($o) => route('images.show', ['path' => trim($o)]), $originImages);
                         @endphp
                         @if (count($originImages) > 0)
-                            <div class="h-32 overflow-hidden border-t border-zinc-200 dark:border-zinc-800/80">
+                            <div class="h-32 overflow-hidden border-t border-zinc-200 dark:border-zinc-800/80 cursor-pointer"
+                                @click="$dispatch('open-lightbox', { images: {{ Js::from($originUrls) }}, index: 0 })">
                                 <img loading="lazy" src="{{ route('images.show', ['path' => trim($originImages[0])]) }}"
                                     class="w-full h-full object-cover">
                             </div>
