@@ -554,7 +554,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                 <div class="flex items-center gap-2">
                     <div class="size-3 bg-purple-600 rounded-full border border-white "></div>
                     <span
-                        class="text-xs font-bold uppercase text-zinc-500 tracking-wider text-nowrap">Expert</span>
+                        class="text-xs font-bold uppercase text-zinc-500 tracking-wider text-nowrap">Artisan</span>
                 </div>
             </div>
 

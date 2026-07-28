@@ -398,8 +398,8 @@ window.addEventListener('offline', () => isOnline = false);"
     <!-- Conversation List -->
     <div class="w-full md:w-80 border-e border-zinc-200 dark:border-zinc-800 flex flex-col transition-all duration-300"
         :class="mobileView === 'list' ? 'flex' : 'hidden md:flex'">
-        <div class="p-4 border-b border-zinc-200 dark:border-zinc-800">
-            <h2 class="text-lg font-bold text-zinc-900 dark:text-zinc-100">{{ __('Messages') }}</h2>
+        <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+            <h2 class="text-base font-bold text-zinc-900 dark:text-zinc-100">{{ __('Messages') }}</h2>
         </div>
         <div class="flex-1 overflow-y-auto">
             @forelse($conversations as $conv)
@@ -408,7 +408,10 @@ window.addEventListener('offline', () => isOnline = false);"
                     @continue
                 @endif
                 <button wire:click="selectConversation({{ $conv->id }})" @click="mobileView = 'chat'"
-                    class="w-full p-4 flex items-center gap-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-left @if ($activeConversation && $activeConversation->id === $conv->id) bg-purple-50 dark:bg-purple-900/10 @endif">
+                    class="w-full p-4 flex items-center gap-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-left relative @if ($activeConversation && $activeConversation->id === $conv->id) bg-zinc-50 dark:bg-zinc-800/30 @endif">
+                    @if ($activeConversation && $activeConversation->id === $conv->id)
+                        <div class="absolute left-0 top-2 bottom-2 w-[3px] bg-[var(--color-brand-purple)] rounded-full"></div>
+                    @endif
                     <div
                         class="shrink-0 size-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-purple-600 dark:text-purple-400 font-bold overflow-hidden">
                         @if ($otherUser->profile_picture_url)
@@ -476,12 +479,8 @@ window.addEventListener('offline', () => isOnline = false);"
                         @endif
                     </div>
                 </div>
-                <div class="flex items-center gap-1 md:gap-2">
-                    <flux:button wire:click="comingSoon" variant="ghost" icon="phone" size="sm"
-                        class="hidden sm:inline-flex" />
-                    <flux:button wire:click="comingSoon" variant="ghost" icon="video-camera" size="sm"
-                        class="hidden sm:inline-flex" />
-                    <flux:button variant="ghost" icon="information-circle" size="sm" />
+                <div class="flex items-center gap-1">
+                    <flux:button variant="ghost" icon="information-circle" size="sm" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300" />
                 </div>
             </div>
 
@@ -747,10 +746,9 @@ window.addEventListener('offline', () => isOnline = false);"
                             <div class="max-w-[90%] sm:max-w-[85%] md:max-w-[70%] space-y-1 transition-all duration-300"
                                 :class="deletingId === {{ $msg->id }} ? 'blur-md opacity-40 scale-95' : ''">
                                 <div
-                                    class="                                    rounded-[1.5rem] px-4 py-2 sm:px-5 sm:py-3 text-sm break-words overflow-hidden cursor-pointer
-                                                                                                                                                                                                @if ($isMine) bg-[var(--color-brand-purple)] text-white rounded-tr-none 
-                                                                                                                                                                                                @else 
-                                                                                                                                                                                                bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-100 dark:border-zinc-700 rounded-tl-none @endif">
+                                    class="px-4 py-2.5 sm:px-5 sm:py-3 text-sm break-words overflow-hidden cursor-pointer leading-relaxed
+                                    @if ($isMine) bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-[22px] rounded-br-[6px]
+                                    @else bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-[22px] rounded-bl-[6px] @endif">
 
                                     @if ($msg->image_path)
                                         @php $chatImageUrl = \App\Models\Setting::asset($msg->image_path); @endphp
@@ -785,15 +783,14 @@ window.addEventListener('offline', () => isOnline = false);"
                                     @endif
                                 </div>
                                 <div
-                                    class="flex items-center gap-1.5 px-1 {{ $isMine ? 'justify-end' : 'justify-start' }}">
+                                    class="flex items-center gap-1 px-1 {{ $isMine ? 'justify-end' : 'justify-start' }}">
                                     <span
-                                        class="text-xs text-zinc-500 uppercase font-medium">{{ $msg->created_at->format('h:i A') }}</span>
+                                        class="text-[11px] text-zinc-400 dark:text-zinc-500 font-medium">{{ $msg->created_at->format('h:i A') }}</span>
                                     @if ($isMine)
                                         @if ($msg->read_at)
-                                            <flux:icon name="check" class="size-2 text-blue-400" />
-                                            <flux:icon name="check" class="size-2 -ms-1.5 text-blue-400" />
+                                            <flux:icon name="check" class="size-2.5 text-blue-400" />
                                         @else
-                                            <flux:icon name="check" class="size-2 text-zinc-300" />
+                                            <flux:icon name="check" class="size-2.5 text-zinc-300 dark:text-zinc-600" />
                                         @endif
                                     @endif
                                 </div>
@@ -885,7 +882,7 @@ window.addEventListener('offline', () => isOnline = false);"
             </div>
 
             <!-- Input Area -->
-            <div class="p-4 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 shrink-0">
+            <div class="px-4 pt-3 pb-[env(safe-area-inset-bottom,1rem)] bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 shrink-0">
                 <!-- Previews -->
                 @if ($photo || $document)
                     <div class="mb-3 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
@@ -903,8 +900,8 @@ window.addEventListener('offline', () => isOnline = false);"
                             <div
                                 class="relative w-40 h-16 shrink-0 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center p-2 gap-2">
                                 <div
-                                    class="size-8 rounded bg-[var(--color-brand-purple)]/10 flex items-center justify-center shrink-0">
-                                    <flux:icon name="document" class="size-4 text-[var(--color-brand-purple)]" />
+                                    class="size-8 rounded bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center shrink-0">
+                                    <flux:icon name="document" class="size-4 text-zinc-500" />
                                 </div>
                                 <p class="text-xs truncate flex-1 font-bold text-zinc-700 dark:text-zinc-300">
                                     {{ Str::limit($document->getClientOriginalName(), 8) }}
@@ -918,90 +915,39 @@ window.addEventListener('offline', () => isOnline = false);"
                     </div>
                 @endif
 
-                <div class="flex items-center gap-3 relative">
-                    <!-- Contextual Action Prompt -->
-                    @php
-                        $engagementStatus = $activeConversation?->activeEngagement?->status;
-                        $isArtisan = auth()->user()->isArtisan();
-                        $promptText = match (true) {
-                            !$engagementStatus && !$isArtisan => __('Start Deal'),
-                            $engagementStatus === 'pending' && $isArtisan => __('Send Quote'),
-                            $engagementStatus === 'accepted' && $isArtisan => __('Mark Finished'),
-                            $engagementStatus === 'completed' &&
-                                $isArtisan &&
-                                !$activeConversation->activeEngagement->is_public &&
-                                $activeConversation->activeEngagement->completed_at?->gt(now()->subDays(7))
-                                => __('Showcase Work'),
-                            default => null,
-                        };
-                    @endphp
-
-                    @if ($promptText)
-                        <div x-show="showPrompt && !uistate_opened"
-                            x-transition:enter="transition ease-out duration-300"
-                            x-transition:enter-start="opacity-0 -translate-x-2"
-                            x-transition:enter-end="opacity-100 translate-x-0"
-                            x-transition:leave="transition ease-in duration-200"
-                            x-transition:leave-start="opacity-100 translate-x-0"
-                            x-transition:leave-end="opacity-0 -translate-x-2"
-                            class="absolute left-full ml-3 px-3 py-1.5 bg-zinc-900 border border-zinc-800 text-white text-xs font-bold uppercase tracking-normal rounded-full whitespace-nowrap z-50 pointer-events-none">
-                            <div class="flex items-center gap-2">
-                                <span class="size-1.5 bg-purple-500 rounded-full animate-pulse"></span>
-                                {{ $promptText }}
-                            </div>
-                            <!-- Arrow pointer -->
-                            <div
-                                class="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-l border-b border-zinc-800">
-                            </div>
-                        </div>
-                    @endif
-
+                <div class="flex items-end gap-2">
                     <button @click="uistate_opened = !uistate_opened; showPrompt = false"
-                        x-bind:class="uistate_opened ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900' :
-                            'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'"
-                        class="p-3.5 rounded-xl transition-all active:scale-95 shrink-0 relative group">
-
-                        @if ($promptText)
-                            <span class="absolute -top-1 -right-1 flex h-3 w-3" x-show="!uistate_opened">
-                                <span
-                                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                                <span
-                                    class="relative inline-flex rounded-full h-3 w-3 bg-purple-500 border border-white"></span>
-                            </span>
-                        @endif
-
-                        <div x-bind:class="uistate_opened ? 'rotate-45' : ''" class="transition-transform">
+                        x-bind:class="uistate_opened ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'"
+                        class="p-2.5 rounded-xl transition-all active:scale-95 shrink-0" :title="uistate_opened ? 'Close' : 'Actions'">
+                        <div x-bind:class="uistate_opened ? 'rotate-45' : ''" class="transition-transform duration-200">
                             <flux:icon name="plus" class="size-5" />
                         </div>
                     </button>
 
                     <form @submit.prevent="checkConnectionAndSend()"
-                        class="flex-1 flex items-end gap-1 md:gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-2 md:px-4 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:ring-2 focus-within:ring-[var(--color-brand-purple)]/20 focus-within:border-[var(--color-brand-purple)] transition-all">
-
-                        <div class="flex gap-1 mb-1">
-                            <label
-                                class="cursor-pointer text-zinc-400 hover:text-[var(--color-brand-purple)] transition-colors p-1">
-                                <flux:icon name="photo" class="size-4" />
-                                <input type="file" wire:model="photo" class="hidden" accept="image/*">
-                            </label>
-                            <label
-                                class="cursor-pointer text-zinc-400 hover:text-[var(--color-brand-purple)] transition-colors p-1">
-                                <flux:icon name="paper-clip" class="size-4" />
-                                <input type="file" wire:model="document" class="hidden">
-                            </label>
-                        </div>
+                        class="flex-1 flex items-end gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-2xl px-3 py-1.5 border border-transparent focus-within:border-zinc-300 dark:focus-within:border-zinc-600 focus-within:bg-white dark:focus-within:bg-zinc-900 transition-all">
 
                         <textarea wire:model="messageText" placeholder="{{ __('Type a message...') }}"
                             x-on:input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
                             x-on:keydown.enter.prevent="if(!$event.shiftKey) checkConnectionAndSend()"
-                            class="flex-1 bg-transparent border-none focus:ring-0 outline-none text-sm py-1.5 text-zinc-900 dark:text-zinc-100 resize-none max-h-32 scrollbar-none"
+                            class="flex-1 bg-transparent border-none focus:ring-0 outline-none text-sm py-1.5 text-zinc-900 dark:text-zinc-100 resize-none max-h-32 scrollbar-none placeholder:text-zinc-400"
                             rows="1"></textarea>
 
-                        <button type="submit"
-                            class="p-2 text-[var(--color-brand-purple)] hover:scale-110 transition-transform disabled:opacity-50 mb-0.5"
-                            @if (empty(trim($messageText)) && !$photo && !$document) disabled @endif>
-                            <flux:icon name="paper-airplane" variant="solid" class="size-6" />
-                        </button>
+                        <div class="flex items-center gap-0.5 pb-1">
+                            <label class="cursor-pointer text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1">
+                                <flux:icon name="photo" class="size-4" />
+                                <input type="file" wire:model="photo" class="hidden" accept="image/*">
+                            </label>
+                            <label class="cursor-pointer text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1">
+                                <flux:icon name="paper-clip" class="size-4" />
+                                <input type="file" wire:model="document" class="hidden">
+                            </label>
+                            <button type="submit"
+                                class="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors disabled:opacity-30"
+                                @if (empty(trim($messageText)) && !$photo && !$document) disabled @endif>
+                                <flux:icon name="paper-airplane" variant="solid" class="size-4" />
+                            </button>
+                        </div>
                     </form>
                 </div>
                 <div wire:loading wire:target="photo, document" class="mt-2 text-xs text-zinc-400">

@@ -240,10 +240,12 @@
         </nav>
 
         <!-- Post FAB (mobile) -->
-        <button x-data="" x-on:click="$dispatch('open-create-post')"
-            class="lg:hidden fixed bottom-20 right-4 z-[500] size-14 rounded-full bg-purple-600 text-white shadow-lg shadow-purple-500/30 flex items-center justify-center hover:bg-purple-500 transition-colors active:scale-95">
-            <flux:icon name="plus" class="size-6" />
-        </button>
+        @if (!request()->routeIs('chat*') && !request()->routeIs('lila') && !request()->routeIs('finder'))
+            <button x-data="" x-on:click="$dispatch('open-create-post')"
+                class="lg:hidden fixed bottom-20 right-4 z-[500] size-14 rounded-full bg-purple-600 text-white shadow-lg shadow-purple-500/30 flex items-center justify-center hover:bg-purple-500 transition-colors active:scale-95">
+                <flux:icon name="plus" class="size-6" />
+            </button>
+        @endif
 
         <livewire:onesignal-handler />
     @endauth
