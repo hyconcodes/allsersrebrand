@@ -14,22 +14,19 @@ layout('components.layouts.app');
 new class extends Component {
     use WithPagination, WithFileUploads, HandlesPostActions;
     public User $user;
-    public $posts;
 
     public function rendering($view)
     {
         $view->title($this->user->name . ' - ' . ($this->user->work ?? 'Artisan'));
+
+        $view->with([
+            'posts' => $this->getPosts(),
+        ]);
     }
 
-    public function mount(User $user)
+    public function getPosts()
     {
-        $this->user = $user;
-        $this->loadPosts();
-    }
-
-    public function loadPosts()
-    {
-        $this->posts = Post::where('user_id', $this->user->id)
+        return Post::where('user_id', $this->user->id)
             ->with([
                 'user',
                 'repostOf.user',
@@ -79,7 +76,6 @@ new class extends Component {
         $post = Post::find($postId);
         if ($post && $post->user_id === auth()->id()) {
             $post->delete();
-            $this->loadPosts();
             $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Post has been deleted.');
         } else {
             $this->dispatch('toast', type: 'error', title: 'Error', message: 'Unauthorized action.');
