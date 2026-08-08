@@ -205,6 +205,8 @@ new class extends Component {
         });
     }
 }">
+    <x-top-bar title="{{ $user->name }}" />
+
     <div class="hidden">
         <h1>{{ $user->name }} - {{ $user->work ?? 'Artisan' }} Profile</h1>
         <p>{{ $user->bio }}</p>

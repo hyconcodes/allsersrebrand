@@ -105,187 +105,189 @@ new class extends Component {
     }
 }; ?>
 
-<section class="w-full">
-    @include('partials.settings-heading')
+<x-settings.layout :active="'profile'">
+    <form wire:submit="updateProfileInformation" class="space-y-8">
 
-    <x-settings.layout :heading="__('Profile')" :subheading="__('Update your profile information')">
-        <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
-
-            <!-- Profile Picture -->
-            <div class="flex items-center gap-6">
-                <div class="relative">
-                    @if ($photo)
-                        <div
-                            class="w-20 h-20 rounded-full bg-gray-200 overflow-hidden ring-2 ring-[var(--color-brand-purple)] ring-offset-2">
-                            <img src="{{ $photo->temporaryUrl() }}" alt="Profile Photo" class="w-full h-full object-cover">
-                        </div>
-                    @elseif ($profile_picture)
-                        <div class="w-20 h-20 rounded-full bg-gray-200 overflow-hidden">
-                            <img src="{{ route('images.show', ['path' => $profile_picture]) }}" alt="Profile Photo"
-                                class="w-full h-full object-cover">
-                        </div>
-                    @else
-                        <div
-                            class="w-20 h-20 rounded-full bg-[var(--color-brand-purple)]/10 flex items-center justify-center text-[var(--color-brand-purple)] text-2xl font-bold">
-                            {{ auth()->user()->initials() }}
-                        </div>
-                    @endif
-
-                    <label for="photo-upload"
-                        class="absolute bottom-0 right-0 p-1.5 bg-white rounded-full shadow-md cursor-pointer hover:bg-gray-50 border border-gray-200">
-                        <flux:icon name="camera" class="w-4 h-4 text-gray-500" />
-                        <input id="photo-upload" type="file" wire:model="photo" class="hidden" accept="image/*">
-                    </label>
-                </div>
-
-                <div class="flex flex-col">
-                    <h3 class="font-medium text-gray-900">{{ __('Profile Photo') }}</h3>
-                    <p class="text-sm text-gray-500">{{ __('Update your profile picture.') }}</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus
-                    autocomplete="name" />
-                <flux:input wire:model="username" :label="__('Username')" type="text" autocomplete="username" />
-            </div>
-
-            <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" readonly
-                disabled />
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <flux:input wire:model="phone_number" :label="__('Phone Number')" type="text" />
-                <flux:input wire:model="address" :label="__('Address')" type="text" />
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <flux:input wire:model="gender" :label="__('Gender')" type="text" />
-
-                <flux:select wire:model="work_status" :label="__('Work Status')" placeholder="Select status">
-                    <option value="employed">Employed</option>
-                    <option value="unemployed">Unemployed</option>
-                    <option value="student">Student</option>
-                    <option value="freelancer">Freelancer</option>
-                </flux:select>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <flux:input wire:model="work" :label="__('Work / Job Title')" type="text" />
-                <flux:input wire:model="experience_year" :label="__('Experience (Years)')" type="number"
-                    min="0" />
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <flux:select wire:model="country_code" :label="__('Country / Currency Region')"
-                    placeholder="Select country">
-                    <option value="NG">Nigeria (₦)</option>
-                    <option value="US">United States ($)</option>
-                    <option value="GB">United Kingdom (£)</option>
-                    <option value="EU">European Union (€)</option>
-                    <option value="GH">Ghana (₵)</option>
-                    <option value="KE">Kenya (KSh)</option>
-                    <option value="ZA">South Africa (R)</option>
-                    <option value="CA">Canada (C$)</option>
-                    <option value="AU">Australia (A$)</option>
-                    <option value="NL">Netherlands (€)</option>
-                </flux:select>
-                <div class="flex items-center pt-6">
-                    <p class="text-xs text-zinc-500 italic">
-                        {{ __('This determines the currency symbol shown on your posts.') }}
-                    </p>
-                </div>
-            </div>
-
-            <flux:textarea wire:model="bio" :label="__('Bio')" rows="4"
-                placeholder="Tell us about yourself..." />
-
-
-            <div>
-                @if (auth()->user() instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && !auth()->user()->hasVerifiedEmail())
-                    <div>
-                        <flux:text class="mt-4">
-                            {{ __('Your email address is unverified.') }}
-
-                            <flux:link class="text-sm cursor-pointer"
-                                wire:click.prevent="resendVerificationNotification">
-                                {{ __('Click here to re-send the verification email.') }}
-                            </flux:link>
-                        </flux:text>
-
-                        @if (session('status') === 'verification-link-sent')
-                            <flux:text class="mt-2 font-medium !dark:text-green-400 !text-green-600">
-                                {{ __('A new verification link has been sent to your email address.') }}
-                            </flux:text>
-                        @endif
+        <!-- Profile Picture -->
+        <div class="flex items-center gap-5">
+            <div class="relative shrink-0">
+                @if ($photo)
+                    <div
+                        class="size-24 rounded-full bg-zinc-200 overflow-hidden ring-2 ring-[var(--color-brand-purple)] ring-offset-2 ring-offset-white dark:ring-offset-zinc-950">
+                        <img src="{{ $photo->temporaryUrl() }}" alt="Profile Photo" class="size-full object-cover">
+                    </div>
+                @elseif ($profile_picture)
+                    <div class="size-24 rounded-full bg-zinc-200 overflow-hidden">
+                        <img src="{{ route('images.show', ['path' => $profile_picture]) }}" alt="Profile Photo"
+                            class="size-full object-cover">
+                    </div>
+                @else
+                    <div
+                        class="size-24 rounded-full bg-[var(--color-brand-purple)]/10 flex items-center justify-center text-[var(--color-brand-purple)] text-3xl font-bold">
+                        {{ auth()->user()->initials() }}
                     </div>
                 @endif
+
+                <label for="photo-upload"
+                    class="absolute bottom-0 right-0 p-1.5 bg-white dark:bg-zinc-800 rounded-full shadow-md cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700">
+                    <flux:icon name="camera" class="size-4 text-zinc-500" />
+                    <input id="photo-upload" type="file" wire:model="photo" class="hidden" accept="image/*">
+                </label>
             </div>
 
-            <div class="flex items-center gap-4">
-                <div class="flex items-center justify-end">
-                    <flux:button variant="primary" type="submit" class="w-full" data-test="update-profile-button">
-                        {{ __('Save') }}
-                    </flux:button>
-                </div>
-
-                <x-action-message class="me-3" on="profile-updated">
-                    {{ __('Saved.') }}
-                </x-action-message>
-            </div>
-        </form>
-
-        <div class="mt-10 border-t border-gray-100 pt-10">
-            <h3 class="text-lg font-medium text-gray-900">{{ __('Notifications') }}</h3>
-            <p class="mt-1 text-sm text-gray-600">
-                {{ __('Stay updated with real-time push notifications for messages and inquiries.') }}
-            </p>
-
-            <div class="mt-6">
-                <div x-data="{
-                    isSubscribed: false,
-                    async checkSubscription() {
-                        window.OneSignalDeferred = window.OneSignalDeferred || [];
-                        OneSignalDeferred.push(async (OneSignal) => {
-                            this.isSubscribed = OneSignal.Notifications.permission;
-                        });
-                    },
-                    async subscribe() {
-                        window.OneSignalDeferred = window.OneSignalDeferred || [];
-                        OneSignalDeferred.push(async (OneSignal) => {
-                            await OneSignal.Notifications.requestPermission();
-                            this.isSubscribed = OneSignal.Notifications.permission;
-                
-                            if (this.isSubscribed && window.Flux) {
-                                Flux.toast({
-                                    variant: 'success',
-                                    heading: 'Success',
-                                    text: 'You will now receive real-time notifications!'
-                                });
-                            }
-                        });
-                    }
-                }" x-init="checkSubscription()"
-                    class="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <flux:button @click="subscribe()" icon="bell" variant="outline"
-                        x-text="isSubscribed ? '{{ __('Notifications are active') }}' : '{{ __('Enable Browser Notifications') }}'"
-                        x-bind:class="isSubscribed ? '!bg-green-50 !text-green-700 !border-green-100 sm:w-auto w-full' :
-                            'sm:w-auto w-full'"
-                        x-bind:disabled="isSubscribed">
-                    </flux:button>
-
-                    <template x-if="isSubscribed">
-                        <div
-                            class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50/50 border border-green-100 sm:border-0 sm:bg-transparent">
-                            <flux:icon name="check-circle" variant="solid" class="size-4 text-green-600" />
-                            <span class="text-sm text-green-700 font-semibold uppercase tracking-tight">
-                                {{ __('Live') }}
-                            </span>
-                        </div>
-                    </template>
-                </div>
+            <div class="flex flex-col">
+                <h3 class="font-bold text-zinc-900 dark:text-zinc-100">{{ __('Profile Photo') }}</h3>
+                <p class="text-sm text-zinc-500">{{ __('Update your profile picture.') }}</p>
             </div>
         </div>
 
-        <livewire:settings.delete-user-form />
-    </x-settings.layout>
-</section>
+        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+        <!-- Account -->
+        <div class="space-y-4">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Account') }}</h2>
+            <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
+            <flux:input wire:model="username" :label="__('Username')" type="text" autocomplete="username" />
+            <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" readonly
+                disabled />
+        </div>
+
+        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+        <!-- Contact -->
+        <div class="space-y-4">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Contact') }}</h2>
+            <flux:input wire:model="phone_number" :label="__('Phone Number')" type="text" />
+            <flux:input wire:model="address" :label="__('Address')" type="text" />
+        </div>
+
+        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+        <!-- Work -->
+        <div class="space-y-4">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Work') }}</h2>
+            <flux:input wire:model="gender" :label="__('Gender')" type="text" />
+            <flux:select wire:model="work_status" :label="__('Work Status')" placeholder="Select status">
+                <option value="employed">Employed</option>
+                <option value="unemployed">Unemployed</option>
+                <option value="student">Student</option>
+                <option value="freelancer">Freelancer</option>
+            </flux:select>
+            <flux:input wire:model="work" :label="__('Work / Job Title')" type="text" />
+            <flux:input wire:model="experience_year" :label="__('Experience (Years)')" type="number" min="0" />
+        </div>
+
+        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+        <!-- Location -->
+        <div class="space-y-4">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Location') }}</h2>
+            <flux:select wire:model="country_code" :label="__('Country / Currency Region')" placeholder="Select country">
+                <option value="NG">Nigeria (₦)</option>
+                <option value="US">United States ($)</option>
+                <option value="GB">United Kingdom (£)</option>
+                <option value="EU">European Union (€)</option>
+                <option value="GH">Ghana (₵)</option>
+                <option value="KE">Kenya (KSh)</option>
+                <option value="ZA">South Africa (R)</option>
+                <option value="CA">Canada (C$)</option>
+                <option value="AU">Australia (A$)</option>
+                <option value="NL">Netherlands (€)</option>
+            </flux:select>
+            <p class="text-xs text-zinc-500 italic">
+                {{ __('This determines the currency symbol shown on your posts.') }}
+            </p>
+        </div>
+
+        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+        <!-- Bio -->
+        <div class="space-y-4">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Bio') }}</h2>
+            <flux:textarea wire:model="bio" :label="__('About you')" rows="4" placeholder="Tell us about yourself..." />
+        </div>
+
+        @if (auth()->user() instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && !auth()->user()->hasVerifiedEmail())
+            <div>
+                <flux:text class="mt-4">
+                    {{ __('Your email address is unverified.') }}
+
+                    <flux:link class="text-sm cursor-pointer"
+                        wire:click.prevent="resendVerificationNotification">
+                        {{ __('Click here to re-send the verification email.') }}
+                    </flux:link>
+                </flux:text>
+
+                @if (session('status') === 'verification-link-sent')
+                    <flux:text class="mt-2 font-medium !dark:text-green-400 !text-green-600">
+                        {{ __('A new verification link has been sent to your email address.') }}
+                    </flux:text>
+                @endif
+            </div>
+        @endif
+
+        <div class="space-y-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+            <flux:button variant="primary" type="submit" class="w-full" data-test="update-profile-button">
+                {{ __('Save') }}
+            </flux:button>
+
+            <x-action-message class="me-3" on="profile-updated">
+                {{ __('Saved.') }}
+            </x-action-message>
+        </div>
+    </form>
+
+    <!-- Notifications -->
+    <div class="border-t border-zinc-100 dark:border-zinc-800 pt-8">
+        <h3 class="font-bold text-zinc-900 dark:text-zinc-100">{{ __('Notifications') }}</h3>
+        <p class="mt-1 text-sm text-zinc-500">
+            {{ __('Stay updated with real-time push notifications for messages and inquiries.') }}
+        </p>
+
+        <div class="mt-5">
+            <div x-data="{
+                isSubscribed: false,
+                async checkSubscription() {
+                    window.OneSignalDeferred = window.OneSignalDeferred || [];
+                    OneSignalDeferred.push(async (OneSignal) => {
+                        this.isSubscribed = OneSignal.Notifications.permission;
+                    });
+                },
+                async subscribe() {
+                    window.OneSignalDeferred = window.OneSignalDeferred || [];
+                    OneSignalDeferred.push(async (OneSignal) => {
+                        await OneSignal.Notifications.requestPermission();
+                        this.isSubscribed = OneSignal.Notifications.permission;
+
+                        if (this.isSubscribed && window.Flux) {
+                            Flux.toast({
+                                variant: 'success',
+                                heading: 'Success',
+                                text: 'You will now receive real-time notifications!'
+                            });
+                        }
+                    });
+                }
+            }" x-init="checkSubscription()"
+                class="flex flex-col gap-3">
+                <flux:button @click="subscribe()" icon="bell" variant="outline"
+                    x-text="isSubscribed ? '{{ __('Notifications are active') }}' : '{{ __('Enable Browser Notifications') }}'"
+                    x-bind:class="isSubscribed ? '!bg-green-50 !text-green-700 !border-green-100 w-full' : 'w-full'"
+                    x-bind:disabled="isSubscribed">
+                </flux:button>
+
+                <template x-if="isSubscribed">
+                    <div
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50/50 border border-green-100 sm:border-0 sm:bg-transparent">
+                        <flux:icon name="check-circle" variant="solid" class="size-4 text-green-600" />
+                        <span class="text-sm text-green-700 font-semibold uppercase tracking-tight">
+                            {{ __('Live') }}
+                        </span>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <livewire:settings.delete-user-form />
+</x-settings.layout>

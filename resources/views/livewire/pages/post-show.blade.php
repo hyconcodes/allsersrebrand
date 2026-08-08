@@ -230,7 +230,7 @@ new class extends Component {
 
 <div>
     <div class="max-w-2xl mx-auto">
-        <livewire:dashboard.navigation />
+        <x-top-bar title="{{ __('Post') }}" />
 
         <!-- Original Post -->
         <div class="border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">

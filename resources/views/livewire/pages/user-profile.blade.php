@@ -84,6 +84,8 @@ new class extends Component {
 }; ?>
 
 <div class="max-w-4xl mx-auto">
+    <x-top-bar title="{{ $user->name }}" />
+
     <!-- Profile Header -->
     <div>
         <div class="h-32 sm:h-48 bg-gradient-to-r from-purple-600 to-blue-700"></div>

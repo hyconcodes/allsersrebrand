@@ -1,9 +1,4 @@
-<?php
-use Livewire\Volt\Component;
-
-new class extends Component {
-    // No specific logic needed, purely navigational
-}; ?>
+@props(['title' => null])
 
 @php
     $user = auth()->user();
@@ -13,27 +8,16 @@ new class extends Component {
 @endphp
 
 <div class="flex items-center justify-between mb-1 border-b border-zinc-200/50 dark:border-zinc-800/50 sticky top-0 z-30 bg-white dark:bg-zinc-950">
-    <div class="flex items-center gap-6">
-        <a href="{{ route('dashboard', ['tab' => 'for-you']) }}"
-            class="relative py-3 text-sm font-bold transition-all {{ request('tab', 'for-you') === 'for-you' ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
-            {{ __('For you') }}
-            @if (request('tab', 'for-you') === 'for-you')
-                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-[var(--color-brand-purple)] rounded-full">
-                </div>
-            @endif
-        </a>
-        <a href="{{ route('dashboard', ['tab' => 'local']) }}"
-            class="relative py-3 text-sm font-bold transition-all {{ request('tab') === 'local' ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
-            {{ __('Local') }}
-            @if (request('tab') === 'local')
-                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-[var(--color-brand-purple)] rounded-full">
-                </div>
-            @endif
-        </a>
+    <div class="flex items-center gap-6 min-w-0">
+        @if ($title)
+            <h1 class="py-3 text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{{ $title }}</h1>
+        @else
+            {{ $left }}
+        @endif
     </div>
 
     @auth
-        <div x-data="{ menuOpen: false }" class="relative">
+        <div x-data="{ menuOpen: false }" class="relative shrink-0 px-4">
             <button @click="menuOpen = !menuOpen"
                 class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:ring-2 hover:ring-zinc-300 dark:hover:ring-zinc-600 transition-all overflow-hidden text-xs font-bold shrink-0">
                 @if ($user->profile_picture_url)

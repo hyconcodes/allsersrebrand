@@ -49,15 +49,16 @@ new class extends Component {
     }
 }; ?>
 
-<div class="space-y-6">
-    <div class="flex items-center justify-between">
-        <h2 class="text-xl font-bold text-zinc-900 dark:text-zinc-100">{{ __('Notifications') }}</h2>
-        @if (auth()->user()->unreadNotifications->count() > 0)
+<div class="space-y-0">
+    <x-top-bar title="{{ __('Notifications') }}" />
+
+    @if (auth()->user()->unreadNotifications->count() > 0)
+        <div class="flex justify-end px-4 py-2">
             <button wire:click="markAllAsRead" class="text-xs font-bold text-[var(--color-brand-purple)] hover:underline">
                 {{ __('Mark all as read') }}
             </button>
-        @endif
-    </div>
+        </div>
+    @endif
 
     <div class="space-y-3">
         @forelse($notifications as $notification)

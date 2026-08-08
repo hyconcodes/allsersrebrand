@@ -1,23 +1,35 @@
-<div class="flex items-start max-md:flex-col">
-    <div class="me-10 w-full pb-4 md:w-[220px]">
-        <flux:navlist>
-            <flux:navlist.item :href="route('profile.edit')" wire:navigate>{{ __('Profile') }}</flux:navlist.item>
-            <flux:navlist.item :href="route('user-password.edit')" wire:navigate>{{ __('Password') }}</flux:navlist.item>
-            @if (Laravel\Fortify\Features::canManageTwoFactorAuthentication())
-                <flux:navlist.item :href="route('two-factor.show')" wire:navigate>{{ __('Two-Factor Auth') }}</flux:navlist.item>
-            @endif
-            <flux:navlist.item :href="route('appearance.edit')" wire:navigate>{{ __('Appearance') }}</flux:navlist.item>
-        </flux:navlist>
-    </div>
+@props(['active' => 'profile'])
 
-    <flux:separator class="md:hidden" />
+<div class="mx-auto w-full max-w-lg">
+    <x-top-bar>
+        <x-slot:left>
+            <div class="flex items-center gap-6 overflow-x-auto">
+                @php
+                    $tabs = [
+                        ['label' => __('Profile'), 'active' => $active === 'profile', 'route' => 'profile.edit'],
+                        ['label' => __('Password'), 'active' => $active === 'password', 'route' => 'user-password.edit'],
+                    ];
 
-    <div class="flex-1 self-stretch max-md:pt-6">
-        <flux:heading>{{ $heading ?? '' }}</flux:heading>
-        <flux:subheading>{{ $subheading ?? '' }}</flux:subheading>
+                    if (\Laravel\Fortify\Features::canManageTwoFactorAuthentication()) {
+                        $tabs[] = ['label' => __('2FA'), 'active' => $active === 'two-factor', 'route' => 'two-factor.show'];
+                    }
 
-        <div class="mt-5 w-full max-w-lg">
-            {{ $slot }}
-        </div>
+                    $tabs[] = ['label' => __('Appearance'), 'active' => $active === 'appearance', 'route' => 'appearance.edit'];
+                @endphp
+                @foreach ($tabs as $tab)
+                    <a href="{{ route($tab['route']) }}" wire:navigate
+                        class="relative py-3 text-sm font-bold whitespace-nowrap transition-all {{ $tab['active'] ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+                        {{ $tab['label'] }}
+                        @if ($tab['active'])
+                            <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-[var(--color-brand-purple)] rounded-full"></div>
+                        @endif
+                    </a>
+                @endforeach
+            </div>
+        </x-slot:left>
+    </x-top-bar>
+
+    <div class="px-4 py-6 space-y-8">
+        {{ $slot }}
     </div>
 </div>

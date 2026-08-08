@@ -123,12 +123,10 @@ new class extends Component {
     }
 }; ?>
 
-<div class="space-y-6">
-    <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-zinc-900 dark:text-zinc-100">{{ __('Your Saved Items') }}</h2>
-        <span class="text-sm text-zinc-500">{{ count($posts) }} {{ trans_choice('item|items', count($posts)) }}</span>
-    </div>
+<div>
+    <x-top-bar title="{{ __('Bookmarks') }}" />
 
+    <div class="space-y-6">
     @forelse($posts as $post)
         <livewire:dashboard.post-item :post="$post" :wire:key="'bookmark-post-'.$post->id" />
     @empty
@@ -146,6 +144,8 @@ new class extends Component {
             </a>
         </div>
     @endforelse
+
+    </div>
 
     <!-- Repost Modal -->
     <flux:modal name="repost-modal" wire:model="showRepostModal" class="sm:max-w-lg">

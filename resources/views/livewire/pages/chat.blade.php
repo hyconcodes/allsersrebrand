@@ -394,13 +394,13 @@ new class extends Component {
 }" x-init="setTimeout(() => showPrompt = false, 8000);
 window.addEventListener('online', () => isOnline = true);
 window.addEventListener('offline', () => isOnline = false);"
-    class="h-[calc(100dvh-4rem)] md:h-[calc(100vh-4rem)] flex overflow-hidden bg-white dark:bg-zinc-950 border-x-0 border-t-0 border-zinc-200 dark:border-zinc-800 relative">
+    class="h-[calc(100dvh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col overflow-hidden bg-white dark:bg-zinc-950 border-x-0 border-t-0 border-zinc-200 dark:border-zinc-800 relative">
+    <x-top-bar title="{{ __('Messages') }}" />
+
+    <div class="flex flex-1 min-h-0 overflow-hidden">
     <!-- Conversation List -->
     <div class="w-full md:w-80 border-e border-zinc-200 dark:border-zinc-800 flex flex-col transition-all duration-300"
         :class="mobileView === 'list' ? 'flex' : 'hidden md:flex'">
-        <div class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-            <h2 class="text-base font-bold text-zinc-900 dark:text-zinc-100">{{ __('Messages') }}</h2>
-        </div>
         <div class="flex-1 overflow-y-auto">
             @forelse($conversations as $conv)
                 @php $otherUser = $conv->other_user; @endphp
@@ -967,6 +967,8 @@ window.addEventListener('offline', () => isOnline = false);"
                 </p>
             </div>
         @endif
+    </div>
+
     </div>
 
     <style>

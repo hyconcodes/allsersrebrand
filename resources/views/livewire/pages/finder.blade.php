@@ -203,7 +203,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
     }
 }; ?>
 
-<div class="flex h-[calc(100vh-64px)] lg:h-screen overflow-hidden bg-white dark:bg-zinc-950 flex-col lg:flex-row"
+<div class="flex flex-col h-[calc(100vh-64px)] lg:h-screen overflow-hidden bg-white dark:bg-zinc-950"
     x-data="{
         map: null,
         userMarker: null,
@@ -319,36 +319,39 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
     $watch('userLat', () => updateUserMarker())"
     x-on:artisan-selected.window="updateArtisanOnMap($event.detail.artisan)">
 
-    <!-- Mobile View Toggle -->
-    <div
-        class="lg:hidden flex border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20 overflow-hidden  shrink-0">
-        <button @click="mobileView = 'list'"
-            class="flex-1 py-4 text-xs font-bold uppercase  transition-all relative"
-            :class="mobileView === 'list' ? 'text-purple-600' : 'text-zinc-400'">
-            {{ __('List View') }}
-            <div x-show="mobileView === 'list'" class="absolute bottom-0 left-0 right-0 h-1 bg-purple-600" x-transition>
+    <!-- Top Bar with List/Map tabs (mobile) -->
+    <x-top-bar>
+        <x-slot:left>
+            <div class="lg:hidden flex items-center gap-6">
+                <button @click="mobileView = 'list'"
+                    class="relative py-3 text-sm font-bold transition-all"
+                    :class="mobileView === 'list' ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'">
+                    {{ __('List View') }}
+                    <div x-show="mobileView === 'list'"
+                        class="absolute bottom-0 left-0 right-0 h-[3px] bg-[var(--color-brand-purple)] rounded-full"></div>
+                </button>
+                <button @click="mobileView = 'map'; setTimeout(() => map.invalidateSize(), 100)"
+                    class="relative py-3 text-sm font-bold transition-all"
+                    :class="mobileView === 'map' ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'">
+                    {{ __('Map View') }}
+                    <div x-show="mobileView === 'map'"
+                        class="absolute bottom-0 left-0 right-0 h-[3px] bg-[var(--color-brand-purple)] rounded-full"></div>
+                </button>
             </div>
-        </button>
-        <button @click="mobileView = 'map'; setTimeout(() => map.invalidateSize(), 100)"
-            class="flex-1 py-4 text-xs font-bold uppercase  transition-all relative"
-            :class="mobileView === 'map' ? 'text-purple-600' : 'text-zinc-400'">
-            {{ __('Map View') }}
-            <div x-show="mobileView === 'map'" class="absolute bottom-0 left-0 right-0 h-1 bg-purple-600" x-transition>
-            </div>
-        </button>
-    </div>
+            <h1 class="hidden lg:flex items-center gap-2 py-3 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                <flux:icon name="magnifying-glass-circle" class="size-5 text-purple-600" />
+                {{ __('Finder') }}
+            </h1>
+        </x-slot:left>
+    </x-top-bar>
+
+    <div class="flex flex-1 min-h-0 flex-col lg:flex-row">
 
     <!-- Left Panel: Search & Results -->
     <div class="w-full lg:w-[400px] flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 z-10 overflow-hidden transition-all duration-300"
         x-show="mobileView === 'list' || window.innerWidth >= 1024"
         :class="mobileView === 'list' ? 'flex' : 'hidden lg:flex'">
         <div class="p-4 lg:p-6 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
-            <h1
-                class="text-lg lg:text-xl font-bold text-zinc-900 dark:text-white mb-4 items-center gap-2 hidden lg:flex">
-                <flux:icon name="magnifying-glass-circle" class="size-6 text-purple-600" />
-                Finder
-            </h1>
-
             <div class="space-y-4">
                 <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass"
                     placeholder="Search by name or category..." class="rounded-2xl" />
@@ -665,6 +668,8 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
                 </div>
             </div>
         </div>
+    </div>
+
     </div>
 
     <!-- Structured Inquiry Modal -->
