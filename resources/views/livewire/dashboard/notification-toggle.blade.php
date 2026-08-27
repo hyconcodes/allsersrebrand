@@ -8,91 +8,103 @@ new class extends Component {
 
     public function mount()
     {
-        // We handle the actual state transition in JS,
-        // but we can initialize based on whether we have a player ID.
-        $this->isSubscribed = !empty(Auth::user()->onesignal_player_id);
+        $user = Auth::user();
+        $this->isSubscribed = $user ? $user->pushSubscriptions()->exists() : false;
     }
 }; ?>
 
 <div x-data="{
     subscribed: @entangle('isSubscribed'),
     loading: false,
+    vapidKey: document.querySelector('meta[name=vapid-public-key]')?.content || '',
+    urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+        return outputArray;
+    },
+    async checkInitialState() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            this.subscribed = Notification.permission === 'granted';
+            return;
+        }
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            const sub = await reg.pushManager.getSubscription();
+            this.subscribed = !!sub;
+        } catch (e) {
+            console.warn('Check push state failed:', e);
+        }
+    },
     async toggleNotifications() {
         if (this.loading) return;
         this.loading = true;
-
         try {
-            // Helper function to execute OneSignal logic safely
-            const oneSignalAction = () => {
-                return new Promise((resolve, reject) => {
-                    const OneSignal = window.OneSignal;
-                    if (OneSignal) {
-                        resolve(OneSignal);
-                    } else {
-                        window.OneSignalDeferred = window.OneSignalDeferred || [];
-                        window.OneSignalDeferred.push((OS) => resolve(OS));
-                    }
-                });
-            };
-
-            const OneSignal = await oneSignalAction();
-            const permission = OneSignal.Notifications.permission;
-
-            if (this.subscribed) {
-                // Opt out
-                await OneSignal.User.PushSubscription.optOut();
-                this.subscribed = false;
-                $dispatch('toast', {
-                    type: 'info',
-                    title: 'Notifications Paused',
-                    message: 'You will no longer receive push notifications.'
-                });
-            } else {
-                // Opt in / Request permission
-                if (permission !== 'granted') {
-                    await OneSignal.Notifications.requestPermission();
-                }
-
-                await OneSignal.User.PushSubscription.optIn();
-
-                // Wait a bit for the ID to be generated if it hasn't been
-                let retryCount = 0;
-                let id = null;
-                while (retryCount < 5 && !id) {
-                    id = OneSignal.User.PushSubscription.id;
-                    if (!id) {
-                        await new Promise(r => setTimeout(r, 1000));
-                        retryCount++;
-                    }
-                }
-
-                if (id) {
+            const pushSupported = ('serviceWorker' in navigator) && ('PushManager' in window);
+            if (!pushSupported) {
+                if (Notification.permission === 'granted') {
                     this.subscribed = true;
-                    $dispatch('toast', {
-                        type: 'success',
-                        title: 'Notifications Enabled',
-                        message: 'You are now subscribed to real-time updates!'
-                    });
+                    $dispatch('toast', { type: 'info', title: 'Notifications Active', message: 'In-tab notifications enabled (Push not supported on this browser).' });
                 } else {
+                    const perm = await Notification.requestPermission();
+                    this.subscribed = perm === 'granted';
                     $dispatch('toast', {
-                        type: 'error',
-                        title: 'Subscription Failed',
-                        message: 'We couldn\'t register your device. Please try again or check browser settings.'
+                        type: perm === 'granted' ? 'success' : 'error',
+                        title: perm === 'granted' ? 'Notifications Enabled' : 'Permission Denied',
+                        message: perm === 'granted' ? 'You will receive in-tab notifications while browsing.' : 'Please enable notifications in browser settings.'
                     });
                 }
+                return;
+            }
+
+            const registration = await navigator.serviceWorker.ready;
+            let subscription = await registration.pushManager.getSubscription();
+            const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
+
+            if (this.subscribed && subscription) {
+                await fetch('/push-subscriptions', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    body: JSON.stringify({ endpoint: subscription.endpoint }),
+                });
+                await subscription.unsubscribe();
+                this.subscribed = false;
+                $dispatch('toast', { type: 'info', title: 'Notifications Paused', message: 'You will no longer receive push notifications.' });
+            } else {
+                let permission = Notification.permission;
+                if (permission !== 'granted') permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    $dispatch('toast', { type: 'error', title: 'Permission Denied', message: 'Please allow notifications in your browser.' });
+                    return;
+                }
+                if (!this.vapidKey) {
+                    $dispatch('toast', { type: 'error', title: 'Error', message: 'VAPID key not configured.' });
+                    return;
+                }
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey),
+                });
+                const payload = subscription.toJSON();
+                await fetch('/push-subscriptions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                this.subscribed = true;
+                $dispatch('toast', { type: 'success', title: 'Notifications Enabled', message: 'You are now subscribed to real-time updates!' });
             }
         } catch (e) {
-            console.error('OneSignal Toggle Error:', e);
-            $dispatch('toast', {
-                type: 'error',
-                title: 'Error',
-                message: 'Something went wrong with notification settings.'
-            });
+            console.error('Toggle Web Push Error:', e);
+            $dispatch('toast', { type: 'error', title: 'Error', message: 'Something went wrong with notification settings.' });
         } finally {
             this.loading = false;
         }
     }
 }"
+    x-init="checkInitialState()"
     class="flex items-center justify-between p-4 bg-white dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-700/50 transition-all hover:shadow-md">
     <div class="flex items-center gap-3">
         <div
@@ -123,3 +135,20 @@ new class extends Component {
         </div>
     </button>
 </div>
+
+{{-- OneSignal version DISABLED
+<div x-data="{
+    subscribed: @entangle('isSubscribed'),
+    loading: false,
+    async toggleNotifications() {
+        const OneSignal = await new Promise(r => {
+            const OS = window.OneSignal; if (OS) r(OS); else { window.OneSignalDeferred = window.OneSignalDeferred || []; window.OneSignalDeferred.push(OS => r(OS)); }
+        });
+        if (this.subscribed) { await OneSignal.User.PushSubscription.optOut(); this.subscribed=false; }
+        else {
+            if (OneSignal.Notifications.permission !== 'granted') await OneSignal.Notifications.requestPermission();
+            await OneSignal.User.PushSubscription.optIn();
+        }
+    }
+}"></div>
+--}}

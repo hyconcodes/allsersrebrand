@@ -41,10 +41,11 @@ return [
         'provider' => env('AI_PROVIDER', 'Groq'),
     ],
 
-    'onesignal' => [
-        'app_id' => env('ONESIGNAL_APP_ID', '3735b3db-2395-4957-b94e-80db49424b14'),
-        'rest_api_key' => env('ONESIGNAL_REST_API_KEY'),
-    ],
+    // 'onesignal' => [
+    //     'app_id' => env('ONESIGNAL_APP_ID', '3735b3db-2395-4957-b94e-80db49424b14'),
+    //     'rest_api_key' => env('ONESIGNAL_REST_API_KEY'),
+    // ],
+    // OneSignal disabled — migrated to native Web Push (see config/webpush.php)
 
     'recaptcha' => [
         'site_key' => env('RECAPTCHA_SITE_KEY', '6Lf00Z0sAAAAADaG78Ja2OCCqzx9FXCOAsOVivcq'),

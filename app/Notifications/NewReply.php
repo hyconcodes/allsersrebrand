@@ -4,9 +4,10 @@ namespace App\Notifications;
 
 use App\Models\Comment;
 use App\Models\User;
-use App\Services\OneSignalService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 class NewReply extends Notification
 {
@@ -16,9 +17,6 @@ class NewReply extends Notification
     protected $replier;
     protected $reply;
 
-    /**
-     * Create a new notification instance.
-     */
     public function __construct(Comment $comment, User $replier, Comment $reply)
     {
         $this->comment = $comment;
@@ -26,42 +24,28 @@ class NewReply extends Notification
         $this->reply = $reply;
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
-        if ($notifiable->onesignal_player_id) {
-            $this->sendPushNotification($notifiable);
-        }
-
-        return ['database'];
+        return ['database', WebPushChannel::class];
     }
 
-    protected function sendPushNotification($notifiable)
+    public function toWebPush(object $notifiable, object $notification): WebPushMessage
     {
-        $oneSignal = app(OneSignalService::class);
-        $oneSignal->sendToUser(
-            $notifiable->onesignal_player_id,
-            "New Reply!",
-            $this->replier->name . " replied to your comment",
-            route('posts.show', $this->comment->post_id),
-            [
+        return (new WebPushMessage)
+            ->title("New Reply!")
+            ->icon('/apple-touch-icon.png')
+            ->badge('/favicon.ico')
+            ->body($this->replier->name . " replied to your comment")
+            ->data([
+                'url' => route('posts.show', $this->comment->post_id),
                 'type' => 'reply',
                 'post_id' => $this->comment->post_id,
                 'replier_id' => $this->replier->id,
                 'comment_id' => $this->comment->id,
-            ]
-        );
+            ])
+            ->options(['TTL' => 86400]);
     }
 
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(object $notifiable): array
     {
         return [

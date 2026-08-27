@@ -3,9 +3,10 @@
 namespace App\Notifications;
 
 use App\Models\Message;
-use App\Services\OneSignalService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 class NewMessage extends Notification
 {
@@ -20,19 +21,14 @@ class NewMessage extends Notification
 
     public function via(object $notifiable): array
     {
-        // Trigger OneSignal push if user has a player ID
-        if ($notifiable->onesignal_player_id) {
-            $this->sendPushNotification($notifiable);
-        }
-
-        return ['database'];
+        // OneSignal disabled — use native Web Push
+        // if ($notifiable->onesignal_player_id) { $this->sendPushNotification($notifiable); }
+        return ['database', WebPushChannel::class];
     }
 
-    protected function sendPushNotification($notifiable)
+    public function toWebPush(object $notifiable, object $notification): WebPushMessage
     {
-        $oneSignal = app(OneSignalService::class);
         $senderName = $this->message->user->name;
-
         $content = match ($this->message->type) {
             'inquiry' => "sent you a new job inquiry",
             'quote' => "sent you a professional quote",
@@ -41,17 +37,18 @@ class NewMessage extends Notification
             default => $this->message->content ? substr($this->message->content, 0, 100) : "sent you a new message",
         };
 
-        $oneSignal->sendToUser(
-            $notifiable->onesignal_player_id,
-            "Allsers: $senderName",
-            $content,
-            route('chat', $this->message->conversation_id),
-            [
+        return (new WebPushMessage)
+            ->title("Allsers: $senderName")
+            ->icon('/apple-touch-icon.png')
+            ->badge('/favicon.ico')
+            ->body($content)
+            ->data([
+                'url' => route('chat', $this->message->conversation_id),
                 'type' => 'message',
                 'sender_id' => $this->message->user_id,
                 'conversation_id' => $this->message->conversation_id,
-            ]
-        );
+            ])
+            ->options(['TTL' => 86400]);
     }
 
     public function toArray(object $notifiable): array

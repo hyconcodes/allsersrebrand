@@ -35,6 +35,7 @@
 
 <link rel="canonical" href="{{ $metaUrl ?? url()->current() }}" />
 <link rel="manifest" href="/manifest.json" />
+<meta name="csrf-token" content="{{ csrf_token() }}" />
 <meta name="theme-color" content="#6a11cb" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -62,46 +63,38 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- OneSignal SDK -->
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<!-- OneSignal SDK DISABLED — migrated to native Web Push (VAPID) -->
+{{-- <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
         try {
-            // Initialize OneSignal
             await OneSignal.init({
                 appId: "{{ config('services.onesignal.app_id') }}",
-                // safari_web_id: "web.onesignal.auto.00b75e31-4d41-4106-ab79-a5c68121f393",
-                notifyButton: {
-                    enable: false, // Disable the notify button
-                },
+                notifyButton: { enable: false },
                 promptOptions: {
                     slidedown: {
-                        enabled: true, // Enable slide-down prompt
-                        timeDelay: 5, // Show after 5 seconds
-                        autoPrompt: true, // Automatically show the prompt
+                        enabled: true,
+                        timeDelay: 5,
+                        autoPrompt: true,
                         actionMessage: "Subscribe to Allsers to receive real-time notifications for your messages and inquiries!",
                         acceptButtonText: "Subscribe",
                         cancelButtonText: "No, thanks",
                     },
                 },
             });
-
-            // Fetch the Subscription ID
             const subscriptionId = await OneSignal.User.PushSubscription.id;
-
             if (subscriptionId) {
                 console.warn('OneSignal Subscription ID:', subscriptionId);
-                // The actual saving to database is handled by the livewire:onesignal-handler
-                // component which is already active and listening for this ID.
             } else {
                 console.warn('No OneSignal Subscription ID available yet.');
             }
         } catch (error) {
-            console.error('Error initializing OneSignal or retrieving Subscription ID:', error);
+            console.error('Error initializing OneSignal:', error);
         }
     });
-</script>
+</script> --}}
+<meta name="vapid-public-key" content="{{ config('webpush.vapid.public_key') }}" />
 
 @fluxAppearance
 @snowfall

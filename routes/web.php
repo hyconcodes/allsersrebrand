@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\PushSubscriptionController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -38,6 +39,10 @@ Volt::route('artisans/u:{user}', 'pages.artisan-profile')->name('artisan.profile
 // Volt::route('clips', 'pages.clips')->name('clips')->middleware(['auth', 'verified']);
 
 Route::middleware(['auth'])->group(function () {
+    Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
+    Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
+    Route::get('/push-subscriptions/latest', [PushSubscriptionController::class, 'latest'])->name('push-subscriptions.latest');
+
     Route::redirect('settings', 'settings/profile');
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');

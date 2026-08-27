@@ -3,9 +3,10 @@
 namespace App\Notifications;
 
 use App\Models\User;
-use App\Services\OneSignalService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 class ServiceInquiry extends Notification
 {
@@ -13,48 +14,31 @@ class ServiceInquiry extends Notification
 
     protected $sender;
 
-    /**
-     * Create a new notification instance.
-     */
     public function __construct(User $sender)
     {
         $this->sender = $sender;
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
-        if ($notifiable->onesignal_player_id) {
-            $this->sendPushNotification($notifiable);
-        }
-
-        return ['database'];
+        return ['database', WebPushChannel::class];
     }
 
-    protected function sendPushNotification($notifiable)
+    public function toWebPush(object $notifiable, object $notification): WebPushMessage
     {
-        $oneSignal = app(OneSignalService::class);
-        $oneSignal->sendToUser(
-            $notifiable->onesignal_player_id,
-            "New Service Inquiry!",
-            $this->sender->name . " is interested in your services and sent you a ping!",
-            route('notifications'),
-            [
+        return (new WebPushMessage)
+            ->title("New Service Inquiry!")
+            ->icon('/apple-touch-icon.png')
+            ->badge('/favicon.ico')
+            ->body($this->sender->name . " is interested in your services and sent you a ping!")
+            ->data([
+                'url' => route('notifications'),
                 'type' => 'inquiry',
                 'sender_id' => $this->sender->id,
-            ]
-        );
+            ])
+            ->options(['TTL' => 86400]);
     }
 
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(object $notifiable): array
     {
         return [

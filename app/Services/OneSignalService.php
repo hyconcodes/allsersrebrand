@@ -1,4 +1,6 @@
 <?php
+// OneSignalService DISABLED — migrated to native Web Push (see config/webpush.php + PushSubscriptionController)
+// Kept for reference; no longer called by Notifications (they now use WebPushChannel).
 
 namespace App\Services;
 

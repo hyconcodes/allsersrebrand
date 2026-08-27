@@ -1,4 +1,4 @@
-const CACHE_NAME = 'allsers-v6.0';
+const CACHE_NAME = 'allsers-v7.0';
 const OFFLINE_URL = '/offline.html';
 const SHELL_URLS = [
     '/dashboard',
@@ -25,7 +25,6 @@ self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
             return cache.addAll(ASSETS_TO_CACHE).catch(() => {
-                // Shell URLs may fail if not cached; that's ok
             });
         })
     );
@@ -117,6 +116,51 @@ self.addEventListener('fetch', event => {
             return response;
         }).catch(() => {
             return caches.match(event.request);
+        })
+    );
+});
+
+self.addEventListener('push', event => {
+    let data = {};
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch (e) {
+        data = { title: event.data ? event.data.text() : 'Allsers', body: '' };
+    }
+    const title = data.title || 'Allsers';
+    const options = {
+        body: data.body || data.message || '',
+        icon: data.icon || '/apple-touch-icon.png',
+        badge: data.badge || '/favicon.ico',
+        data: data.data || { url: data.url || '/notifications' },
+        tag: data.tag || 'allsers-notification',
+        requireInteraction: false,
+    };
+    if (data.image) options.image = data.image;
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
+    const url = event.notification.data && event.notification.data.url ? event.notification.data.url : '/notifications';
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+            for (const client of windowClients) {
+                if (client.url === url && 'focus' in client) return client.focus();
+            }
+            if (clients.openWindow) return clients.openWindow(url);
+        })
+    );
+});
+
+self.addEventListener('pushsubscriptionchange', event => {
+    event.waitUntil(
+        self.registration.pushManager.subscribe({ userVisibleOnly: true }).then(subscription => {
+            return fetch('/push-subscriptions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify(subscription.toJSON()),
+            });
         })
     );
 });

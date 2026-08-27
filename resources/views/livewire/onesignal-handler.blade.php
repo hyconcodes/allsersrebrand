@@ -5,75 +5,138 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 new class extends Component {
-    /**
-     * Update the user's OneSignal Player ID.
-     */
+    // OneSignal disabled — kept for backward compatibility, no longer used.
+    // New push handling is via /push-subscriptions + native Web Push (see JS below).
     public function updateId($id)
     {
         if (Auth::check()) {
             $user = Auth::user();
-            Log::info('OneSignal Update ID Attempt', [
+            Log::info('OneSignal Update ID Attempt (DISABLED)', [
                 'user_id' => $user->id,
                 'new_player_id' => $id,
-                'current_player_id' => $user->onesignal_player_id,
             ]);
-
-            if ($user->onesignal_player_id !== $id) {
-                // Using forceFill + save to bypass any potential attribute property issues
-                $user->forceFill(['onesignal_player_id' => $id])->save();
-                Log::info('OneSignal Player ID Saved', ['user_id' => $user->id, 'player_id' => $id]);
-            }
-        } else {
-            Log::warning('OneSignal Update ID skipped: User not authenticated');
+            // Disabled: OneSignal no longer used. Keeping column for legacy.
+            // if ($user->onesignal_player_id !== $id) {
+            //     $user->forceFill(['onesignal_player_id' => $id])->save();
+            // }
         }
     }
 }; ?>
 
 <div x-data="{
     init() {
-        console.log('OneSignal Handler Initialized');
+        console.log('Web Push Handler Initialized');
+        this.initWebPush();
+    },
+    lastNotificationId: null,
+    async initWebPush() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            console.warn('Push not supported — fallback to in-tab Notification API only');
+            if ('Notification' in window && Notification.permission === 'granted') {
+                this.startFallbackPolling();
+            }
+            if ('Notification' in window && Notification.permission === 'default') {
+                console.log('Notification permission not yet requested (fallback mode)');
+            }
+            window.addEventListener('allsers:notify', (e) => this.showInTabNotification(e.detail));
+            return;
+        }
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            let subscription = await registration.pushManager.getSubscription();
+            if (subscription) {
+                await this.syncSubscription(subscription);
+            }
+            if (Notification.permission === 'granted' && !subscription) {
+                console.log('Permission granted but no subscription — will subscribe on toggle');
+            }
+        } catch (e) {
+            console.error('Web Push init error:', e);
+        }
+    },
+    urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+        return outputArray;
+    },
+    async syncSubscription(subscription) {
+        try {
+            const rawKey = subscription.getKey ? subscription.getKey('p256dh') : null;
+            const authKey = subscription.getKey ? subscription.getKey('auth') : null;
+            const p256dh = rawKey ? btoa(String.fromCharCode.apply(null, new Uint8Array(rawKey))) : null;
+            const auth = authKey ? btoa(String.fromCharCode.apply(null, new Uint8Array(authKey))) : null;
+            const payload = subscription.toJSON ? subscription.toJSON() : {
+                endpoint: subscription.endpoint,
+                keys: { p256dh, auth }
+            };
+            if (!payload.keys) payload.keys = { p256dh, auth };
+            const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
+            await fetch('/push-subscriptions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            console.log('Push subscription synced');
+        } catch (e) {
+            console.error('Sync subscription failed:', e);
+        }
+    },
+    showInTabNotification(detail) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        if (document.visibilityState === 'visible' && detail && detail.title) {
+            try {
+                const n = new Notification(detail.title, { body: detail.body || '', icon: detail.icon || '/apple-touch-icon.png', badge: '/favicon.ico', data: { url: detail.url || '/notifications' } });
+                n.onclick = () => { window.focus(); if (detail.url) window.location.href = detail.url; n.close(); };
+            } catch (e) { console.warn('In-tab notification failed:', e); }
+        }
+    },
+    startFallbackPolling() {
+        setInterval(async () => {
+            if (Notification.permission !== 'granted' || document.visibilityState !== 'visible') return;
+            try {
+                const res = await fetch('/push-subscriptions/latest', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data || !data.id || data.id === this.lastNotificationId) return;
+                if (!this.lastNotificationId) { this.lastNotificationId = data.id; return; }
+                this.lastNotificationId = data.id;
+                const d = data.data || {};
+                const titleMap = { message: 'New Message', like: 'New Like!', comment: 'New Comment!', reply: 'New Reply!', user_tagged: 'You were Tagged!', inquiry: 'New Service Inquiry!', challenge_invitation: 'Challenge Invitation!', challenge_winner: 'Congratulations!' };
+                const title = titleMap[d.type] || 'Allsers';
+                const body = d.message || d.body || 'You have a new notification';
+                const url = d.url || data.data?.url || '/notifications';
+                this.showInTabNotification({ title, body, url });
+            } catch (e) {}
+        }, 15000);
+        fetch('/push-subscriptions/latest', { headers: { 'Accept': 'application/json' } }).then(r=>r.json()).then(d=>{ if(d && d.id) this.lastNotificationId=d.id; }).catch(()=>{});
+    }
+}" style="display:none"></div>
 
+{{-- OneSignal handler DISABLED
+<div x-data="{
+    init() {
         window.OneSignalDeferred = window.OneSignalDeferred || [];
         OneSignalDeferred.push(async (OneSignal) => {
-            console.log('OneSignal SDK Ready in Handler');
-
             const checkAndSaveId = async () => {
-                try {
-                    // Try to get subscription ID - v16 often needs await or is ready after sync
-                    const subscriptionId = await OneSignal.User.PushSubscription.id;
-                    console.log('Detected Subscription ID:', subscriptionId);
-
-                    if (subscriptionId) {
-                        await $wire.updateId(subscriptionId);
-                        console.log('OneSignal ID sync triggered');
-                    } else {
-                        console.warn('OneSignal ID not yet available, will retry on change.');
-                    }
-                } catch (e) {
-                    console.error('Error checking OneSignal ID:', e);
-                }
+                const subscriptionId = await OneSignal.User.PushSubscription.id;
+                if (subscriptionId) await $wire.updateId(subscriptionId);
             };
-
-            // Initial check
             await checkAndSaveId();
-
-            // Listen for subscription changes
             OneSignal.User.PushSubscription.addEventListener('change', async (event) => {
-                console.log('OneSignal Subscription changed:', event);
-                const newId = event.current?.id;
-                if (newId) {
-                    await $wire.updateId(newId);
-                }
+                const newId = event.current?.id; if (newId) await $wire.updateId(newId);
             });
-
-            // Listen for permission changes which might trigger a sub
             OneSignal.Notifications.addEventListener('permissionChange', async (permission) => {
-                console.log('OneSignal Permission changed:', permission);
-                if (permission === 'granted') {
-                    // Slight delay to allow ID generation
-                    setTimeout(checkAndSaveId, 2000);
-                }
+                if (permission === 'granted') setTimeout(checkAndSaveId, 2000);
             });
         });
     }
 }"></div>
+--}}

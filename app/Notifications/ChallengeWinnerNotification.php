@@ -2,11 +2,11 @@
 
 namespace App\Notifications;
 
-use App\Services\OneSignalService;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 class ChallengeWinnerNotification extends Notification
 {
@@ -14,46 +14,31 @@ class ChallengeWinnerNotification extends Notification
 
     public $challenge;
 
-    /**
-     * Create a new notification instance.
-     */
     public function __construct($challenge)
     {
         $this->challenge = $challenge;
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
-        if ($notifiable->onesignal_player_id) {
-            $this->sendPushNotification($notifiable);
-        }
-
-        return ['database', 'mail'];
+        return ['database', 'mail', WebPushChannel::class];
     }
 
-    protected function sendPushNotification($notifiable)
+    public function toWebPush(object $notifiable, object $notification): WebPushMessage
     {
-        $oneSignal = app(OneSignalService::class);
-        $oneSignal->sendToUser(
-            $notifiable->onesignal_player_id,
-            "Congratulations! You Won!",
-            "We are thrilled to announce that you have been selected as the winner of: " . $this->challenge->title,
-            route('artisan.profile', $notifiable->username ?? ''),
-            [
+        return (new WebPushMessage)
+            ->title("Congratulations! You Won!")
+            ->icon('/apple-touch-icon.png')
+            ->badge('/favicon.ico')
+            ->body("We are thrilled to announce that you have been selected as the winner of: " . $this->challenge->title)
+            ->data([
+                'url' => route('artisan.profile', $notifiable->username ?? ''),
                 'type' => 'challenge_winner',
                 'challenge_id' => $this->challenge->id,
-            ]
-        );
+            ])
+            ->options(['TTL' => 86400]);
     }
 
-    /**
-     * Get the mail representation of the notification.
-     */
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
@@ -64,11 +49,6 @@ class ChallengeWinnerNotification extends Notification
             ->line('Keep up the amazing work!');
     }
 
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(object $notifiable): array
     {
         return [

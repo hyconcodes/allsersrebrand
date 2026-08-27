@@ -4,60 +4,44 @@ namespace App\Notifications;
 
 use App\Models\Post;
 use App\Models\User;
-use App\Services\OneSignalService;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 class UserTagged extends Notification
 {
-
     public $post;
     public $tagger;
 
-    /**
-     * Create a new notification instance.
-     */
     public function __construct(Post $post, User $tagger)
     {
         $this->post = $post;
         $this->tagger = $tagger;
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
-        if ($notifiable->onesignal_player_id) {
-            $this->sendPushNotification($notifiable);
-        }
-
-        return ['database'];
+        return ['database', WebPushChannel::class];
     }
 
-    protected function sendPushNotification($notifiable)
+    public function toWebPush(object $notifiable, object $notification): WebPushMessage
     {
-        $oneSignal = app(OneSignalService::class);
-        $oneSignal->sendToUser(
-            $notifiable->onesignal_player_id,
-            "You were Tagged!",
-            $this->tagger->name . " tagged you in a post",
-            route('posts.show', $this->post->post_id),
-            [
+        return (new WebPushMessage)
+            ->title("You were Tagged!")
+            ->icon('/apple-touch-icon.png')
+            ->badge('/favicon.ico')
+            ->body($this->tagger->name . " tagged you in a post")
+            ->data([
+                'url' => route('posts.show', $this->post->post_id),
                 'type' => 'user_tagged',
                 'post_id' => $this->post->id,
                 'tagger_id' => $this->tagger->id,
-            ]
-        );
+            ])
+            ->options(['TTL' => 86400]);
     }
 
-    /**
-     * Get the mail representation of the notification.
-     */
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
@@ -66,11 +50,6 @@ class UserTagged extends Notification
             ->line('Thank you for using our application!');
     }
 
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(object $notifiable): array
     {
         return [

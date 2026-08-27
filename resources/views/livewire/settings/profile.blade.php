@@ -247,26 +247,56 @@ new class extends Component {
         <div class="mt-5">
             <div x-data="{
                 isSubscribed: false,
+                vapidKey: document.querySelector('meta[name=vapid-public-key]')?.content || '',
+                urlBase64ToUint8Array(base64String) {
+                    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+                    const rawData = window.atob(base64);
+                    const outputArray = new Uint8Array(rawData.length);
+                    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+                    return outputArray;
+                },
                 async checkSubscription() {
-                    window.OneSignalDeferred = window.OneSignalDeferred || [];
-                    OneSignalDeferred.push(async (OneSignal) => {
-                        this.isSubscribed = OneSignal.Notifications.permission;
-                    });
+                    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                        this.isSubscribed = Notification.permission === 'granted';
+                        return;
+                    }
+                    try {
+                        const reg = await navigator.serviceWorker.ready;
+                        const sub = await reg.pushManager.getSubscription();
+                        this.isSubscribed = !!sub || Notification.permission === 'granted';
+                    } catch (e) {
+                        this.isSubscribed = Notification.permission === 'granted';
+                    }
                 },
                 async subscribe() {
-                    window.OneSignalDeferred = window.OneSignalDeferred || [];
-                    OneSignalDeferred.push(async (OneSignal) => {
-                        await OneSignal.Notifications.requestPermission();
-                        this.isSubscribed = OneSignal.Notifications.permission;
-
-                        if (this.isSubscribed && window.Flux) {
-                            Flux.toast({
-                                variant: 'success',
-                                heading: 'Success',
-                                text: 'You will now receive real-time notifications!'
+                    try {
+                        const pushSupported = ('serviceWorker' in navigator) && ('PushManager' in window);
+                        if (!pushSupported) {
+                            const perm = await Notification.requestPermission();
+                            this.isSubscribed = perm === 'granted';
+                            if (this.isSubscribed && window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'In-tab notifications enabled!' });
+                            return;
+                        }
+                        let perm = Notification.permission;
+                        if (perm !== 'granted') perm = await Notification.requestPermission();
+                        if (perm !== 'granted') return;
+                        const reg = await navigator.serviceWorker.ready;
+                        let sub = await reg.pushManager.getSubscription();
+                        if (!sub) {
+                            sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey) });
+                            const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
+                            await fetch('/push-subscriptions', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                                body: JSON.stringify(sub.toJSON()),
                             });
                         }
-                    });
+                        this.isSubscribed = true;
+                        if (window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'You will now receive real-time notifications!' });
+                    } catch (e) {
+                        console.error('Subscribe error:', e);
+                    }
                 }
             }" x-init="checkSubscription()"
                 class="flex flex-col gap-3">
@@ -286,6 +316,22 @@ new class extends Component {
                     </div>
                 </template>
             </div>
+            {{-- OneSignal version DISABLED
+            <div x-data="{
+                isSubscribed: false,
+                async checkSubscription() {
+                    window.OneSignalDeferred = window.OneSignalDeferred || [];
+                    OneSignalDeferred.push(async (OneSignal) => { this.isSubscribed = OneSignal.Notifications.permission; });
+                },
+                async subscribe() {
+                    window.OneSignalDeferred = window.OneSignalDeferred || [];
+                    OneSignalDeferred.push(async (OneSignal) => {
+                        await OneSignal.Notifications.requestPermission();
+                        this.isSubscribed = OneSignal.Notifications.permission;
+                    });
+                }
+            }"></div>
+            --}}
         </div>
     </div>
 
