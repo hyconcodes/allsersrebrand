@@ -15,7 +15,8 @@
         <form method="POST" action="{{ route('login.store') }}" class="flex flex-col gap-6" x-data="{
             latitude: null,
             longitude: null,
-            status: 'detecting', // detecting, active, denied
+            status: 'detecting',
+            submitting: false,
             init() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
@@ -34,7 +35,7 @@
                 }
             }
         }"
-            x-init="init()">
+            x-init="init()" @submit="submitting = true">
             @csrf
 
             <input type="hidden" name="latitude" x-model="latitude">
@@ -74,9 +75,13 @@
 
             <div class="flex items-center justify-end">
                 <flux:button variant="primary" type="submit"
-                    class="w-full bg-[var(--color-brand-purple)] hover:bg-[var(--color-brand-purple)]/90"
-                    data-test="login-button">
-                    {{ __('Log in') }}
+                    class="w-full bg-[var(--color-brand-purple)] hover:bg-[var(--color-brand-purple)]/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                    data-test="login-button" x-bind:disabled="submitting">
+                    <span x-show="!submitting">{{ __('Log in') }}</span>
+                    <span x-show="submitting" class="flex items-center justify-center gap-2">
+                        <span class="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        {{ __('Logging in...') }}
+                    </span>
                 </flux:button>
             </div>
         </form>
