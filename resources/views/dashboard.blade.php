@@ -4,6 +4,7 @@ use Livewire\Volt\Component;
 
 new class extends Component {}; ?>
 <x-layouts.app :title="__('Allsers - Feeds')">
+    <livewire:dashboard.notification-prompt />
     <div class="dashboard-two-col-layout w-full max-w-7xl mx-auto px-4 lg:px-0">
         <!-- Main Feed (Left Column) -->
         <div class="dashboard-feed-column">

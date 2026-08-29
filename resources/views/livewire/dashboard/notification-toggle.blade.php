@@ -97,14 +97,17 @@ new class extends Component {
                 $dispatch('toast', { type: 'success', title: 'Notifications Enabled', message: 'You are now subscribed to real-time updates!' });
             }
         } catch (e) {
-            console.error('Toggle Web Push Error:', e);
-            $dispatch('toast', { type: 'error', title: 'Error', message: 'Something went wrong with notification settings.' });
+            console.error('Toggle Web Push Error:', e.name, e.message, e);
+            let msg = 'Something went wrong with notification settings.';
+            if (e.name === 'AbortError') msg = 'Push service error — try: 1) Clear Application > Storage > Clear site data and reload, 2) Check not in incognito/Brave shields, 3) Ensure FCM reachable (VPN/firewall), 4) Retry.';
+            if (e.name === 'NotAllowedError') msg = 'Permission denied — enable notifications in browser settings.';
+            $dispatch('toast', { type: 'error', title: 'Error: ' + e.name, message: msg });
         } finally {
             this.loading = false;
         }
     }
 }"
-    x-init="checkInitialState()"
+    x-init="checkInitialState(); window.addEventListener('push-subscription-changed', e => { subscribed = e.detail.subscribed; })"
     class="flex items-center justify-between p-4 bg-white dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-700/50 transition-all hover:shadow-md">
     <div class="flex items-center gap-3">
         <div

@@ -246,7 +246,9 @@ new class extends Component {
 
         <div class="mt-5">
             <div x-data="{
+                isGranted: false,
                 isSubscribed: false,
+                isChecking: true,
                 vapidKey: document.querySelector('meta[name=vapid-public-key]')?.content || '',
                 urlBase64ToUint8Array(base64String) {
                     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -257,16 +259,21 @@ new class extends Component {
                     return outputArray;
                 },
                 async checkSubscription() {
-                    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                        this.isSubscribed = Notification.permission === 'granted';
-                        return;
-                    }
+                    this.isChecking = true;
                     try {
+                        this.isGranted = window.Notification ? Notification.permission === 'granted' : false;
+                        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                            this.isSubscribed = this.isGranted;
+                            return;
+                        }
                         const reg = await navigator.serviceWorker.ready;
                         const sub = await reg.pushManager.getSubscription();
-                        this.isSubscribed = !!sub || Notification.permission === 'granted';
+                        this.isSubscribed = !!sub;
+                        this.isGranted = Notification.permission === 'granted';
                     } catch (e) {
-                        this.isSubscribed = Notification.permission === 'granted';
+                        this.isGranted = window.Notification ? Notification.permission === 'granted' : false;
+                    } finally {
+                        this.isChecking = false;
                     }
                 },
                 async subscribe() {
@@ -274,13 +281,18 @@ new class extends Component {
                         const pushSupported = ('serviceWorker' in navigator) && ('PushManager' in window);
                         if (!pushSupported) {
                             const perm = await Notification.requestPermission();
-                            this.isSubscribed = perm === 'granted';
-                            if (this.isSubscribed && window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'In-tab notifications enabled!' });
+                            this.isGranted = perm === 'granted';
+                            this.isSubscribed = this.isGranted;
+                            if (this.isGranted && window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'In-tab notifications enabled!' });
                             return;
                         }
                         let perm = Notification.permission;
                         if (perm !== 'granted') perm = await Notification.requestPermission();
-                        if (perm !== 'granted') return;
+                        this.isGranted = perm === 'granted';
+                        if (perm !== 'granted') {
+                            if (window.Flux) Flux.toast({ variant: 'error', heading: 'Permission denied', text: 'Please allow notifications in browser settings.' });
+                            return;
+                        }
                         const reg = await navigator.serviceWorker.ready;
                         let sub = await reg.pushManager.getSubscription();
                         if (!sub) {
@@ -293,28 +305,67 @@ new class extends Component {
                             });
                         }
                         this.isSubscribed = true;
+                        window.dispatchEvent(new CustomEvent('push-subscription-changed', { detail: { subscribed: true } }));
                         if (window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'You will now receive real-time notifications!' });
                     } catch (e) {
-                        console.error('Subscribe error:', e);
+                        console.error('Subscribe error:', e.name, e.message, e);
+                        if (e.name === 'AbortError' && window.Flux) Flux.toast({ variant: 'error', heading: 'Push service error', text: 'Clear site data and reload, or try Chrome (not Brave incognito). FCM may be blocked by VPN.' });
+                        else if (window.Flux) Flux.toast({ variant: 'error', heading: 'Error', text: e.message || 'Failed to subscribe.' });
                     }
                 }
-            }" x-init="checkSubscription()"
+            }" x-init="checkSubscription(); window.addEventListener('push-subscription-changed', e => { isSubscribed = e.detail.subscribed; if(e.detail.subscribed) isGranted = true; })"
                 class="flex flex-col gap-3">
-                <flux:button @click="subscribe()" icon="bell" variant="outline"
-                    x-text="isSubscribed ? '{{ __('Notifications are active') }}' : '{{ __('Enable Browser Notifications') }}'"
-                    x-bind:class="isSubscribed ? '!bg-green-50 !text-green-700 !border-green-100 w-full' : 'w-full'"
-                    x-bind:disabled="isSubscribed">
-                </flux:button>
-
-                <template x-if="isSubscribed">
-                    <div
-                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50/50 border border-green-100 sm:border-0 sm:bg-transparent">
-                        <flux:icon name="check-circle" variant="solid" class="size-4 text-green-600" />
-                        <span class="text-sm text-green-700 font-semibold uppercase tracking-tight">
-                            {{ __('Live') }}
-                        </span>
-                    </div>
-                </template>
+                <div x-show="!isChecking" x-cloak class="space-y-3">
+                    <template x-if="!isGranted && !isSubscribed">
+                        <div class="space-y-3">
+                            <flux:button @click="subscribe()" icon="bell" variant="outline" class="w-full">
+                                {{ __('Enable Browser Notifications') }}
+                            </flux:button>
+                            <p class="text-xs text-zinc-500">{{ __('Allow notifications to stay updated.') }}</p>
+                        </div>
+                    </template>
+                    <template x-if="isGranted && !isSubscribed">
+                        <div class="space-y-3">
+                            <div class="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                <div class="h-full w-1/2 bg-green-600 dark:bg-green-500 rounded-full"></div>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm font-semibold text-green-700 dark:text-green-400">
+                                <flux:icon name="check-circle" variant="solid" class="size-4" />
+                                <span>{{ __('Permission granted — not yet subscribed') }}</span>
+                            </div>
+                            <flux:button @click="subscribe()" icon="bell" variant="primary" class="w-full">
+                                {{ __('Subscribe to Push Notifications') }}
+                            </flux:button>
+                            <p class="text-xs text-zinc-500">{{ __('Tap to complete push subscription.') }}</p>
+                        </div>
+                    </template>
+                    <template x-if="isGranted && isSubscribed">
+                        <div class="space-y-3">
+                            <div class="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                <div class="h-full w-full bg-green-600 dark:bg-green-500 rounded-full"></div>
+                            </div>
+                            <flux:button icon="bell" variant="outline" class="!bg-green-50 !text-green-700 !border-green-100 w-full" disabled>
+                                {{ __('Notifications are active') }}
+                            </flux:button>
+                            <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50/50 border border-green-100 sm:border-0 sm:bg-transparent">
+                                <flux:icon name="check-circle" variant="solid" class="size-4 text-green-600" />
+                                <span class="text-sm text-green-700 font-semibold uppercase tracking-tight">{{ __('Live') }}</span>
+                                <span class="text-xs text-green-600 ml-auto">{{ __('100% enabled') }}</span>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!isGranted && isSubscribed">
+                        <div class="space-y-3">
+                            <div class="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                <div class="h-full w-full bg-green-600 dark:bg-green-500 rounded-full"></div>
+                            </div>
+                            <flux:button icon="bell" variant="outline" class="!bg-green-50 !text-green-700 !border-green-100 w-full" disabled>
+                                {{ __('Notifications are active') }}
+                            </flux:button>
+                        </div>
+                    </template>
+                </div>
+                <div x-show="isChecking" class="h-10 w-full bg-zinc-100 dark:bg-zinc-800 animate-pulse rounded-xl"></div>
             </div>
             {{-- OneSignal version DISABLED
             <div x-data="{

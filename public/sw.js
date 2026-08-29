@@ -1,4 +1,4 @@
-const CACHE_NAME = 'allsers-v7.0';
+const CACHE_NAME = 'allsers-v7.1';
 const OFFLINE_URL = '/offline.html';
 const SHELL_URLS = [
     '/dashboard',
@@ -121,11 +121,12 @@ self.addEventListener('fetch', event => {
 });
 
 self.addEventListener('push', event => {
+    console.log('[SW] push received', event.data ? event.data.text() : 'no data');
     let data = {};
     try {
         data = event.data ? event.data.json() : {};
     } catch (e) {
-        data = { title: event.data ? event.data.text() : 'Allsers', body: '' };
+        data = { title: 'Allsers', body: event.data ? event.data.text() : '' };
     }
     const title = data.title || 'Allsers';
     const options = {

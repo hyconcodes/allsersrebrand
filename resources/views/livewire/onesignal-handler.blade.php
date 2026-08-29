@@ -48,7 +48,11 @@ new class extends Component {
                 await this.syncSubscription(subscription);
             }
             if (Notification.permission === 'granted' && !subscription) {
-                console.log('Permission granted but no subscription — will subscribe on toggle');
+                console.log('Permission granted but no subscription — auto-subscribing...');
+                await this.autoSubscribe(registration);
+            }
+            if (Notification.permission === 'default') {
+                console.log('Notification permission not yet requested');
             }
         } catch (e) {
             console.error('Web Push init error:', e);
@@ -61,6 +65,35 @@ new class extends Component {
         const outputArray = new Uint8Array(rawData.length);
         for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
         return outputArray;
+    },
+    async autoSubscribe(registration, retry = 0) {
+        try {
+            const vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim();
+            if (!vapidKey) { console.warn('VAPID key missing, cannot auto-subscribe'); return; }
+            console.log('Auto-subscribe attempting with VAPID len', vapidKey.length);
+            const newSub = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: this.urlBase64ToUint8Array(vapidKey),
+            });
+            await this.syncSubscription(newSub);
+            console.log('Auto-subscribed to push');
+            window.dispatchEvent(new CustomEvent('push-subscription-changed', { detail: { subscribed: true } }));
+        } catch (e) {
+            console.error('Auto-subscribe failed:', e.name, e.message, e);
+            if (e.name === 'AbortError' && retry === 0) {
+                console.warn('Push service AbortError — retrying after unregister/re-register...');
+                try {
+                    const oldSub = await registration.pushManager.getSubscription();
+                    if (oldSub) await oldSub.unsubscribe();
+                } catch {}
+                await new Promise(r => setTimeout(r, 1000));
+                return this.autoSubscribe(registration, 1);
+            }
+            if (e.name === 'AbortError' || e.name === 'NotAllowedError') {
+                console.warn('Falling back to in-tab notifications — push service unavailable. Check: 1) not incognito, 2) FCM reachable, 3) not Brave with shields, 4) clear Application > Storage > Clear site data and reload.');
+                if (Notification.permission === 'granted') this.startFallbackPolling();
+            }
+        }
     },
     async syncSubscription(subscription) {
         try {
