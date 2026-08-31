@@ -182,6 +182,9 @@
     {{ $slot }}
 
     <x-ui.toast />
+    @auth
+        <x-ui.chat-toast />
+    @endauth
 
     <x-lightbox />
 

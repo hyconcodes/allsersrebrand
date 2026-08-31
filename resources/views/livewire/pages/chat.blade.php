@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -285,6 +286,7 @@ new class extends Component {
 
         $this->activeConversation->update(['last_message_at' => now()]);
         $this->activeConversation->other_user->notify(new NewMessage($message));
+        broadcast(new MessageSent($message));
         $this->messages[] = $message;
         $this->loadConversations();
         $this->dispatch('message-sent');
@@ -325,6 +327,7 @@ new class extends Component {
         ]);
 
         $this->activeConversation->other_user->notify(new NewMessage($message));
+        broadcast(new MessageSent($message));
 
         $this->reset(['messageText', 'photo', 'document']);
 
