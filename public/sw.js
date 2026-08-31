@@ -1,4 +1,4 @@
-const CACHE_NAME = 'allsers-v7.1';
+const CACHE_NAME = 'allsers-v7.2';
 const OFFLINE_URL = '/offline.html';
 const SHELL_URLS = [
     '/dashboard',
@@ -53,7 +53,10 @@ self.addEventListener('fetch', event => {
         url.pathname.includes('/volt/') ||
         url.pathname.includes('/up') ||
         url.pathname.includes('/login') ||
-        url.pathname.includes('/register')
+        url.pathname.includes('/register') ||
+        url.pathname.startsWith('/push-subscriptions') ||
+        url.pathname.startsWith('/broadcasting/') ||
+        url.pathname.startsWith('/vapid-public-key')
     ) {
         return;
     }
@@ -154,14 +157,34 @@ self.addEventListener('notificationclick', event => {
     );
 });
 
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+}
 self.addEventListener('pushsubscriptionchange', event => {
     event.waitUntil(
-        self.registration.pushManager.subscribe({ userVisibleOnly: true }).then(subscription => {
-            return fetch('/push-subscriptions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify(subscription.toJSON()),
-            });
-        })
+        (async () => {
+            try {
+                const res = await fetch('/vapid-public-key');
+                const data = await res.json();
+                const vapidKey = (data.key || '').trim();
+                if (!vapidKey) throw new Error('VAPID missing');
+                const subscription = await self.registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey),
+                });
+                await fetch('/push-subscriptions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify(subscription.toJSON()),
+                });
+            } catch (e) {
+                console.error('[SW] pushsubscriptionchange failed', e);
+            }
+        })()
     );
 });

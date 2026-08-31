@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Notifications\SubscriptionSuccess;
 use Illuminate\Http\Request;
 
 class PushSubscriptionController extends Controller
@@ -47,5 +48,15 @@ class PushSubscriptionController extends Controller
             'data' => $notification->data,
             'created_at' => $notification->created_at,
         ]);
+    }
+
+    public function testWebPush(Request $request)
+    {
+        $user = $request->user();
+        if ($user->pushSubscriptions()->count() === 0) {
+            return response()->json(['message' => 'No push subscription found'], 404);
+        }
+        $user->notify(new SubscriptionSuccess());
+        return response()->json(['message' => 'Test push sent'], 200);
     }
 }

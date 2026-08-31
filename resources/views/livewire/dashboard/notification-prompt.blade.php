@@ -91,16 +91,22 @@ new class extends Component {}; ?>
                 }
                 sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey) });
                 const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
-                await fetch('/push-subscriptions', {
+                const res = await fetch('/push-subscriptions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
                     body: JSON.stringify(sub.toJSON()),
                 });
+                if (!res.ok) throw new Error('Failed to save subscription');
+                localStorage.setItem('webpush_vapid_key', this.vapidKey);
             }
             this.isSubscribed = true;
             this.show = false;
             window.dispatchEvent(new CustomEvent('push-subscription-changed', { detail: { subscribed: true } }));
             if (window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'You will now receive real-time notifications!' });
+            try {
+                const csrf2 = document.querySelector('meta[name=csrf-token]')?.content || '';
+                await fetch('/push-subscriptions/test-webpush', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf2, 'Accept': 'application/json' } });
+            } catch (e) { console.warn('Test webpush trigger failed', e); }
         } catch (e) {
             console.error('Prompt subscribe error:', e.name, e.message, e);
             if (e.name === 'AbortError' && window.Flux) Flux.toast({ variant: 'error', heading: 'Push service error', text: 'Clear site data and reload, or try Chrome (not Brave incognito).' });

@@ -1,6 +1,7 @@
 <div x-data="{
     notifications: [],
     userId: {{ auth()->check() ? auth()->id() : 'null' }},
+    _listening: false,
     init() {
         if (!this.userId || !window.Echo) {
             const checkEcho = setInterval(() => {
@@ -13,9 +14,23 @@
             return;
         }
         this.listen();
+        this.$el._chatToastCleanup = () => this.leave();
+        document.addEventListener('livewire:navigated', () => {
+            if (this._listening) return;
+            setTimeout(() => this.listen(), 300);
+        });
+    },
+    leave() {
+        if (!this._listening || !window.Echo || !this.userId) return;
+        try { window.Echo.leave(`user.${this.userId}`); } catch {}
+        try { window.Echo.private(`user.${this.userId}`).stopListening('.message.sent'); } catch {}
+        this._listening = false;
     },
     listen() {
+        if (this._listening) return;
+        if (!window.Echo || !this.userId) return;
         try {
+            this.leave();
             window.Echo.private(`user.${this.userId}`)
                 .listen('.message.sent', (e) => {
                     const isOnChatPage = window.location.pathname.includes('/chat/' + e.conversation_id);
@@ -26,6 +41,7 @@
                     if (isViewingThisConversation) return;
                     this.addChatToast(e);
                 });
+            this._listening = true;
             console.log('Chat toast listening on private-user.' + this.userId);
         } catch (err) {
             console.error('Echo listen error', err);
@@ -112,7 +128,7 @@
         if (Math.abs(n.translateX) > 80) this.remove(n.id);
         else n.translateX = 0;
     }
-}" x-init="init()" class="fixed top-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none">
+}" x-init="init()" class="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-3 pointer-events-none items-center">
     <template x-for="(notification, idx) in notifications" :key="notification.id">
         <div
             @touchstart="touchStart($event, idx)"
@@ -123,14 +139,14 @@
             @mouseup.window="mouseEnd($event, idx)"
             @click="goToChat(notification)"
             :style="`transform: translateX(${notification.translateX}px); opacity: ${1 - Math.min(Math.abs(notification.translateX)/200, 0.7)}; transition: ${notification.dragging ? 'none' : 'transform 0.3s ease, opacity 0.3s ease'}`"
-            :class="notification.leaving ? 'opacity-0 translate-x-8 scale-95' : 'opacity-100'"
+            :class="notification.leaving ? 'opacity-0 translate-y-2 scale-95' : 'opacity-100'"
             class="pointer-events-auto w-[320px] sm:w-[380px] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden cursor-pointer select-none touch-pan-y"
             x-transition:enter="transition ease-out duration-400"
-            x-transition:enter-start="opacity-0 translate-x-8 scale-95"
-            x-transition:enter-end="opacity-100 translate-x-0 scale-100"
+            x-transition:enter-start="opacity-0 -translate-y-8 scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
             x-transition:leave="transition ease-in duration-300"
-            x-transition:leave-start="opacity-100 translate-x-0"
-            x-transition:leave-end="opacity-0 translate-x-8"
+            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+            x-transition:leave-end="opacity-0 -translate-y-8 scale-95"
         >
             <div class="p-3 flex gap-3">
                 <div class="shrink-0 size-10 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-sm"

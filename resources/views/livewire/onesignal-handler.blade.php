@@ -29,6 +29,7 @@ new class extends Component {
         this.initWebPush();
     },
     lastNotificationId: null,
+    _pollInterval: null,
     async initWebPush() {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
             console.warn('Push not supported — fallback to in-tab Notification API only');
@@ -43,9 +44,28 @@ new class extends Component {
         }
         try {
             const registration = await navigator.serviceWorker.ready;
+            const vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim();
             let subscription = await registration.pushManager.getSubscription();
+            const storedVapid = localStorage.getItem('webpush_vapid_key') || '';
+            const vapidChanged = vapidKey && storedVapid && storedVapid !== vapidKey;
+            if (subscription && vapidChanged) {
+                console.warn('VAPID changed — resubscribing...', storedVapid.substring(0,8), '->', vapidKey.substring(0,8));
+                try { await subscription.unsubscribe(); } catch {}
+                try {
+                    const csrfDel = document.querySelector('meta[name=csrf-token]')?.content || '';
+                    await fetch('/push-subscriptions', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfDel, 'Accept': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint }) });
+                } catch {}
+                subscription = null;
+            }
             if (subscription) {
-                await this.syncSubscription(subscription);
+                const ok = await this.syncSubscription(subscription);
+                if (!ok && vapidKey) {
+                    console.warn('Sync failed — forcing resubscribe');
+                    try { await subscription.unsubscribe(); } catch {}
+                    subscription = null;
+                } else if (vapidKey) {
+                    localStorage.setItem('webpush_vapid_key', vapidKey);
+                }
             }
             if (Notification.permission === 'granted' && !subscription) {
                 console.log('Permission granted but no subscription — auto-subscribing...');
@@ -53,6 +73,15 @@ new class extends Component {
             }
             if (Notification.permission === 'default') {
                 console.log('Notification permission not yet requested');
+            }
+            if (Notification.permission === 'denied' && subscription) {
+                console.warn('Permission denied but subscription exists — cleaning up');
+                try { await subscription.unsubscribe(); } catch {}
+                try {
+                    const csrfD = document.querySelector('meta[name=csrf-token]')?.content || '';
+                    await fetch('/push-subscriptions', { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfD, 'Accept': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint }) });
+                } catch {}
+                localStorage.removeItem('webpush_vapid_key');
             }
         } catch (e) {
             console.error('Web Push init error:', e);
@@ -70,14 +99,20 @@ new class extends Component {
         try {
             const vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim();
             if (!vapidKey) { console.warn('VAPID key missing, cannot auto-subscribe'); return; }
+            if (vapidKey.length < 80 || vapidKey.length > 90) console.warn('VAPID key length suspicious:', vapidKey.length);
             console.log('Auto-subscribe attempting with VAPID len', vapidKey.length);
             const newSub = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: this.urlBase64ToUint8Array(vapidKey),
             });
-            await this.syncSubscription(newSub);
+            const ok = await this.syncSubscription(newSub);
+            if (!ok) throw new Error('Sync failed after subscribe');
+            localStorage.setItem('webpush_vapid_key', vapidKey);
             console.log('Auto-subscribed to push');
             window.dispatchEvent(new CustomEvent('push-subscription-changed', { detail: { subscribed: true } }));
+            try {
+                await fetch('/push-subscriptions/test-webpush', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || '', 'Accept': 'application/json' } });
+            } catch {}
         } catch (e) {
             console.error('Auto-subscribe failed:', e.name, e.message, e);
             if (e.name === 'AbortError' && retry === 0) {
@@ -89,7 +124,7 @@ new class extends Component {
                 await new Promise(r => setTimeout(r, 1000));
                 return this.autoSubscribe(registration, 1);
             }
-            if (e.name === 'AbortError' || e.name === 'NotAllowedError') {
+            if (e.name === 'AbortError' || e.name === 'NotAllowedError' || e.name === 'InvalidStateError') {
                 console.warn('Falling back to in-tab notifications — push service unavailable. Check: 1) not incognito, 2) FCM reachable, 3) not Brave with shields, 4) clear Application > Storage > Clear site data and reload.');
                 if (Notification.permission === 'granted') this.startFallbackPolling();
             }
@@ -107,7 +142,7 @@ new class extends Component {
             };
             if (!payload.keys) payload.keys = { p256dh, auth };
             const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
-            await fetch('/push-subscriptions', {
+            const res = await fetch('/push-subscriptions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -116,10 +151,18 @@ new class extends Component {
                     'Accept': 'application/json',
                 },
                 body: JSON.stringify(payload),
+                credentials: 'same-origin',
             });
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                console.error('Sync subscription failed:', res.status, txt);
+                return false;
+            }
             console.log('Push subscription synced');
+            return true;
         } catch (e) {
             console.error('Sync subscription failed:', e);
+            return false;
         }
     },
     showInTabNotification(detail) {
@@ -132,10 +175,11 @@ new class extends Component {
         }
     },
     startFallbackPolling() {
-        setInterval(async () => {
+        if (this._pollInterval) return;
+        this._pollInterval = setInterval(async () => {
             if (Notification.permission !== 'granted' || document.visibilityState !== 'visible') return;
             try {
-                const res = await fetch('/push-subscriptions/latest', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+                const res = await fetch('/push-subscriptions/latest', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
                 if (!res.ok) return;
                 const data = await res.json();
                 if (!data || !data.id || data.id === this.lastNotificationId) return;
@@ -149,7 +193,7 @@ new class extends Component {
                 this.showInTabNotification({ title, body, url });
             } catch (e) {}
         }, 15000);
-        fetch('/push-subscriptions/latest', { headers: { 'Accept': 'application/json' } }).then(r=>r.json()).then(d=>{ if(d && d.id) this.lastNotificationId=d.id; }).catch(()=>{});
+        fetch('/push-subscriptions/latest', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' }).then(r=>r.json()).then(d=>{ if(d && d.id) this.lastNotificationId=d.id; }).catch(()=>{});
     }
 }" style="display:none"></div>
 

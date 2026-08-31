@@ -148,7 +148,7 @@ new class extends Component {
 
             <form wire:submit="createPost" class="space-y-3">
                 <textarea wire:model="content" placeholder="{{ __('What are you working on?') }}"
-                    class="w-full bg-transparent border-none rounded-none px-0 py-1 text-sm focus:ring-0 transition-all resize-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600 min-h-[120px]"
+                    class="w-full bg-transparent border-none outline-none focus:outline-none focus:ring-0 rounded-none px-0 py-1 text-sm transition-all resize-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600 min-h-[120px]"
                     autofocus></textarea>
 
                 @error('content')

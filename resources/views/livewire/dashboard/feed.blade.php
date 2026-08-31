@@ -348,7 +348,7 @@ new class extends Component {
                         </div>
                         <div class="flex-1 min-w-0 space-y-2">
                             <textarea wire:model="content" placeholder="{{ __('Share your work...') }}"
-                                class="w-full bg-transparent border-none rounded-none px-0 py-1 text-sm focus:ring-0 transition-all resize-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+                                class="w-full bg-transparent border-none outline-none focus:outline-none focus:ring-0 rounded-none px-0 py-1 text-sm transition-all resize-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
                                 rows="1"></textarea>
 
                             <div class="flex flex-wrap gap-2">
