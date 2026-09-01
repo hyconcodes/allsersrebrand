@@ -286,7 +286,11 @@ new class extends Component {
 
         $this->activeConversation->update(['last_message_at' => now()]);
         $this->activeConversation->other_user->notify(new NewMessage($message));
-        broadcast(new MessageSent($message));
+        try {
+            broadcast(new MessageSent($message));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Pusher broadcast failed, message saved', ['id' => $message->id, 'error' => $e->getMessage()]);
+        }
         $this->messages[] = $message;
         $this->loadConversations();
         $this->dispatch('message-sent');
@@ -327,7 +331,11 @@ new class extends Component {
         ]);
 
         $this->activeConversation->other_user->notify(new NewMessage($message));
-        broadcast(new MessageSent($message));
+        try {
+            broadcast(new MessageSent($message));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Pusher broadcast failed, message saved', ['id' => $message->id, 'error' => $e->getMessage()]);
+        }
 
         $this->reset(['messageText', 'photo', 'document']);
 

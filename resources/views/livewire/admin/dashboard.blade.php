@@ -25,6 +25,8 @@ new class extends Component {
 
     public $postSearchQuery = '';
     public $userSearchQuery = '';
+    public $selectedUser = null;
+    public $showUserModal = false;
 
     public function mount()
     {
@@ -130,6 +132,19 @@ new class extends Component {
             ->latest()
             ->limit(5)
             ->get();
+    }
+
+    public function viewUser($userId)
+    {
+        $user = User::withCount('pushSubscriptions')->findOrFail($userId);
+        $this->selectedUser = $user;
+        $this->showUserModal = true;
+    }
+
+    public function closeUserModal()
+    {
+        $this->showUserModal = false;
+        $this->selectedUser = null;
     }
 
     public function updateUserRole($userId, $newRole)
@@ -547,6 +562,9 @@ new class extends Component {
                         </div>
 
                         <div class="flex items-center gap-2">
+                            <flux:button wire:click="viewUser({{ $user->id }})" variant="ghost" size="sm" class="font-bold text-xs uppercase">
+                                {{ __('View more') }}
+                            </flux:button>
                             @if ($user->role === 'artisan')
                                 <flux:button wire:click="updateUserRole({{ $user->id }}, 'guest')"
                                     variant="outline" size="sm"
@@ -582,6 +600,171 @@ new class extends Component {
         </div>
     </div>
 
+
+    <!-- User Detail Modal -->
+    <flux:modal wire:model="showUserModal" class="max-w-xl">
+        @if ($selectedUser)
+            <div class="space-y-0 max-h-[75vh] overflow-y-auto -mx-1 px-1"
+                 x-data="{
+                     decoded: '',
+                     loadingDecoded: false,
+                     async fetchDecoded() {
+                         const lat = '{{ $selectedUser->latitude }}';
+                         const lng = '{{ $selectedUser->longitude }}';
+                         if (!lat || !lng || lat === '—' || lng === '—') return;
+                         this.loadingDecoded = true;
+                         try {
+                             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`, { headers: { 'Accept': 'application/json' } });
+                             const data = await res.json();
+                             this.decoded = data.display_name || '';
+                         } catch (e) { this.decoded = ''; }
+                         this.loadingDecoded = false;
+                     }
+                 }"
+                 x-init="fetchDecoded()">
+                <!-- Header -->
+                <div class="flex items-start gap-4 pb-5">
+                    <div class="size-14 rounded-2xl overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-lg font-bold">
+                        @if ($selectedUser->profile_picture_url)
+                            <img src="{{ $selectedUser->profile_picture_url }}" class="size-full object-cover">
+                        @else
+                            {{ $selectedUser->initials() }}
+                        @endif
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <h3 class="font-bold text-zinc-900 dark:text-white truncate">{{ $selectedUser->name }}</h3>
+                        <p class="text-xs text-zinc-500 break-all">{{ '@' . $selectedUser->username }} • <span class="break-all">{{ $selectedUser->email }}</span></p>
+                        <span class="mt-1.5 inline-flex px-2 py-0.5 rounded text-xs font-bold uppercase {{ $selectedUser->role === 'artisan' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600' }}">{{ $selectedUser->role }}</span>
+                    </div>
+                </div>
+
+                <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+                <!-- Account Section -->
+                <div class="py-4 space-y-3">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-400">Account</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase text-zinc-400">Username</p>
+                            <p class="text-sm text-zinc-900 dark:text-zinc-100 font-medium break-all">{{ '@' . $selectedUser->username }}</p>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase text-zinc-400">Email</p>
+                            <p class="text-sm text-zinc-900 dark:text-zinc-100 break-all">{{ $selectedUser->email }}</p>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase text-zinc-400">Work</p>
+                            <p class="text-sm text-zinc-900 dark:text-zinc-100 break-words">{{ $selectedUser->work ?: '—' }}</p>
+                            @if ($selectedUser->work_status)
+                                <p class="text-xs text-zinc-500 break-words">{{ $selectedUser->work_status }}</p>
+                            @endif
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase text-zinc-400">Phone</p>
+                            <p class="text-sm text-zinc-900 dark:text-zinc-100 break-all">{{ $selectedUser->phone_number ?: '—' }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+                <!-- Location Section — Two Locations -->
+                <div class="py-4 space-y-4">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-400">Location</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="min-w-0 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
+                            <p class="text-xs font-bold uppercase text-zinc-400 mb-1">Stored Address</p>
+                            <p class="text-sm text-zinc-900 dark:text-zinc-100 break-words leading-relaxed">{{ $selectedUser->address ?: '—' }}</p>
+                            @if ($selectedUser->country_code)
+                                <p class="text-xs text-zinc-500 mt-1 break-all">{{ $selectedUser->country_code }}</p>
+                            @endif
+                        </div>
+                        <div class="min-w-0 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
+                            <div class="flex items-center justify-between gap-2 mb-1">
+                                <p class="text-xs font-bold uppercase text-zinc-400">Current Location (decoded)</p>
+                                <button @click="fetchDecoded()" x-bind:disabled="loadingDecoded" class="size-6 flex items-center justify-center rounded-full hover:bg-white dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-purple-600 dark:text-zinc-400 dark:hover:text-purple-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0" title="Refetch location">
+                                    <span x-bind:class="loadingDecoded ? 'animate-spin' : ''" class="flex">
+                                        <flux:icon name="arrow-path" class="size-3.5" />
+                                    </span>
+                                </button>
+                            </div>
+                            <template x-if="loadingDecoded">
+                                <p class="text-xs text-zinc-500 flex items-center gap-1.5"><span class="size-3 border-2 border-zinc-300 border-t-purple-600 rounded-full animate-spin"></span> Resolving...</p>
+                            </template>
+                            <template x-if="!loadingDecoded">
+                                <p class="text-sm text-zinc-900 dark:text-zinc-100 break-words leading-relaxed" x-text="decoded || '—'"></p>
+                            </template>
+                            <p class="text-xs text-zinc-400 mt-1 break-words" x-show="decoded" x-text="'via coordinates'"></p>
+                        </div>
+                    </div>
+                    <div class="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-800">
+                        <p class="text-xs font-bold uppercase text-zinc-400 mb-1">Coordinates</p>
+                        <p class="text-zinc-900 dark:text-zinc-100 font-mono text-xs break-all">{{ $selectedUser->latitude ?: '—' }}, {{ $selectedUser->longitude ?: '—' }}</p>
+                        @if ($selectedUser->latitude && $selectedUser->longitude)
+                            <a href="https://www.openstreetmap.org/?mlat={{ $selectedUser->latitude }}&mlon={{ $selectedUser->longitude }}#map=15/{{ $selectedUser->latitude }}/{{ $selectedUser->longitude }}" target="_blank" class="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline mt-1 break-all">
+                                <span>View on map</span>
+                                <flux:icon name="arrow-top-right-on-square" class="size-3" />
+                            </a>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+                <!-- Notifications Section -->
+                <div class="py-4 space-y-3">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-400">Notifications</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase text-zinc-400">Allowed Notification</p>
+                            @php $hasPush = $selectedUser->pushSubscriptions()->exists(); @endphp
+                            <span class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold break-all {{ $hasPush ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' }}">
+                                <span class="size-2 rounded-full shrink-0 {{ $hasPush ? 'bg-green-500' : 'bg-zinc-400' }}"></span>
+                                <span class="truncate">{{ $hasPush ? 'Yes — Granted' : 'No / Not yet' }}</span>
+                            </span>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase text-zinc-400">Subscribed</p>
+                            @php $pushCount = $selectedUser->pushSubscriptions()->count(); @endphp
+                            <span class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold {{ $pushCount > 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }}">
+                                <span class="size-2 rounded-full shrink-0 {{ $pushCount > 0 ? 'bg-green-500' : 'bg-amber-500' }}"></span>
+                                <span class="truncate">{{ $pushCount > 0 ? $pushCount . ' device' . ($pushCount > 1 ? 's' : '') : 'Not subscribed' }}</span>
+                            </span>
+                            @if ($pushCount > 0)
+                                <p class="text-xs text-zinc-500 mt-1 break-all">{{ $pushCount }} active endpoint(s)</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+                <!-- System Section -->
+                <div class="py-4 grid grid-cols-2 gap-4">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold uppercase text-zinc-400">Joined</p>
+                        <p class="text-zinc-900 dark:text-zinc-100 text-xs break-all">{{ $selectedUser->created_at?->format('M d, Y g:i A') }}</p>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold uppercase text-zinc-400">Status</p>
+                        <p class="text-xs font-bold break-words {{ $selectedUser->isBanned() ? 'text-red-600' : 'text-green-600' }}">{{ $selectedUser->isBanned() ? 'Banned until ' . $selectedUser->banned_until?->format('M d, Y') : ($selectedUser->status ?: 'active') }}</p>
+                    </div>
+                </div>
+
+                @if ($selectedUser->bio)
+                    <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+                    <div class="py-4">
+                        <p class="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">Bio</p>
+                        <p class="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed break-words whitespace-pre-wrap">{{ $selectedUser->bio }}</p>
+                    </div>
+                @endif
+
+                <div class="flex justify-end pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                    <flux:button wire:click="closeUserModal" variant="ghost">{{ __('Close') }}</flux:button>
+                </div>
+            </div>
+        @endif
+    </flux:modal>
 
     <!-- Chart Scripts -->
     @push('scripts')
