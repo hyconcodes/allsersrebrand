@@ -250,6 +250,7 @@ new class extends Component {
                 isSubscribed: false,
                 isChecking: true,
                 vapidKey: '',
+                notSupported: false,
                 urlBase64ToUint8Array(base64String) {
                     const padding = '='.repeat((4 - base64String.length % 4) % 4);
                     const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -258,31 +259,38 @@ new class extends Component {
                     for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
                     return outputArray;
                 },
-                async getRegistration() {
-                    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 3000));
-                    return Promise.race([navigator.serviceWorker.ready, timeout]);
-                },
                 async checkSubscription() {
                     this.isChecking = true;
                     try {
-                        this.isGranted = window.Notification ? Notification.permission === 'granted' : false;
-                        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                            this.isSubscribed = this.isGranted;
+                        if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+                            this.notSupported = true;
+                            this.isGranted = false;
+                            this.isSubscribed = false;
                             return;
                         }
-                        const reg = await this.getRegistration().catch(() => null);
-                        if (!reg) { this.isSubscribed = false; return; }
+                        this.isGranted = Notification.permission === 'granted';
+                        if (Notification.permission === 'denied') {
+                            this.isSubscribed = false;
+                            return;
+                        }
+                        const reg = await navigator.serviceWorker.ready;
                         const sub = await reg.pushManager.getSubscription();
                         this.isSubscribed = !!sub;
                         this.isGranted = Notification.permission === 'granted';
                     } catch (e) {
-                        this.isGranted = window.Notification ? Notification.permission === 'granted' : false;
+                        console.warn('Check push state failed:', e);
+                        this.isGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
                     } finally {
                         this.isChecking = false;
                     }
                 },
                 async subscribe() {
                     try {
+                        if (typeof Notification === 'undefined') {
+                            if (window.Flux) Flux.toast({ variant: 'error', heading: 'Not Supported', text: 'Push notifications are not available. Try Chrome or Firefox.' });
+                            return;
+                        }
+
                         this.vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim() || this.vapidKey;
                         const pushSupported = ('serviceWorker' in navigator) && ('PushManager' in window);
                         if (!pushSupported) {
@@ -292,7 +300,12 @@ new class extends Component {
                             if (this.isGranted && window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'In-tab notifications enabled!' });
                             return;
                         }
+
                         let perm = Notification.permission;
+                        if (perm === 'denied') {
+                            if (window.Flux) Flux.toast({ variant: 'error', heading: 'Permission Denied', text: 'Notifications are blocked. Enable them in browser settings (click the lock icon in the address bar).' });
+                            return;
+                        }
                         if (perm !== 'granted') perm = await Notification.requestPermission();
                         this.isGranted = perm === 'granted';
                         if (perm !== 'granted') {
@@ -306,7 +319,7 @@ new class extends Component {
                                 return;
                             }
                         }
-                        const reg = await this.getRegistration();
+                        const reg = await navigator.serviceWorker.ready;
                         let sub = await reg.pushManager.getSubscription();
                         if (!sub) {
                             sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey) });
@@ -336,7 +349,15 @@ new class extends Component {
             }" x-init="checkSubscription(); window.addEventListener('push-subscription-changed', e => { isSubscribed = e.detail.subscribed; if(e.detail.subscribed) isGranted = true; })"
                 class="flex flex-col gap-3">
                 <div x-show="!isChecking" x-cloak class="space-y-3">
-                    <template x-if="!isGranted && !isSubscribed">
+                    <template x-if="notSupported">
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+                                <flux:icon name="exclamation-triangle" variant="solid" class="size-4 text-zinc-400" />
+                                <span class="text-sm text-zinc-500">{{ __('Push notifications are not available in this browser. Try Chrome or Firefox.') }}</span>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!notSupported && !isGranted && !isSubscribed">
                         <div class="space-y-3">
                             <flux:button @click="subscribe()" icon="bell" variant="outline" class="w-full">
                                 {{ __('Enable Browser Notifications') }}

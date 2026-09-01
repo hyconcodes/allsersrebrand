@@ -11,6 +11,7 @@ new class extends Component {}; ?>
     isChecking: true,
     loading: false,
     vapidKey: '',
+    notSupported: false,
     urlBase64ToUint8Array(base64String) {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
         const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -19,31 +20,34 @@ new class extends Component {}; ?>
         for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
         return outputArray;
     },
-    async getRegistration() {
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 3000));
-        return Promise.race([navigator.serviceWorker.ready, timeout]);
-    },
     async checkState() {
         try {
-            this.isGranted = window.Notification ? Notification.permission === 'granted' : false;
-            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                this.isSubscribed = this.isGranted;
+            if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+                this.notSupported = true;
+                this.isGranted = false;
+                this.isSubscribed = false;
                 return;
             }
-            const reg = await this.getRegistration().catch(() => null);
-            if (!reg) { this.isSubscribed = false; return; }
+            this.isGranted = Notification.permission === 'granted';
+            if (Notification.permission === 'denied') {
+                this.isSubscribed = false;
+                return;
+            }
+            const reg = await navigator.serviceWorker.ready;
             const sub = await reg.pushManager.getSubscription();
             this.isSubscribed = !!sub;
             this.isGranted = Notification.permission === 'granted';
         } catch (e) {
-            this.isGranted = window.Notification ? Notification.permission === 'granted' : false;
+            console.warn('Check push state failed:', e);
+            this.isGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
         } finally {
             this.isChecking = false;
         }
     },
     shouldShow() {
+        if (this.notSupported) return false;
         if (this.isGranted && this.isSubscribed) return false;
-        if (window.Notification && Notification.permission === 'denied') return false;
+        if (typeof Notification !== 'undefined' && Notification.permission === 'denied') return false;
         return !this.isGranted || !this.isSubscribed;
     },
     async initPrompt() {
@@ -67,6 +71,12 @@ new class extends Component {}; ?>
         if (this.loading) return;
         this.loading = true;
         try {
+            if (typeof Notification === 'undefined') {
+                if (window.Flux) Flux.toast({ variant: 'error', heading: 'Not Supported', text: 'Push notifications are not available. Try Chrome or Firefox.' });
+                this.show = false;
+                return;
+            }
+
             const pushSupported = ('serviceWorker' in navigator) && ('PushManager' in window);
             if (!pushSupported) {
                 const perm = await Notification.requestPermission();
@@ -79,11 +89,17 @@ new class extends Component {}; ?>
                 }
                 return;
             }
+
             let perm = Notification.permission;
+            if (perm === 'denied') {
+                if (window.Flux) Flux.toast({ variant: 'error', heading: 'Permission Denied', text: 'Notifications are blocked. Enable them in browser settings (click the lock icon in the address bar).' });
+                this.show = false;
+                return;
+            }
             if (perm !== 'granted') perm = await Notification.requestPermission();
             this.isGranted = perm === 'granted';
             if (perm !== 'granted') {
-                if (window.Flux) Flux.toast({ variant: 'error', heading: 'Permission denied', text: 'Please allow notifications in browser settings.' });
+                if (window.Flux) Flux.toast({ variant: 'error', heading: 'Permission Denied', text: 'Please allow notifications in browser settings.' });
                 this.show = false;
                 return;
             }
@@ -92,7 +108,7 @@ new class extends Component {}; ?>
                 if (window.Flux) Flux.toast({ variant: 'error', heading: 'Error', text: 'VAPID key not configured.' });
                 return;
             }
-            const reg = await this.getRegistration();
+            const reg = await navigator.serviceWorker.ready;
             let sub = await reg.pushManager.getSubscription();
             if (!sub) {
                 sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey) });
