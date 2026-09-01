@@ -16,7 +16,7 @@ new class extends Component {
 <div x-data="{
     subscribed: @entangle('isSubscribed'),
     loading: false,
-    vapidKey: document.querySelector('meta[name=vapid-public-key]')?.content || '',
+    vapidKey: '',
     urlBase64ToUint8Array(base64String) {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
         const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -25,13 +25,18 @@ new class extends Component {
         for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
         return outputArray;
     },
+    async getRegistration() {
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 3000));
+        return Promise.race([navigator.serviceWorker.ready, timeout]);
+    },
     async checkInitialState() {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
             this.subscribed = Notification.permission === 'granted';
             return;
         }
         try {
-            const reg = await navigator.serviceWorker.ready;
+            const reg = await this.getRegistration().catch(() => null);
+            if (!reg) { this.subscribed = false; return; }
             const sub = await reg.pushManager.getSubscription();
             this.subscribed = !!sub;
         } catch (e) {
@@ -59,17 +64,21 @@ new class extends Component {
                 return;
             }
 
-            const registration = await navigator.serviceWorker.ready;
+            this.vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim() || this.vapidKey;
+            const registration = await this.getRegistration();
             let subscription = await registration.pushManager.getSubscription();
             const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
 
             if (this.subscribed && subscription) {
-                await fetch('/push-subscriptions', {
+                const resDel = await fetch('/push-subscriptions', {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    credentials: 'same-origin',
                     body: JSON.stringify({ endpoint: subscription.endpoint }),
                 });
+                if (!resDel.ok) console.warn('Delete subscription failed', resDel.status);
                 await subscription.unsubscribe();
+                localStorage.removeItem('webpush_vapid_key');
                 this.subscribed = false;
                 $dispatch('toast', { type: 'info', title: 'Notifications Paused', message: 'You will no longer receive push notifications.' });
             } else {
@@ -80,21 +89,32 @@ new class extends Component {
                     return;
                 }
                 if (!this.vapidKey) {
-                    $dispatch('toast', { type: 'error', title: 'Error', message: 'VAPID key not configured.' });
-                    return;
+                    this.vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim();
+                    if (!this.vapidKey) {
+                        $dispatch('toast', { type: 'error', title: 'Error', message: 'VAPID key not configured.' });
+                        return;
+                    }
                 }
                 subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey),
                 });
                 const payload = subscription.toJSON();
-                await fetch('/push-subscriptions', {
+                const res = await fetch('/push-subscriptions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    credentials: 'same-origin',
                     body: JSON.stringify(payload),
                 });
+                if (!res.ok) throw new Error('Failed to save subscription');
+                localStorage.setItem('webpush_vapid_key', this.vapidKey);
                 this.subscribed = true;
                 $dispatch('toast', { type: 'success', title: 'Notifications Enabled', message: 'You are now subscribed to real-time updates!' });
+                try {
+                    const csrf2 = document.querySelector('meta[name=csrf-token]')?.content || '';
+                    await fetch('/push-subscriptions/test-webpush', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf2, 'Accept': 'application/json' }, credentials: 'same-origin' });
+                } catch {}
+                window.dispatchEvent(new CustomEvent('push-subscription-changed', { detail: { subscribed: true } }));
             }
         } catch (e) {
             console.error('Toggle Web Push Error:', e.name, e.message, e);

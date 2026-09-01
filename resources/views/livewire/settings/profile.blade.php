@@ -249,7 +249,7 @@ new class extends Component {
                 isGranted: false,
                 isSubscribed: false,
                 isChecking: true,
-                vapidKey: document.querySelector('meta[name=vapid-public-key]')?.content || '',
+                vapidKey: '',
                 urlBase64ToUint8Array(base64String) {
                     const padding = '='.repeat((4 - base64String.length % 4) % 4);
                     const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -257,6 +257,10 @@ new class extends Component {
                     const outputArray = new Uint8Array(rawData.length);
                     for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
                     return outputArray;
+                },
+                async getRegistration() {
+                    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 3000));
+                    return Promise.race([navigator.serviceWorker.ready, timeout]);
                 },
                 async checkSubscription() {
                     this.isChecking = true;
@@ -266,7 +270,8 @@ new class extends Component {
                             this.isSubscribed = this.isGranted;
                             return;
                         }
-                        const reg = await navigator.serviceWorker.ready;
+                        const reg = await this.getRegistration().catch(() => null);
+                        if (!reg) { this.isSubscribed = false; return; }
                         const sub = await reg.pushManager.getSubscription();
                         this.isSubscribed = !!sub;
                         this.isGranted = Notification.permission === 'granted';
@@ -278,6 +283,7 @@ new class extends Component {
                 },
                 async subscribe() {
                     try {
+                        this.vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim() || this.vapidKey;
                         const pushSupported = ('serviceWorker' in navigator) && ('PushManager' in window);
                         if (!pushSupported) {
                             const perm = await Notification.requestPermission();
@@ -293,20 +299,34 @@ new class extends Component {
                             if (window.Flux) Flux.toast({ variant: 'error', heading: 'Permission denied', text: 'Please allow notifications in browser settings.' });
                             return;
                         }
-                        const reg = await navigator.serviceWorker.ready;
+                        if (!this.vapidKey) {
+                            this.vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim();
+                            if (!this.vapidKey) {
+                                if (window.Flux) Flux.toast({ variant: 'error', heading: 'Error', text: 'VAPID key not configured.' });
+                                return;
+                            }
+                        }
+                        const reg = await this.getRegistration();
                         let sub = await reg.pushManager.getSubscription();
                         if (!sub) {
                             sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey) });
                             const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
-                            await fetch('/push-subscriptions', {
+                            const res = await fetch('/push-subscriptions', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                                credentials: 'same-origin',
                                 body: JSON.stringify(sub.toJSON()),
                             });
+                            if (!res.ok) throw new Error('Failed to save subscription');
+                            localStorage.setItem('webpush_vapid_key', this.vapidKey);
                         }
                         this.isSubscribed = true;
                         window.dispatchEvent(new CustomEvent('push-subscription-changed', { detail: { subscribed: true } }));
                         if (window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'You will now receive real-time notifications!' });
+                        try {
+                            const csrf2 = document.querySelector('meta[name=csrf-token]')?.content || '';
+                            await fetch('/push-subscriptions/test-webpush', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf2, 'Accept': 'application/json' }, credentials: 'same-origin' });
+                        } catch {}
                     } catch (e) {
                         console.error('Subscribe error:', e.name, e.message, e);
                         if (e.name === 'AbortError' && window.Flux) Flux.toast({ variant: 'error', heading: 'Push service error', text: 'Clear site data and reload, or try Chrome (not Brave incognito). FCM may be blocked by VPN.' });

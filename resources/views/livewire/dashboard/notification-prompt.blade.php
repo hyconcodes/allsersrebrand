@@ -10,7 +10,7 @@ new class extends Component {}; ?>
     isSubscribed: false,
     isChecking: true,
     loading: false,
-    vapidKey: document.querySelector('meta[name=vapid-public-key]')?.content || '',
+    vapidKey: '',
     urlBase64ToUint8Array(base64String) {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
         const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -19,6 +19,10 @@ new class extends Component {}; ?>
         for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
         return outputArray;
     },
+    async getRegistration() {
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 3000));
+        return Promise.race([navigator.serviceWorker.ready, timeout]);
+    },
     async checkState() {
         try {
             this.isGranted = window.Notification ? Notification.permission === 'granted' : false;
@@ -26,7 +30,8 @@ new class extends Component {}; ?>
                 this.isSubscribed = this.isGranted;
                 return;
             }
-            const reg = await navigator.serviceWorker.ready;
+            const reg = await this.getRegistration().catch(() => null);
+            if (!reg) { this.isSubscribed = false; return; }
             const sub = await reg.pushManager.getSubscription();
             this.isSubscribed = !!sub;
             this.isGranted = Notification.permission === 'granted';
@@ -82,18 +87,20 @@ new class extends Component {}; ?>
                 this.show = false;
                 return;
             }
-            const reg = await navigator.serviceWorker.ready;
+            this.vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim() || this.vapidKey;
+            if (!this.vapidKey) {
+                if (window.Flux) Flux.toast({ variant: 'error', heading: 'Error', text: 'VAPID key not configured.' });
+                return;
+            }
+            const reg = await this.getRegistration();
             let sub = await reg.pushManager.getSubscription();
             if (!sub) {
-                if (!this.vapidKey) {
-                    if (window.Flux) Flux.toast({ variant: 'error', heading: 'Error', text: 'VAPID key not configured.' });
-                    return;
-                }
                 sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.urlBase64ToUint8Array(this.vapidKey) });
                 const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
                 const res = await fetch('/push-subscriptions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    credentials: 'same-origin',
                     body: JSON.stringify(sub.toJSON()),
                 });
                 if (!res.ok) throw new Error('Failed to save subscription');
@@ -105,7 +112,7 @@ new class extends Component {}; ?>
             if (window.Flux) Flux.toast({ variant: 'success', heading: 'Success', text: 'You will now receive real-time notifications!' });
             try {
                 const csrf2 = document.querySelector('meta[name=csrf-token]')?.content || '';
-                await fetch('/push-subscriptions/test-webpush', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf2, 'Accept': 'application/json' } });
+                await fetch('/push-subscriptions/test-webpush', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf2, 'Accept': 'application/json' }, credentials: 'same-origin' });
             } catch (e) { console.warn('Test webpush trigger failed', e); }
         } catch (e) {
             console.error('Prompt subscribe error:', e.name, e.message, e);

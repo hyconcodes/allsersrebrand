@@ -30,6 +30,10 @@ new class extends Component {
     },
     lastNotificationId: null,
     _pollInterval: null,
+    async getRegistration() {
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 3000));
+        return Promise.race([navigator.serviceWorker.ready, timeout]);
+    },
     async initWebPush() {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
             console.warn('Push not supported — fallback to in-tab Notification API only');
@@ -43,7 +47,8 @@ new class extends Component {
             return;
         }
         try {
-            const registration = await navigator.serviceWorker.ready;
+            const registration = await this.getRegistration().catch(() => null);
+            if (!registration) { console.warn('SW not ready within 3s — skipping auto-subscribe'); return; }
             const vapidKey = (document.querySelector('meta[name=vapid-public-key]')?.content || '').trim();
             let subscription = await registration.pushManager.getSubscription();
             const storedVapid = localStorage.getItem('webpush_vapid_key') || '';
