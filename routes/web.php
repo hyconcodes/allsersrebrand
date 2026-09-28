@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\PushSubscriptionController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -12,6 +13,12 @@ Route::get('/', function () {
 
 Route::view('privacy-policy', 'privacy-policy')->name('privacy');
 Route::view('terms-of-service', 'terms-of-service')->name('terms');
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/email/verify', [EmailVerificationController::class, 'notice'])->name('verification.notice');
+    Route::post('/email/verify', [EmailVerificationController::class, 'verify'])->name('verification.verify');
+    Route::post('/email/verification-notification', [EmailVerificationController::class, 'send'])->name('verification.send');
+});
 
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])

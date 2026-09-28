@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Notifications\EmailVerificationCodeNotification;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use NotificationChannels\WebPush\HasPushSubscriptions;
@@ -44,6 +47,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'banned_until',
         'smart_rating', // Weighted rating
         'onesignal_player_id',
+        'email_verification_code',
+        'email_verification_expires_at',
     ];
 
     /**
@@ -67,6 +72,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'email_verification_expires_at' => 'datetime',
             'password' => 'hashed',
             'latitude' => 'decimal:8',
             'longitude' => 'decimal:8',
@@ -74,6 +80,52 @@ class User extends Authenticatable implements MustVerifyEmail
             'banned_until' => 'datetime',
             'is_admin' => 'boolean',
         ];
+    }
+
+    public function generateEmailVerificationCode(): string
+    {
+        $code = strtoupper(Str::random(8));
+
+        $this->forceFill([
+            'email_verification_code' => $code,
+            'email_verification_expires_at' => Date::now()->addMinutes(15),
+        ])->save();
+
+        return $code;
+    }
+
+    public function verifyEmailOtp(string $code): bool
+    {
+        $normalizedCode = strtoupper(trim($code));
+
+        if ($this->email_verified_at !== null || blank($this->email_verification_code) || blank($this->email_verification_expires_at)) {
+            return false;
+        }
+
+        if ($this->email_verification_expires_at->isPast()) {
+            return false;
+        }
+
+        if (! hash_equals($this->email_verification_code, $normalizedCode)) {
+            return false;
+        }
+
+        $this->forceFill([
+            'email_verified_at' => now(),
+            'email_verification_code' => null,
+            'email_verification_expires_at' => null,
+        ])->save();
+
+        event(new Verified($this));
+
+        return true;
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $code = $this->generateEmailVerificationCode();
+
+        $this->notify(new EmailVerificationCodeNotification($code));
     }
 
     public function getRouteKeyName()
