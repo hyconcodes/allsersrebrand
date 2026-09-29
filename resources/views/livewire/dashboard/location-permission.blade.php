@@ -28,19 +28,6 @@ new class extends Component {
             const threeDays = 3 * 24 * 60 * 60 * 1000;
             return (Date.now() - ts) < threeDays;
         },
-        showNudgeToast() {
-            const heading = 'TURN ON YOUR LOCATION';
-            const text = 'Enable location to find trusted pros near you.';
-            console.log('%c[Allsers][LocationBanner]', 'color:#d97706;font-weight:800', 'Nudge toast →', { heading, text });
-            const detail = { type: 'warning', title: heading, message: text, timeout: 6500 };
-            if (window.Flux && typeof Flux.toast === 'function') {
-                try { Flux.toast({ variant: 'warning', heading, text }); } catch (e) { console.warn('[Allsers][LocationBanner] Flux.toast nudge failed', e); window.dispatchEvent(new CustomEvent('toast', { detail })); }
-                // Always also dispatch custom event so x-ui/toast is guaranteed
-                try { window.dispatchEvent(new CustomEvent('toast', { detail })); } catch (_) {}
-            } else {
-                window.dispatchEvent(new CustomEvent('toast', { detail }));
-            }
-        },
         async initBanner() {
             const tag = '[Allsers][LocationBanner]';
             console.log(`%c${tag}`, 'color:#6a11cb;font-weight:800', 'initBanner', { hasLocation: this.hasLocation, href: location.href });
@@ -79,8 +66,6 @@ new class extends Component {
                         console.log(`${tag} showing banner`);
                         this.show = true;
                         this.checking = false;
-                        // Show nudge toast shortly after banner appears
-                        setTimeout(() => this.showNudgeToast(), 700);
                     } else {
                         console.log(`${tag} banner suppressed after delay`);
                         this.checking = false;

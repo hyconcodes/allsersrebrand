@@ -178,16 +178,7 @@ new class extends Component {
             }
 
             if (perm === 'prompt') {
-                this._info('Permission = prompt — browser will show native permission dialog. On some browsers this requires a user gesture; silent call may be blocked (code 1). Proceeding anyway…');
-                // Also nudge immediately so user sees banner/toast even if prompt is blocked silently
-                const nudge = { type: 'warning', title: 'TURN ON YOUR LOCATION', message: 'Enable location to find trusted pros near you.', timeout: 6500 };
-                try {
-                    if (window.Flux && typeof Flux.toast === 'function') Flux.toast({ variant: 'warning', heading: nudge.title, text: nudge.message });
-                    else window.dispatchEvent(new CustomEvent('toast', { detail: nudge }));
-                    // duplicate to custom toast for guarantee
-                    window.dispatchEvent(new CustomEvent('toast', { detail: nudge }));
-                    this._log('Dispatched TURN ON YOUR LOCATION nudge (prompt state)', nudge);
-                } catch (_) {}
+                this._info('Permission = prompt — will attempt getCurrentPosition; if browser blocks without gesture, code 1 toast will follow. No immediate nudge to avoid double toast.');
             } else if (perm === 'granted') {
                 this._log('Permission = granted — silent sync should succeed without prompt');
             } else {
