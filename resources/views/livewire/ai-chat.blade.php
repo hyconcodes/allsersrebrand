@@ -724,17 +724,64 @@ new class extends Component {
         </div>
 
         <script>
-            document.addEventListener('livewire:initialized', () => {
-                @this.on('get-location', () => {
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition((position) => {
-                            @this.setLocation(position.coords.latitude, position.coords.longitude);
-                        }, (error) => {
-                            console.error('Geolocation error:', error);
-                        });
-                    }
+            (function() {
+                const TAG = '[Allsers][Lila][Location]';
+                function log(...a){ console.log(`%c${TAG}`, 'color:#6a11cb;font-weight:800', ...a); }
+                function warn(...a){ console.warn(TAG, ...a); }
+                // Do NOT toast here — location-sync is the single source of truth for Location sync. toasts
+                // This listener only logs + keeps Lila header in sync, to avoid double toasts.
+                window.addEventListener('location-synced', (e) => {
+                    const addr = e.detail?.short_address || e.detail?.address || '';
+                    const src = e.detail?.source || 'unknown';
+                    const ctx = e.detail?.ctx || '?';
+                    log('event: location-synced received', { addr, src, ctx, detail: e.detail });
+                    try {
+                        if (addr && window.Livewire) {
+                            const el = document.getElementById('chat-messages');
+                            if (el) el.dispatchEvent(new CustomEvent('location-synced-lila', { detail: e.detail, bubbles: true }));
+                        }
+                    } catch (err) { warn('location-synced-lila dispatch failed', err); }
                 });
-            });
+                window.addEventListener('location-saved', (e) => {
+                    log('event: location-saved received (banner/manual)', e.detail);
+                });
+                window.addEventListener('location-synced-lila', () => {});
+
+                document.addEventListener('livewire:initialized', () => {
+                    @this.on('get-location', () => {
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition((position) => {
+                                @this.setLocation(position.coords.latitude, position.coords.longitude);
+                                // Also trigger global save — toast will be emitted by location-sync (single source; avoids double toast)
+                                (async () => {
+                                    try {
+                                        const lat = position.coords.latitude;
+                                        const lng = position.coords.longitude;
+                                        const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
+                                        console.log(`%c[Allsers][Lila][Location]`, 'color:#6a11cb;font-weight:800', 'Manual get-location → POST /location', { lat, lng });
+                                        const res = await fetch('{{ route('location.update') }}', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                                            credentials: 'same-origin',
+                                            body: JSON.stringify({ latitude: lat, longitude: lng }),
+                                        });
+                                        const j = await res.json().catch(()=>({}));
+                                        console.log(`%c[Allsers][Lila][Location]`, 'color:#6a11cb;font-weight:800', 'POST /location →', res.status, j);
+                                        if (res.ok) {
+                                            const addr = j.short_address || j.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                                            // Dispatch through canonical channel so location-sync logs + single toast
+                                            window.dispatchEvent(new CustomEvent('location-saved', { detail: { latitude: lat, longitude: lng, address: addr, short_address: j.short_address || addr }}));
+                                            window.dispatchEvent(new CustomEvent('location-synced', { detail: { address: addr, short_address: j.short_address || addr, source: 'lila-manual' }}));
+                                        }
+                                    } catch (err) { console.warn('[Allsers][Lila][Location] manual POST failed', err); }
+                                })();
+                            }, (error) => {
+                                console.warn(`%c[Allsers][Lila][Location]`, 'color:#dc2626;font-weight:700', 'Geolocation error (manual)', { code: error?.code, message: error?.message, error });
+                            });
+                        }
+                    });
+                });
+            })();
         </script>
 
         <style>

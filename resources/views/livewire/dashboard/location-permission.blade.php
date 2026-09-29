@@ -28,25 +28,66 @@ new class extends Component {
             const threeDays = 3 * 24 * 60 * 60 * 1000;
             return (Date.now() - ts) < threeDays;
         },
+        showNudgeToast() {
+            const heading = 'TURN ON YOUR LOCATION';
+            const text = 'Enable location to find trusted pros near you.';
+            console.log('%c[Allsers][LocationBanner]', 'color:#d97706;font-weight:800', 'Nudge toast →', { heading, text });
+            const detail = { type: 'warning', title: heading, message: text, timeout: 6500 };
+            if (window.Flux && typeof Flux.toast === 'function') {
+                try { Flux.toast({ variant: 'warning', heading, text }); } catch (e) { console.warn('[Allsers][LocationBanner] Flux.toast nudge failed', e); window.dispatchEvent(new CustomEvent('toast', { detail })); }
+                // Always also dispatch custom event so x-ui/toast is guaranteed
+                try { window.dispatchEvent(new CustomEvent('toast', { detail })); } catch (_) {}
+            } else {
+                window.dispatchEvent(new CustomEvent('toast', { detail }));
+            }
+        },
         async initBanner() {
+            const tag = '[Allsers][LocationBanner]';
+            console.log(`%c${tag}`, 'color:#6a11cb;font-weight:800', 'initBanner', { hasLocation: this.hasLocation, href: location.href });
             this.checking = true;
             try {
-                if (this.hasLocation) { this.checking = false; return; }
-                if (this.wasDismissedRecently()) { this.checking = false; return; }
-                if (typeof navigator === 'undefined' || !navigator.geolocation) { this.checking = false; return; }
+                if (this.hasLocation) { console.log(`${tag} hasLocation=true → banner not shown`); this.checking = false; return; }
+                if (this.wasDismissedRecently()) { console.log(`${tag} dismissed recently → banner suppressed for 3 days`); this.checking = false; return; }
+                if (typeof navigator === 'undefined' || !navigator.geolocation) { console.warn(`${tag} no geolocation API`); this.checking = false; return; }
                 if (navigator.permissions && navigator.permissions.query) {
                     try {
                         const status = await navigator.permissions.query({ name: 'geolocation' });
-                        if (status.state === 'denied') {
-                            // still show once so user learns how to enable manually
-                        }
-                    } catch (_) {}
+                        console.log(`${tag} PermissionsAPI`, status.state);
+                    } catch (e) { console.warn(`${tag} PermissionsAPI query failed`, e); }
                 }
+                // Listen for global sync — if another component saves location, hide banner instantly
+                window.addEventListener('location-synced', (e) => {
+                    const addr = e.detail?.short_address || e.detail?.address || '';
+                    if (addr) {
+                        console.log(`${tag} location-synced received → hiding banner`, e.detail);
+                        this.hasLocation = true;
+                        this.show = false;
+                        this.checking = false;
+                    }
+                });
+                window.addEventListener('location-saved', (e) => {
+                    const addr = e.detail?.short_address || e.detail?.address || '';
+                    if (addr) {
+                        console.log(`${tag} location-saved received → hiding banner`, e.detail);
+                        this.hasLocation = true;
+                        this.show = false;
+                        this.checking = false;
+                    }
+                });
                 setTimeout(() => {
-                    if (!this.hasLocation && !this.wasDismissedRecently()) this.show = true;
-                    this.checking = false;
+                    if (!this.hasLocation && !this.wasDismissedRecently()) {
+                        console.log(`${tag} showing banner`);
+                        this.show = true;
+                        this.checking = false;
+                        // Show nudge toast shortly after banner appears
+                        setTimeout(() => this.showNudgeToast(), 700);
+                    } else {
+                        console.log(`${tag} banner suppressed after delay`);
+                        this.checking = false;
+                    }
                 }, 2200);
-            } catch (_) {
+            } catch (e) {
+                console.warn(`${tag} initBanner error`, e);
                 this.checking = false;
             }
         },
@@ -80,9 +121,9 @@ new class extends Component {
                     if (res.ok) {
                         const data = await res.json();
                         const addr = data.display_name || data.name || '';
-                        if (addr) this.address = addr.split(',').slice(0,3).join(',').trim();
-                    }
-                } catch (_) {}
+                        if (addr) { this.address = addr.split(',').slice(0,3).join(',').trim(); console.log('%c[Allsers][LocationBanner]', 'color:#6a11cb;font-weight:700', 'OSM pre-address', this.address); }
+                    } else console.warn('[Allsers][LocationBanner] OSM pre-fetch failed', res.status);
+                } catch (e) { console.warn('[Allsers][LocationBanner] OSM pre-fetch error', e); }
                 const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
                 const saveRes = await fetch('{{ route('location.update') }}', {
                     method: 'POST',
@@ -99,17 +140,25 @@ new class extends Component {
                     const j = await saveRes.json().catch(() => ({}));
                     throw new Error(j.message || 'Failed to save location.');
                 }
+                const json = await saveRes.json().catch(() => ({}));
+                const serverAddr = (json.short_address || json.address || '').trim();
+                const readable = serverAddr || this.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                const shortReadable = readable.split(',').slice(0,3).join(',').trim();
+                console.log('%c[Allsers][LocationBanner]', 'color:#16a34a;font-weight:800', '✓ Enable location success', { lat, lng, serverAddr, readable, shortReadable, postJson: json });
                 localStorage.removeItem(this.dismissedKey);
                 this.hasLocation = true;
                 this.show = false;
-                if (window.Flux) {
-                    Flux.toast({
-                        variant: 'success',
-                        heading: 'Location saved',
-                        text: this.address ? `You’re all set near ${this.address}.` : 'We’ll show you pros nearby.',
-                    });
-                }
-                window.dispatchEvent(new CustomEvent('location-saved', { detail: { latitude: lat, longitude: lng } }));
+                const heading = 'Location sync.';
+                const text = shortReadable;
+                const fluxOk = !!(window.Flux && typeof Flux.toast === 'function');
+                console.log('[Allsers][LocationBanner] dispatching toast', { heading, text, fluxOk });
+                if (fluxOk) { try { Flux.toast({ variant: 'success', heading, text }); console.log('[Allsers][LocationBanner] Flux.toast OK'); } catch (e) { console.warn('[Allsers][LocationBanner] Flux.toast threw', e); } }
+                // Always dispatch custom toast too so ui/toast shows it even if Flux race
+                try { window.dispatchEvent(new CustomEvent('toast', { detail: { type: 'success', title: heading, message: text, timeout: 6500 } })); console.log('[Allsers][LocationBanner] custom toast dispatched'); } catch (e) { console.error('[Allsers][LocationBanner] custom toast failed', e); }
+                if (!fluxOk) setTimeout(() => { if (window.Flux && typeof Flux.toast === 'function') try { Flux.toast({ variant: 'success', heading, text }); console.log('[Allsers][LocationBanner] retry Flux.toast OK'); } catch (_) {} }, 500);
+                window.dispatchEvent(new CustomEvent('location-saved', { detail: { latitude: lat, longitude: lng, address: readable, short_address: shortReadable } }));
+                window.dispatchEvent(new CustomEvent('location-synced', { detail: { latitude: lat, longitude: lng, address: readable, short_address: shortReadable } }));
+                console.log('[Allsers][LocationBanner] broadcast location-saved + location-synced');
                 setTimeout(() => window.location.reload(), 900);
             } catch (e) {
                 console.warn('Location enable failed:', e);

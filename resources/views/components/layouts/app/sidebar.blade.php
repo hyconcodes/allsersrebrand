@@ -181,6 +181,15 @@
 
     {{ $slot }}
 
+    {{-- Global banner: visible on every page except Lila/Finder (they have silent sync). Shows when DB location is missing. --}}
+    @auth
+        @if (!request()->routeIs('lila') && !request()->routeIs('finder'))
+            <div class="w-full max-w-7xl mx-auto px-4 lg:px-0 pt-4">
+                <livewire:dashboard.location-permission :key="'global-banner-'.auth()->id()" />
+            </div>
+        @endif
+    @endauth
+
     <x-ui.toast />
     @auth
         <x-ui.chat-toast />

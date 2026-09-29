@@ -59,19 +59,40 @@ Route::middleware(['auth'])->group(function () {
         $lat = $request->input('latitude');
         $lng = $request->input('longitude');
         $countryCode = $user->country_code ?: 'NG';
+        $displayName = null;
+        $shortAddress = null;
         try {
-            $res = \Illuminate\Support\Facades\Http::withHeaders(['User-Agent' => 'Allsers-App'])->timeout(3)
-                ->get("https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=10");
+            $res = \Illuminate\Support\Facades\Http::withHeaders(['User-Agent' => 'Allsers-App'])->timeout(4)
+                ->get("https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=18&addressdetails=1");
             if ($res->successful()) {
-                $countryCode = strtoupper($res->json()['address']['country_code'] ?? $countryCode);
+                $json = $res->json();
+                $displayName = $json['display_name'] ?? null;
+                $countryCode = strtoupper($json['address']['country_code'] ?? $countryCode);
+                if ($displayName) {
+                    $parts = array_map('trim', explode(',', $displayName));
+                    $shortAddress = implode(', ', array_slice($parts, 0, 3));
+                } elseif (!empty($json['address'])) {
+                    $a = $json['address'];
+                    $bits = array_filter([$a['road'] ?? null, $a['suburb'] ?? $a['neighbourhood'] ?? null, $a['city'] ?? $a['town'] ?? $a['village'] ?? $a['state'] ?? null]);
+                    $shortAddress = implode(', ', array_slice($bits, 0, 3));
+                    $displayName = $shortAddress;
+                }
             }
         } catch (\Throwable $e) {}
-        $user->update([
+        $update = [
             'latitude' => $lat,
             'longitude' => $lng,
             'country_code' => $countryCode,
+        ];
+        if ($displayName) $update['address'] = $displayName;
+        $user->update($update);
+        return response()->json([
+            'message' => 'Location saved',
+            'address' => $displayName,
+            'short_address' => $shortAddress ?: $displayName,
+            'latitude' => (float) $lat,
+            'longitude' => (float) $lng,
         ]);
-        return response()->json(['message' => 'Location saved']);
     })->name('location.update');
 
     Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');

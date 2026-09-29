@@ -345,6 +345,8 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
         </x-slot:left>
     </x-top-bar>
 
+    <livewire:location-sync context="finder" />
+
     <div class="flex flex-1 min-h-0 flex-col lg:flex-row">
 
     <!-- Left Panel: Search & Results -->
