@@ -50,6 +50,30 @@ Route::get('/vapid-public-key', function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+    Route::post('/location', function (\Illuminate\Http\Request $request) {
+        $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+        $user = $request->user();
+        $lat = $request->input('latitude');
+        $lng = $request->input('longitude');
+        $countryCode = $user->country_code ?: 'NG';
+        try {
+            $res = \Illuminate\Support\Facades\Http::withHeaders(['User-Agent' => 'Allsers-App'])->timeout(3)
+                ->get("https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=10");
+            if ($res->successful()) {
+                $countryCode = strtoupper($res->json()['address']['country_code'] ?? $countryCode);
+            }
+        } catch (\Throwable $e) {}
+        $user->update([
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'country_code' => $countryCode,
+        ]);
+        return response()->json(['message' => 'Location saved']);
+    })->name('location.update');
+
     Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
     Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
     Route::get('/push-subscriptions/latest', [PushSubscriptionController::class, 'latest'])->name('push-subscriptions.latest');

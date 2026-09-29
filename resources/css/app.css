@@ -106,13 +106,46 @@
 }
 
 .auth-card [data-flux-label] {
-    @apply !mb-0 !leading-tight !text-black !font-medium;
+    @apply !mb-1.5 !leading-tight !text-zinc-900 dark:!text-zinc-100 !font-bold !text-[13px];
 }
 
-.auth-card input, 
-.auth-card textarea, 
+.auth-card [data-flux-field] {
+    @apply gap-2;
+}
+
+.auth-card input,
+.auth-card textarea,
 .auth-card select {
-    @apply !text-black !bg-white placeholder:!text-zinc-400;
+    @apply !text-zinc-900 dark:!text-white !bg-white dark:!bg-zinc-900 placeholder:!text-zinc-400 dark:placeholder:!text-zinc-500;
+}
+
+.auth-card input[data-flux-control],
+.auth-card textarea[data-flux-control],
+.auth-card select[data-flux-control] {
+    @apply !rounded-xl !border-2 !border-zinc-200 dark:!border-zinc-700 !px-3.5 !py-3 !text-[14px] !font-medium !leading-none shadow-sm;
+}
+
+.auth-card input[data-flux-control]:hover,
+.auth-card textarea[data-flux-control]:hover,
+.auth-card select[data-flux-control]:hover {
+    @apply !border-zinc-300 dark:!border-zinc-600;
+}
+
+.auth-card input[data-flux-control]:focus,
+.auth-card textarea[data-flux-control]:focus,
+.auth-card select[data-flux-control]:focus {
+    @apply !border-[var(--color-brand-purple)] !ring-4 !ring-[var(--color-brand-purple)]/10 !outline-none;
+}
+
+/* Checkbox / radio visibility — larger, high-contrast */
+.auth-card input[type="checkbox"][data-flux-control],
+.auth-card input[type="checkbox"]:not([data-flux-control]) {
+    @apply !size-[18px] !rounded-[6px] !border-2 !border-zinc-300 dark:!border-zinc-600 !bg-white dark:!bg-zinc-900 !shadow-sm;
+}
+
+.auth-card input[type="radio"][data-flux-control],
+.auth-card input[type="radio"]:not([data-flux-control]) {
+    @apply !size-[18px] !border-2 !border-zinc-300 dark:!border-zinc-600 !bg-white dark:!bg-zinc-900;
 }
 
 input:focus[data-flux-control],
