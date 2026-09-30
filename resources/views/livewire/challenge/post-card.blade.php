@@ -129,11 +129,31 @@ new class extends Component {
         <div class="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800">
             <div class="flex items-center gap-6">
                 <!-- Like -->
-                <button wire:click="toggleLike" class="flex items-center gap-2 group">
-                    <flux:icon name="heart"
-                        class="size-5 transition-transform group-hover:scale-110 {{ $post->isLikedBy(auth()->user()) ? 'text-red-500' : 'text-zinc-400' }}"
-                        variant="{{ $post->isLikedBy(auth()->user()) ? 'solid' : 'outline' }}" />
-                    <span class="text-xs font-bold text-zinc-500">{{ number_format($post->likes_count) }}</span>
+                <button wire:click="toggleLike"
+                    x-data="{
+                        liked: {{ $post->isLikedBy(auth()->user()) ? 'true' : 'false' }},
+                        count: {{ $post->likes_count ?? 0 }},
+                        hearts: [],
+                        burst() {
+                            const colors = ['text-rose-500','text-pink-400','text-amber-400','text-purple-500','text-sky-400','text-emerald-400','text-orange-400'];
+                            const pts = [[-16,-12],[16,-10],[-11,-19],[12,-17],[0,-22],[-7,-15],[9,-14]];
+                            this.hearts = pts.map(([x,y], i) => ({ id: Date.now()+i+Math.random(), x, y, color: colors[i % colors.length], delay: i*38 }));
+                            setTimeout(() => this.hearts = [], 760);
+                        }
+                    }"
+                    @click="const willLike = !liked; liked = willLike; count += willLike ? 1 : -1; if (willLike) burst()"
+                    class="relative flex items-center gap-2 group"
+                    :class="liked ? 'text-red-500' : 'text-zinc-400 hover:text-red-500'">
+                    <span class="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
+                        <template x-for="h in hearts" :key="h.id">
+                            <span class="heart-burst absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" :style="`--tx:${h.x}px; --ty:${h.y}px; animation-delay:${h.delay}ms`">
+                                <span :class="h.color"><flux:icon name="heart" variant="solid" class="size-2.5 drop-shadow-sm" /></span>
+                            </span>
+                        </template>
+                    </span>
+                    <flux:icon name="heart" variant="solid"
+                        class="relative size-5 transition-transform group-hover:scale-110" />
+                    <span class="text-xs font-bold text-zinc-500" x-text="count">{{ number_format($post->likes_count) }}</span>
                 </button>
 
                 <!-- Comment (Direct link to post detail or local state) -->

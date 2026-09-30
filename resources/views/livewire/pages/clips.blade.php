@@ -134,20 +134,30 @@ new #[Layout('components.layouts.app')] class extends Component {
             <!-- Right Actions Side Bar -->
             <div class="absolute right-3 bottom-20 flex flex-col items-center gap-3 z-20">
                 <!-- Like -->
-                <button wire:click="toggleLike({{ $post->id }})" class="flex flex-col items-center gap-0.5 group">
-                    <div
-                        class="bg-zinc-900/50 backdrop-blur-md p-2 rounded-full transition-all group-hover:scale-110 {{ $post->isLikedBy(auth()->user()) ? 'text-red-500' : 'text-white' }}">
-                        @if ($post->isLikedBy(auth()->user()))
-                            <svg class="size-6 fill-current" viewBox="0 0 24 24">
-                                <path
-                                    d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-                            </svg>
-                        @else
-                            <flux:icon name="heart" class="size-6" />
-                        @endif
-                    </div>
-                    <span
-                        class="text-xs font-bold text-white shadow-black drop-shadow-md">{{ $post->likes_count }}</span>
+                <button wire:click="toggleLike({{ $post->id }})"
+                    x-data="{
+                        liked: {{ $post->isLikedBy(auth()->user()) ? 'true' : 'false' }},
+                        hearts: [],
+                        burst() {
+                            const colors = ['text-rose-500','text-pink-400','text-amber-400','text-purple-300','text-sky-300','text-emerald-300','text-orange-400'];
+                            const pts = [[-18,-14],[18,-12],[-12,-22],[14,-20],[0,-26],[-8,-18],[10,-16]];
+                            this.hearts = pts.map(([x,y], i) => ({ id: Date.now()+i+Math.random(), x, y, color: colors[i % colors.length], delay: i*38 }));
+                            setTimeout(() => this.hearts = [], 760);
+                        }
+                    }"
+                    @click="const willLike = !liked; liked = willLike; if (willLike) burst()"
+                    class="relative flex flex-col items-center gap-0.5 group">
+                    <span class="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
+                        <template x-for="h in hearts" :key="h.id">
+                            <span class="heart-burst absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" :style="`--tx:${h.x}px; --ty:${h.y}px; animation-delay:${h.delay}ms`">
+                                <span :class="h.color"><flux:icon name="heart" variant="solid" class="size-2.5 drop-shadow-sm" /></span>
+                            </span>
+                        </template>
+                    </span>
+                    <span class="relative bg-zinc-900/50 backdrop-blur-md p-2 rounded-full transition-all group-hover:scale-110" :class="liked ? 'text-red-500' : 'text-white'">
+                        <flux:icon name="heart" variant="solid" class="size-6" />
+                    </span>
+                    <span class="text-xs font-bold text-white shadow-black drop-shadow-md">{{ $post->likes_count }}</span>
                 </button>
 
                 <!-- Comment -->

@@ -361,16 +361,31 @@ new class extends Component {
                             class="flex items-center justify-between pt-4 border-t border-zinc-50 dark:border-zinc-800/50">
                             <div class="flex items-center gap-6">
                                 <button wire:click="toggleLike"
-                                    class="flex items-center gap-1.5 transition-colors {{ $post->isLikedBy(auth()->user()) ? 'text-red-500' : 'text-zinc-500 hover:text-red-500' }}">
-                                    @if ($post->isLikedBy(auth()->user()))
-                                        <svg class="size-[18px] fill-current" viewBox="0 0 24 24">
-                                            <path
-                                                d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-                                        </svg>
-                                    @else
-                                        <flux:icon name="heart" class="size-[18px]" />
-                                    @endif
-                                    <span class="text-xs">{{ $post->likes_count }}</span>
+                                    x-data="{
+                                        liked: {{ $post->isLikedBy(auth()->user()) ? 'true' : 'false' }},
+                                        count: {{ $post->likes_count ?? 0 }},
+                                        hearts: [],
+                                        burst() {
+                                            const colors = ['text-rose-500','text-pink-400','text-amber-400','text-purple-500','text-sky-400','text-emerald-400','text-orange-400'];
+                                            const pts = [[-16,-12],[16,-10],[-11,-19],[12,-17],[0,-22],[-7,-15],[9,-14]];
+                                            this.hearts = pts.map(([x,y], i) => ({ id: Date.now()+i+Math.random(), x, y, color: colors[i % colors.length], delay: i*38 }));
+                                            setTimeout(() => this.hearts = [], 760);
+                                        }
+                                    }"
+                                    @click="const willLike = !liked; liked = willLike; count += willLike ? 1 : -1; if (willLike) burst()"
+                                    class="relative flex items-center gap-1.5 transition-colors"
+                                    :class="liked ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500 hover:text-red-500'">
+                                    <span class="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
+                                        <template x-for="h in hearts" :key="h.id">
+                                            <span class="heart-burst absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" :style="`--tx:${h.x}px; --ty:${h.y}px; animation-delay:${h.delay}ms`">
+                                                <span :class="h.color"><flux:icon name="heart" variant="solid" class="size-2.5 drop-shadow-sm" /></span>
+                                            </span>
+                                        </template>
+                                    </span>
+                                    <span class="relative">
+                                        <flux:icon name="heart" variant="solid" class="size-[18px]" />
+                                    </span>
+                                    <span class="text-xs" x-text="count">{{ $post->likes_count }}</span>
                                 </button>
                                 <span class="flex items-center gap-1.5 text-zinc-500">
                                     <flux:icon name="chat-bubble-left" class="size-[18px]" />

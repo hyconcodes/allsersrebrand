@@ -259,24 +259,46 @@ new class extends Component {
                         ? $post->images
                         : array_filter(explode(',', (string) $post->images));
                     $imageUrls = array_map(fn($img) => route('images.show', ['path' => trim($img)]), $imageArray);
+                    $imageCount = count($imageArray);
                 @endphp
-                @if (count($imageArray) > 0)
+                @if ($imageCount > 0)
                     <div class="mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 shadow-sm">
-                        @if (count($imageArray) === 1)
+                        @if ($imageCount === 1)
                             <div class="max-h-[400px] overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
                                 @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
                                 <img loading="lazy" src="{{ route('images.show', ['path' => trim($imageArray[0])]) }}" alt="Post image"
                                     class="w-full h-auto max-h-[400px] object-cover hover:scale-[1.01] transition-transform duration-300">
                             </div>
-                        @else
-                            <div class="grid gap-0.5 @if (count($imageArray) === 2) grid-cols-2 @elseif(count($imageArray) >= 3) grid-cols-2 @endif">
+                        @elseif($imageCount === 2)
+                            <div class="grid grid-cols-2 gap-0.5">
                                 @foreach ($imageArray as $index => $image)
-                                    <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer @if (count($imageArray) === 3 && $index === 0) row-span-2 @endif"
+                                    <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
                                         @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: {{ $index }} })">
                                         <img loading="lazy" src="{{ route('images.show', ['path' => trim($image)]) }}" alt="Post image"
                                             class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
                                     </div>
                                 @endforeach
+                            </div>
+                        @else
+                            @php
+                                $displayImages = array_slice($imageArray, 0, 2);
+                                $remaining = $imageCount - 2;
+                            @endphp
+                            <div class="grid grid-cols-2 gap-0.5">
+                                <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                    @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
+                                    <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[0])]) }}" alt="Post image"
+                                        class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                                </div>
+                                <div class="relative overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                    @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 1 })"
+                                    aria-label="{{ __('Show :count more images', ['count' => $remaining]) }}">
+                                    <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[1])]) }}" alt="Post image"
+                                        class="w-full h-full object-cover min-h-[160px] max-h-[260px]">
+                                    <div class="absolute inset-0 bg-black/55 flex items-center justify-center">
+                                        <span class="text-white text-xl sm:text-2xl font-extrabold tracking-tight">+{{ $remaining }}</span>
+                                    </div>
+                                </div>
                             </div>
                         @endif
                     </div>
@@ -366,13 +388,30 @@ new class extends Component {
 
                 <!-- Like Button -->
                 <button wire:click.stop="toggleLike"
-                    x-data="{ liked: {{ $post->isLikedBy(auth()->user()) ? 'true' : 'false' }}, count: {{ $post->likes_count ?? 0 }} }"
-                    @click="liked = !liked; count += liked ? 1 : -1"
-                    class="flex items-center gap-2 group text-xs transition-colors"
-                    :class="liked ? 'text-rose-500' : 'hover:text-rose-500'">
-                    <div class="p-2 rounded-full group-hover:bg-rose-500/10 transition-colors">
-                        <flux:icon name="heart" class="size-4 group-hover:scale-110 transition-transform" ::variant="liked ? 'solid' : 'outline'" />
-                    </div>
+                    x-data="{
+                        liked: {{ $post->isLikedBy(auth()->user()) ? 'true' : 'false' }},
+                        count: {{ $post->likes_count ?? 0 }},
+                        hearts: [],
+                        burst() {
+                            const colors = ['text-rose-500','text-pink-400','text-amber-400','text-purple-500','text-sky-400','text-emerald-400','text-orange-400'];
+                            const pts = [[-18,-14],[18,-12],[-12,-22],[14,-20],[0,-26],[-8,-18],[10,-16]];
+                            this.hearts = pts.map(([x,y], i) => ({ id: Date.now()+i+Math.random(), x, y, color: colors[i % colors.length], delay: i*38 }));
+                            setTimeout(() => this.hearts = [], 760);
+                        }
+                    }"
+                    @click="const willLike = !liked; liked = willLike; count += willLike ? 1 : -1; if (willLike) burst()"
+                    class="relative flex items-center gap-2 group text-xs transition-colors"
+                    :class="liked ? 'text-rose-500' : 'text-zinc-400 dark:text-zinc-500 hover:text-rose-500'">
+                    <span class="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
+                        <template x-for="h in hearts" :key="h.id">
+                            <span class="heart-burst absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" :style="`--tx:${h.x}px; --ty:${h.y}px; animation-delay:${h.delay}ms`">
+                                <span :class="h.color"><flux:icon name="heart" variant="solid" class="size-2.5 drop-shadow-sm" /></span>
+                            </span>
+                        </template>
+                    </span>
+                    <span class="relative p-2 rounded-full group-hover:bg-rose-500/10 transition-colors">
+                        <flux:icon name="heart" variant="solid" class="size-4 group-hover:scale-110 transition-transform" />
+                    </span>
                     <span class="font-medium tabular-nums" x-text="count">0</span>
                 </button>
 
