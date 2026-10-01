@@ -94,32 +94,6 @@ new class extends Component {
         }
     }
 
-    public function startConversation()
-    {
-        $userId = $this->post->user->id;
-        $authId = auth()->id();
-
-        $conversation = \Illuminate\Support\Facades\DB::transaction(function () use ($userId, $authId) {
-            $existing = auth()
-                ->user()
-                ->conversations()
-                ->whereHas('users', function ($query) use ($userId) {
-                    $query->where('users.id', $userId);
-                })
-                ->first();
-
-            if ($existing) {
-                return $existing;
-            }
-
-            $conversation = Conversation::create();
-            $conversation->users()->attach([$authId, $userId]);
-            return $conversation;
-        });
-
-        return $this->redirect(route('chat', $conversation->id), navigate: true);
-    }
-
     public function openReportModal()
     {
         $this->showReportModal = true;
@@ -166,12 +140,11 @@ new class extends Component {
 
         <!-- Main Content Area -->
         <div class="flex-1 min-w-0">
-            <!-- Header (User name, handle, work, timestamp) -->
+            <!-- Header (Username only, work, timestamp) -->
             <div class="flex items-center justify-between gap-2 mb-1">
                 <div class="flex items-center gap-1.5 text-sm min-w-0 flex-wrap leading-none">
-                    <span class="font-bold text-zinc-900 dark:text-zinc-100 hover:underline truncate">{{ $post->user->name }}</span>
-                    <span class="text-xs text-zinc-500 truncate">@<span>{{ $post->user->username }}</span></span>
-                    
+                    <span class="font-bold text-zinc-900 dark:text-zinc-100 hover:underline truncate">{{ '@' . $post->user->username }}</span>
+
                     @if ($post->user->work && !$post->repost_of_id)
                         <span class="text-xs text-purple-500 font-medium px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20">
                             {{ $post->user->work }}
@@ -441,16 +414,6 @@ new class extends Component {
                     </div>
                 </button>
 
-                <!-- Direct Message / Hire Button -->
-                @if ($post->user_id !== auth()->id())
-                    <button wire:click="startConversation" @click.stop
-                        class="flex items-center gap-2 group text-xs hover:text-purple-500 transition-colors"
-                        title="{{ __('Chat with Artisan') }}">
-                        <div class="p-2 rounded-full group-hover:bg-purple-500/10 transition-colors">
-                            <flux:icon name="chat-bubble-left-right" class="size-4" />
-                        </div>
-                    </button>
-                @endif
             </div>
 
             <!-- Inline Comments -->

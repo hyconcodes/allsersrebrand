@@ -28,11 +28,86 @@ new class extends Component {
     public $selectedUser = null;
     public $showUserModal = false;
 
+    // Filters for Control Center
+    public $filterYear = '';
+    public $filterMonth = '';
+    public $availableYears = [];
+
     public function mount()
     {
+        $this->availableYears = $this->getAvailableYears();
         $this->loadStats();
         $this->loadChartData();
         $this->loadTopLists();
+    }
+
+    protected function getAvailableYears(): array
+    {
+        try {
+            $years = User::selectRaw('YEAR(created_at) as year')
+                ->distinct()
+                ->orderBy('year', 'desc')
+                ->pluck('year')
+                ->filter()
+                ->map(fn($y) => (int) $y)
+                ->toArray();
+        } catch (\Throwable $e) {
+            $years = [];
+        }
+        $currentYear = (int) Carbon::now()->year;
+        if (!in_array($currentYear, $years, true)) {
+            $years[] = $currentYear;
+        }
+        rsort($years);
+        // Ensure at least last 5 years available
+        for ($i = 1; $i <= 4; $i++) {
+            $y = $currentYear - $i;
+            if (!in_array($y, $years, true)) {
+                $years[] = $y;
+            }
+        }
+        rsort($years);
+        return array_values(array_unique($years));
+    }
+
+    public function updated($property, $value)
+    {
+        if (in_array($property, ['filterYear', 'filterMonth'])) {
+            $this->loadStats();
+            $this->loadChartData();
+            $this->loadTopLists();
+            $this->dispatch('admin-charts-updated');
+        }
+    }
+
+    public function clearFilter()
+    {
+        $this->filterYear = '';
+        $this->filterMonth = '';
+        Cache::forget('admin:dashboard:stats');
+        $this->loadStats();
+        $this->loadChartData();
+        $this->loadTopLists();
+        $this->dispatch('admin-charts-updated');
+        $this->dispatch('toast', type: 'success', title: 'Filter Cleared', message: 'Showing all-time data.');
+    }
+
+    public function refreshDashboard()
+    {
+        Cache::forget('admin:dashboard:stats');
+        // Also forget filtered caches
+        foreach ($this->availableYears as $y) {
+            Cache::forget("admin:dashboard:stats:{$y}:");
+            for ($m = 1; $m <= 12; $m++) {
+                Cache::forget("admin:dashboard:stats:{$y}:{$m}");
+            }
+        }
+        Cache::forget('admin:dashboard:stats::');
+        $this->loadStats();
+        $this->loadChartData();
+        $this->loadTopLists();
+        $this->dispatch('admin-charts-updated');
+        $this->dispatch('toast', type: 'success', title: 'Refreshed', message: 'Dashboard data refreshed.');
     }
 
     public function with()
@@ -65,33 +140,110 @@ new class extends Component {
         ];
     }
 
+    protected function hasFilter(): bool
+    {
+        return $this->filterYear !== '' || $this->filterMonth !== '';
+    }
+
+    protected function getFilterLabel(): string
+    {
+        if ($this->filterYear !== '' && $this->filterMonth !== '') {
+            return Carbon::create((int) $this->filterYear, (int) $this->filterMonth, 1)->format('F Y');
+        }
+        if ($this->filterYear !== '') {
+            return (string) $this->filterYear;
+        }
+        if ($this->filterMonth !== '' && $this->filterYear === '') {
+            // Month without year not typical; show month name with current year hint
+            return Carbon::create((int) Carbon::now()->year, (int) $this->filterMonth, 1)->format('F');
+        }
+        return 'All time';
+    }
+
     public function loadStats()
     {
-        $stats = Cache::remember('admin:dashboard:stats', 300, function () {
-            $currentMonth = Carbon::now()->startOfMonth();
-            $lastMonth = Carbon::now()->subMonth()->startOfMonth();
-            $endOfLastMonth = Carbon::now()->subMonth()->endOfMonth();
+        $year = $this->filterYear !== '' ? (int) $this->filterYear : null;
+        $month = $this->filterMonth !== '' ? (int) $this->filterMonth : null;
+        $cacheKey = "admin:dashboard:stats:{$year}:{$month}";
 
-            $newUsersThisMonth = User::where('created_at', '>=', $currentMonth)->count();
-            $lastMonthUsers = User::whereBetween('created_at', [$lastMonth, $endOfLastMonth])->count();
+        // No cache when filtering to reflect live data immediately
+        $useCache = !$this->hasFilter();
+        $compute = function () use ($year, $month) {
+            $userQuery = User::query();
+            $postQuery = Post::query();
+            $reportQuery = Report::where('status', 'pending');
+
+            if ($year) {
+                $userQuery->whereYear('created_at', $year);
+                $postQuery->whereYear('created_at', $year);
+                $reportQuery->whereYear('created_at', $year);
+            }
+            if ($month) {
+                // If month is set without year, filter by month of current year for stats
+                $filterYearForMonth = $year ?? (int) Carbon::now()->year;
+                $userQuery->whereYear('created_at', $filterYearForMonth)->whereMonth('created_at', $month);
+                $postQuery->whereYear('created_at', $filterYearForMonth)->whereMonth('created_at', $month);
+                $reportQuery->whereYear('created_at', $filterYearForMonth)->whereMonth('created_at', $month);
+            }
+
+            $totalUsers = $userQuery->count();
+            $totalPosts = $postQuery->count();
+            $totalReports = $reportQuery->count();
+
+            // Growth: compare selected month vs previous month (or current month vs last month if no filter)
+            $refMonth = $month ? Carbon::create($year ?? (int) Carbon::now()->year, $month, 1) : Carbon::now();
+            $currentStart = $refMonth->copy()->startOfMonth();
+            $currentEnd = $refMonth->copy()->endOfMonth();
+            $prevStart = $refMonth->copy()->subMonth()->startOfMonth();
+            $prevEnd = $refMonth->copy()->subMonth()->endOfMonth();
+
+            $currentCount = User::whereBetween('created_at', [$currentStart, $currentEnd]);
+            $prevCount = User::whereBetween('created_at', [$prevStart, $prevEnd]);
+            if ($year) {
+                // When a year filter is active without month, growth = this year vs last year (Jan-Dec)
+                if (!$month) {
+                    $currentStart = Carbon::create((int) $year, 1, 1)->startOfYear();
+                    $currentEnd = Carbon::create((int) $year, 12, 31)->endOfYear();
+                    $prevStart = Carbon::create((int) $year - 1, 1, 1)->startOfYear();
+                    $prevEnd = Carbon::create((int) $year - 1, 12, 31)->endOfYear();
+                    $currentCount = User::whereBetween('created_at', [$currentStart, $currentEnd]);
+                    $prevCount = User::whereBetween('created_at', [$prevStart, $prevEnd]);
+                }
+            }
+            $newUsersThisPeriod = $currentCount->count();
+            $prevPeriod = $prevCount->count();
 
             $growthPercentage = 0;
-            if ($lastMonthUsers > 0) {
-                $growthPercentage = (($newUsersThisMonth - $lastMonthUsers) / $lastMonthUsers) * 100;
-            } elseif ($newUsersThisMonth > 0) {
+            if ($prevPeriod > 0) {
+                $growthPercentage = (($newUsersThisPeriod - $prevPeriod) / $prevPeriod) * 100;
+            } elseif ($newUsersThisPeriod > 0) {
                 $growthPercentage = 100;
             }
 
+            $artisansCount = User::where('role', 'artisan');
+            $guestsCount = User::where('role', 'guest');
+            if ($year) {
+                $artisansCount->whereYear('created_at', $year);
+                $guestsCount->whereYear('created_at', $year);
+            }
+            if ($month) {
+                $filterYearForMonth = $year ?? (int) Carbon::now()->year;
+                $artisansCount->whereYear('created_at', $filterYearForMonth)->whereMonth('created_at', $month);
+                $guestsCount->whereYear('created_at', $filterYearForMonth)->whereMonth('created_at', $month);
+            }
+
             return [
-                'totalUsers' => User::count(),
-                'totalPosts' => Post::count(),
-                'totalReports' => Report::where('status', 'pending')->count(),
-                'newUsersThisMonth' => $newUsersThisMonth,
+                'totalUsers' => $totalUsers,
+                'totalPosts' => $totalPosts,
+                'totalReports' => $totalReports,
+                'newUsersThisMonth' => $newUsersThisPeriod,
                 'growthPercentage' => $growthPercentage,
-                'artisansCount' => User::where('role', 'artisan')->count(),
-                'guestsCount' => User::where('role', 'guest')->count(),
+                'artisansCount' => $artisansCount->count(),
+                'guestsCount' => $guestsCount->count(),
             ];
-        });
+        };
+
+        $stats = $useCache ? Cache::remember($cacheKey, 300, $compute) : $compute();
 
         $this->totalUsers = $stats['totalUsers'];
         $this->totalPosts = $stats['totalPosts'];
@@ -104,19 +256,33 @@ new class extends Component {
 
     public function loadChartData()
     {
-        // 1. User Growth Line Chart Data (Current Month Days)
-        $daysInMonth = Carbon::now()->daysInMonth;
-        $currentMonth = Carbon::now()->month;
-        $currentYear = Carbon::now()->year;
+        $this->userGrowthChartData = ['labels' => [], 'data' => []];
+        $year = $this->filterYear !== '' ? (int) $this->filterYear : null;
+        $month = $this->filterMonth !== '' ? (int) $this->filterMonth : null;
 
-        $dailyGrowth = User::select(DB::raw('DAY(created_at) as day'), DB::raw('count(*) as count'))->whereMonth('created_at', $currentMonth)->whereYear('created_at', $currentYear)->groupBy('day')->pluck('count', 'day')->toArray();
-
-        for ($i = 1; $i <= $daysInMonth; $i++) {
-            $this->userGrowthChartData['labels'][] = $i;
-            $this->userGrowthChartData['data'][] = $dailyGrowth[$i] ?? 0;
+        if ($year && !$month) {
+            // Yearly: 12 months
+            for ($m = 1; $m <= 12; $m++) {
+                $this->userGrowthChartData['labels'][] = Carbon::create($year, $m, 1)->format('M');
+                $this->userGrowthChartData['data'][] = User::whereYear('created_at', $year)->whereMonth('created_at', $m)->count();
+            }
+        } else {
+            // Monthly days (selected month or current month)
+            $refYear = $year ?? (int) Carbon::now()->year;
+            $refMonth = $month ?? (int) Carbon::now()->month;
+            $daysInMonth = Carbon::create($refYear, $refMonth, 1)->daysInMonth;
+            $dailyGrowth = User::select(DB::raw('DAY(created_at) as day'), DB::raw('count(*) as count'))
+                ->whereYear('created_at', $refYear)
+                ->whereMonth('created_at', $refMonth)
+                ->groupBy('day')
+                ->pluck('count', 'day')
+                ->toArray();
+            for ($i = 1; $i <= $daysInMonth; $i++) {
+                $this->userGrowthChartData['labels'][] = $i;
+                $this->userGrowthChartData['data'][] = $dailyGrowth[$i] ?? 0;
+            }
         }
 
-        // 2. Role Distribution Pie Chart Data
         $this->roleDistributionData = [
             'labels' => ['Artisans', 'Guests'],
             'data' => [$this->artisansCount, $this->guestsCount],
@@ -125,13 +291,28 @@ new class extends Component {
 
     public function loadTopLists()
     {
-        $this->topArtisans = User::where('role', 'artisan')->orderBy('smart_rating', 'desc')->limit(5)->get();
+        $year = $this->filterYear !== '' ? (int) $this->filterYear : null;
+        $month = $this->filterMonth !== '' ? (int) $this->filterMonth : null;
 
-        $this->recentReports = Report::with(['user', 'post.user'])
-            ->where('status', 'pending')
-            ->latest()
-            ->limit(5)
-            ->get();
+        $artisanQuery = User::where('role', 'artisan');
+        if ($year) {
+            $artisanQuery->whereYear('created_at', $year);
+        }
+        if ($month) {
+            $filterYearForMonth = $year ?? (int) Carbon::now()->year;
+            $artisanQuery->whereYear('created_at', $filterYearForMonth)->whereMonth('created_at', $month);
+        }
+        $this->topArtisans = $artisanQuery->orderBy('smart_rating', 'desc')->limit(5)->get();
+
+        $reportQuery = Report::with(['user', 'post.user'])->where('status', 'pending');
+        if ($year) {
+            $reportQuery->whereYear('created_at', $year);
+        }
+        if ($month) {
+            $filterYearForMonth = $year ?? (int) Carbon::now()->year;
+            $reportQuery->whereYear('created_at', $filterYearForMonth)->whereMonth('created_at', $month);
+        }
+        $this->recentReports = $reportQuery->latest()->limit(5)->get();
     }
 
     public function viewUser($userId)
@@ -195,15 +376,62 @@ new class extends Component {
 
 <div class="px-4 py-8 max-w-7xl mx-auto space-y-8" x-data="{ activeTab: 'overview' }">
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="min-w-0">
             <h1 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 italic uppercase tracking-tighter">
                 {{ __('Control Center') }}</h1>
             <p class="text-sm text-zinc-500">{{ __('Overview of your social ecosystem') }}</p>
+            @if ($this->hasFilter())
+                <p class="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-purple-600 dark:text-purple-400">
+                    <span class="size-1.5 rounded-full bg-purple-500"></span>
+                    {{ __('Filtered:') }} {{ $this->getFilterLabel() }}
+                </p>
+            @endif
         </div>
-        <div class="flex items-center gap-2">
-            <span class="size-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span class="text-xs font-bold text-zinc-400 uppercase ">{{ __('Live System Data') }}</span>
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="hidden sm:flex items-center gap-2 text-zinc-400">
+                <span class="size-2 bg-green-500 rounded-full animate-pulse"></span>
+                <span class="text-xs font-bold uppercase">{{ __('Live System Data') }}</span>
+            </div>
+            <!-- Refresh: text button on desktop, icon-only on mobile -->
+            <button wire:click="refreshDashboard" wire:loading.attr="disabled"
+                class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold uppercase tracking-wide hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50">
+                <flux:icon name="arrow-path" class="size-4" wire:loading.remove wire:target="refreshDashboard" />
+                <span wire:loading wire:target="refreshDashboard" class="size-4 border-2 border-white/30 dark:border-zinc-900/20 border-t-white dark:border-t-zinc-900 rounded-full animate-spin"></span>
+                <span wire:loading.remove wire:target="refreshDashboard">{{ __('Refresh') }}</span>
+                <span wire:loading wire:target="refreshDashboard">{{ __('Refreshing...') }}</span>
+            </button>
+            <button wire:click="refreshDashboard" wire:loading.attr="disabled" aria-label="{{ __('Refresh') }}"
+                class="sm:hidden size-10 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 shrink-0">
+                <flux:icon name="arrow-path" class="size-5" wire:loading.remove wire:target="refreshDashboard" />
+                <span wire:loading wire:target="refreshDashboard" class="size-5 border-2 border-white/30 dark:border-zinc-900/20 border-t-white dark:border-t-zinc-900 rounded-full animate-spin"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters: Date / Year for charts, cards, Community Mix -->
+    <div class="flex flex-col sm:flex-row gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+        <div class="flex-1 min-w-0">
+            <label class="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">{{ __('Year') }}</label>
+            <select wire:model.live="filterYear" class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2.5 text-sm font-medium text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none">
+                <option value="">{{ __('All years') }}</option>
+                @foreach ($availableYears as $y)
+                    <option value="{{ $y }}">{{ $y }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="flex-1 min-w-0">
+            <label class="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">{{ __('Month') }}</label>
+            <select wire:model.live="filterMonth" class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2.5 text-sm font-medium text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none">
+                <option value="">{{ $filterYear ? __('All months') : __('All months (current year)') }}</option>
+                @for ($m = 1; $m <= 12; $m++)
+                    <option value="{{ $m }}">{{ Carbon::create(2000, $m, 1)->format('F') }}</option>
+                @endfor
+            </select>
+            <p class="mt-1 text-xs text-zinc-500">{{ $filterYear ? __('Filters charts, cards & Community Mix') : __('Month uses current year when no year selected') }}</p>
+        </div>
+        <div class="flex items-end gap-2">
+            <flux:button wire:click="clearFilter" variant="ghost" size="sm" class="h-[42px] whitespace-nowrap">{{ __('Clear filter') }}</flux:button>
         </div>
     </div>
 
@@ -340,7 +568,14 @@ new class extends Component {
             <div
                 class="lg:col-span-2 bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 ">
                 <h3 class="text-sm font-bold uppercase  text-zinc-900 dark:text-white mb-8">
-                    {{ __('User Growth - Current Month') }}</h3>
+                    @if ($filterYear && !$filterMonth)
+                        {{ __('User Growth') }} — {{ $filterYear }}
+                    @elseif ($filterMonth)
+                        {{ __('User Growth') }} — {{ $filterYear ? Carbon::create((int)$filterYear, (int)$filterMonth, 1)->format('F Y') : Carbon::create((int)Carbon::now()->year, (int)$filterMonth, 1)->format('F Y') }}
+                    @else
+                        {{ $filterYear ? __('User Growth') . ' — ' . $filterYear : __('User Growth - Current Month') }}
+                    @endif
+                </h3>
                 <div class="h-[300px]">
                     <canvas id="growthChart"></canvas>
                 </div>
@@ -350,7 +585,11 @@ new class extends Component {
             <div
                 class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 ">
                 <h3 class="text-sm font-bold uppercase  text-zinc-900 dark:text-white mb-8">
-                    {{ __('Community Mix') }}</h3>
+                    {{ __('Community Mix') }}
+                    @if ($this->hasFilter())
+                        <span class="ml-2 text-xs font-normal normal-case text-zinc-500">({{ $this->getFilterLabel() }})</span>
+                    @endif
+                </h3>
                 <div class="h-[300px] flex items-center justify-center">
                     <canvas id="roleChart"></canvas>
                 </div>
@@ -770,6 +1009,14 @@ new class extends Component {
     @push('scripts')
         <script src="https://cdn.jsdelivr.net/npm/chart.js" data-navigate-once></script>
         <script>
+            // Re-init charts when Livewire updates filtered data
+            document.addEventListener('livewire:initialized', () => {
+                if (window.Livewire) {
+                    Livewire.on('admin-charts-updated', () => {
+                        setTimeout(() => initAdminCharts(), 80);
+                    });
+                }
+            });
             function initAdminCharts() {
                 const growthCtx = document.getElementById('growthChart');
                 const roleCtx = document.getElementById('roleChart');
