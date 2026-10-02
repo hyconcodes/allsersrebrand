@@ -27,7 +27,10 @@ new class extends Component {
     public $userSearchQuery = '';
     public $selectedUser = null;
     public $showUserModal = false;
-
+    public $showAdminDeletePostModal = false;
+    public $adminDeletePostId = null;
+    public $adminDeletePostReason = '';
+    public $bannedSearchQuery = '';
     // Filters for Control Center
     public $filterYear = '';
     public $filterMonth = '';
@@ -134,9 +137,18 @@ new class extends Component {
                 ->get();
         }
 
+        $bannedUsers = User::whereNotNull('banned_until')->where('banned_until', '>', now())->latest('banned_until');
+        if (strlen($this->bannedSearchQuery) >= 2) {
+            $bannedUsers->where(function($q){
+                $q->where('name','like','%'.$this->bannedSearchQuery.'%')->orWhere('username','like','%'.$this->bannedSearchQuery.'%')->orWhere('email','like','%'.$this->bannedSearchQuery.'%');
+            });
+        }
+        $bannedUsers = $bannedUsers->limit(20)->get();
+
         return [
             'managedPosts' => $posts,
             'managedUsers' => $managedUsers,
+            'bannedUsers' => $bannedUsers,
         ];
     }
 
@@ -338,14 +350,39 @@ new class extends Component {
         $this->dispatch('toast', type: 'success', title: 'Role Updated', message: "User {$user->name} is now a {$newRole}.");
     }
 
+    public function openAdminDeletePostModal($postId)
+    {
+        $this->adminDeletePostId = (int)$postId;
+        $this->adminDeletePostReason = '';
+        $this->showAdminDeletePostModal = true;
+    }
+    public function adminDeletePost()
+    {
+        $this->validate(['adminDeletePostReason'=>'required|string|min:10|max:500']);
+        $post = Post::with('user')->findOrFail($this->adminDeletePostId);
+        $owner=$post->user; $excerpt=\Illuminate\Support\Str::limit($post->content??'',500); $reason=$this->adminDeletePostReason;
+        $post->delete();
+        try { if($owner && $owner->email) \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner,$excerpt,$reason)); } catch(\Throwable $e){ \Log::error('PostDeletedMail failed: '.$e->getMessage()); }
+        $this->showAdminDeletePostModal=false; $this->adminDeletePostId=null;
+        $this->loadStats(); $this->loadTopLists();
+        $this->dispatch('toast', type: 'success', title: 'Post Deleted', message: 'Post removed and owner notified.');
+    }
     public function deletePost($postId)
     {
-        $post = Post::findOrFail($postId);
+        // backward-compat alias still usable but now via modal validation path
+        $this->adminDeletePostId=(int)$postId; $this->adminDeletePostReason='Removed by admin (no reason provided — please use the modal).';
+        $post=Post::with('user')->findOrFail($postId);
+        $owner=$post->user; $excerpt=\Illuminate\Support\Str::limit($post->content??'',500);
         $post->delete();
-
-        $this->loadStats();
-        $this->loadTopLists();
-        $this->dispatch('toast', type: 'success', title: 'Post Deleted', message: 'The post has been successfully removed.');
+        try { if($owner && $owner->email) \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner,$excerpt,$this->adminDeletePostReason)); } catch(\Throwable $e){ \Log::error('PostDeletedMail failed: '.$e->getMessage()); }
+        $this->loadStats(); $this->loadTopLists();
+        $this->dispatch('toast', type: 'success', title: 'Post Deleted', message: 'Post removed and owner notified.');
+    }
+    public function unbanUser($userId)
+    {
+        $user=User::findOrFail($userId);
+        $user->update(['banned_until'=>null,'banned_reason'=>null,'banned_by'=>null,'banned_at'=>null]);
+        $this->dispatch('toast', type:'success', title:'User Unbanned', message: $user->name.' has been unbanned.');
     }
 
     public function resolveReport($reportId, $action)
@@ -454,6 +491,12 @@ new class extends Component {
                 'text-zinc-500 hover:text-zinc-700'"
             class="px-6 py-2 rounded-xl text-xs font-bold uppercase  transition-all">
             {{ __('Users') }}
+        </button>
+        <button @click="activeTab = 'banned'"
+            :class="activeTab === 'banned' ? 'bg-white dark:bg-zinc-700  text-zinc-900 dark:text-white' :
+                'text-zinc-500 hover:text-zinc-700'"
+            class="px-6 py-2 rounded-xl text-xs font-bold uppercase  transition-all">
+            {{ __('Banned') }} <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] {{ ($bannedUsers->count() ?? 0) > 0 ? 'bg-red-500 text-white' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400' }}">{{ $bannedUsers->count() ?? 0 }}</span>
         </button>
     </div>
 
@@ -735,11 +778,7 @@ new class extends Component {
                                     {{ $post->created_at->format('M d, Y • g:i A') }}</p>
                             </div>
                         </div>
-                        <flux:button wire:click="deletePost({{ $post->id }})"
-                            wire:confirm="Delete this post permanently?" variant="danger" size="sm"
-                            class="shrink-0">
-                            {{ __('Delete') }}
-                        </flux:button>
+                        <flux:button wire:click="openAdminDeletePostModal({{ $post->id }})" variant="danger" size="sm" class="shrink-0">{{ __('Delete') }}</flux:button>
                     </div>
                 @empty
                     @if (strlen($postSearchQuery) >= 3)
@@ -804,6 +843,11 @@ new class extends Component {
                             <flux:button wire:click="viewUser({{ $user->id }})" variant="ghost" size="sm" class="font-bold text-xs uppercase">
                                 {{ __('View more') }}
                             </flux:button>
+                            @if ($user->isBanned())
+                                <flux:button wire:click="unbanUser({{ $user->id }})" variant="danger" size="sm" class="font-bold text-xs uppercase">{{ __('Unban') }}</flux:button>
+                            @else
+                                <button x-data @click="$dispatch('open-ban-modal', {userId: {{ $user->id }}, userName: '{{ addslashes($user->name) }}'})" class="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase">{{ __('Ban') }}</button>
+                            @endif
                             @if ($user->role === 'artisan')
                                 <flux:button wire:click="updateUserRole({{ $user->id }}, 'guest')"
                                     variant="outline" size="sm"
@@ -839,6 +883,59 @@ new class extends Component {
         </div>
     </div>
 
+    <!-- Banned Users Tab -->
+    <div x-show="activeTab === 'banned'" x-cloak class="space-y-6">
+        <div class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800">
+            <h3 class="text-sm font-bold uppercase text-zinc-900 dark:text-white mb-2">{{ __('Banned Users') }}</h3>
+            <p class="text-xs text-zinc-500 mb-6">{{ __('Search and unban users. Ban via the Users tab or directly on the feed.') }}</p>
+            <div class="max-w-md">
+                <flux:input wire:model.live.debounce.300ms="bannedSearchQuery" icon="magnifying-glass" placeholder="{{ __('Search banned by name, username or email…') }}" />
+            </div>
+            <div class="mt-8 space-y-4">
+                @forelse($bannedUsers as $bUser)
+                    <div class="p-5 rounded-2xl bg-red-50/60 dark:bg-red-900/10 border border-red-200 dark:border-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="size-10 rounded-xl overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
+                                @if($bUser->profile_picture_url)
+                                    <img src="{{ $bUser->profile_picture_url }}" class="size-full object-cover">
+                                @else
+                                    <div class="size-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700 text-xs font-bold">{{ $bUser->initials() }}</div>
+                                @endif
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-zinc-900 dark:text-white truncate">{{ $bUser->name }} <span class="text-zinc-400 font-normal">@<span>{{ $bUser->username }}</span></span></p>
+                                <p class="text-xs text-zinc-500 truncate">{{ $bUser->email }}</p>
+                                <p class="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                                    {{ __('Banned until') }} <span class="font-bold">{{ $bUser->banned_until?->format('M d, Y') }}</span>
+                                    @if($bUser->banned_reason) • <span class="italic break-words">{{ \Illuminate\Support\Str::limit($bUser->banned_reason, 80) }}</span> @endif
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button wire:click="unbanUser({{ $bUser->id }})" wire:confirm="{{ __('Unban this user?') }}" class="px-3 py-1.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold">{{ __('Unban') }}</button>
+                            <button x-data @click="$dispatch('open-ban-modal', {userId: {{ $bUser->id }}, userName: '{{ addslashes($bUser->name) }}'})" class="px-3 py-1.5 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold">{{ __('Extend') }}</button>
+                            <flux:button wire:click="viewUser({{ $bUser->id }})" variant="ghost" size="sm" class="text-xs">{{ __('View') }}</flux:button>
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-center py-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-3xl">
+                        <flux:icon name="shield-check" class="size-12 text-zinc-200 dark:text-zinc-800 mx-auto mb-4" />
+                        <p class="text-xs text-zinc-400 font-bold uppercase">{{ __('No banned users') }}</p>
+                        @if(strlen($bannedSearchQuery) >= 2) <p class="text-xs text-zinc-400 mt-1">{{ __('No matches for') }} "{{ $bannedSearchQuery }}"</p> @endif
+                    </div>
+                @endforelse
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Delete Post Modal -->
+    <flux:modal wire:model="showAdminDeletePostModal" class="sm:max-w-lg">
+        <div class="space-y-6">
+            <div><flux:heading size="lg">{{ __('Delete Post') }}</flux:heading><flux:subheading>{{ __('Remove this post and notify the owner by email.') }}</flux:subheading></div>
+            <div><flux:label>{{ __('Reason') }} *</flux:label><flux:textarea wire:model="adminDeletePostReason" rows="3" placeholder="{{ __('Why — owner will receive by email') }}" />@error('adminDeletePostReason') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror</div>
+            <div class="flex gap-2 justify-end"><flux:modal.close><flux:button variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close><flux:button variant="danger" wire:click="adminDeletePost">{{ __('Delete & Notify') }}</flux:button></div>
+        </div>
+    </flux:modal>
 
     <!-- User Detail Modal -->
     <flux:modal wire:model="showUserModal" class="max-w-xl">

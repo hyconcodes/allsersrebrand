@@ -45,6 +45,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'status',
         'last_activity',
         'banned_until',
+        'banned_reason',
+        'banned_by',
+        'banned_at',
         'smart_rating', // Weighted rating
         'onesignal_player_id',
         'email_verification_code',
@@ -78,6 +81,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'longitude' => 'decimal:8',
             'last_activity' => 'datetime',
             'banned_until' => 'datetime',
+            'banned_at' => 'datetime',
             'is_admin' => 'boolean',
         ];
     }
@@ -247,6 +251,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isBanned(): bool
     {
         return $this->banned_until && $this->banned_until->isFuture();
+    }
+
+    public function bannedByUser()
+    {
+        return $this->belongsTo(User::class, 'banned_by');
     }
 
     /**

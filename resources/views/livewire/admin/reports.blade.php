@@ -14,7 +14,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public $selectedReport = null;
     public $showBanModal = false;
     public $banUserId = null;
-    public $banDays = 7;
+    public $bannedUntil = '';
     public $banReason = '';
     public $adminNotes = '';
     public $filterStatus = 'pending';
@@ -60,15 +60,17 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         $this->banUserId = $userId;
         $this->showBanModal = true;
-        $this->banDays = 7;
+        $this->bannedUntil = '';
         $this->banReason = '';
     }
+    public function setPreset($days) { $this->bannedUntil = now()->addDays((int)$days)->format('Y-m-d'); }
 
     public function banUser()
     {
+        $maxDate = now()->addDays(365)->format('Y-m-d');
         $this->validate([
-            'banDays' => 'required|integer|min:1|max:365',
-            'banReason' => 'required|string|max:500',
+            'bannedUntil' => 'required|date|after:today|before_or_equal:'.$maxDate,
+            'banReason' => 'required|string|min:10|max:500',
         ]);
 
         $user = User::find($this->banUserId);
@@ -77,11 +79,15 @@ new #[Layout('components.layouts.app')] class extends Component {
             $this->dispatch('toast', type: 'error', title: 'Error', message: 'User not found.');
             return;
         }
+        if ($user->isAdmin()) { $this->dispatch('toast', type:'error', title:'Error', message:'Cannot ban an admin.'); return; }
 
-        $bannedUntil = now()->addDays($this->banDays);
+        $bannedUntil = \Carbon\Carbon::parse($this->bannedUntil)->endOfDay();
 
         $user->update([
             'banned_until' => $bannedUntil,
+            'banned_reason' => $this->banReason,
+            'banned_by' => auth()->id(),
+            'banned_at' => now(),
         ]);
 
         // Send email notification
@@ -93,6 +99,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $this->showBanModal = false;
+        $this->bannedUntil = '';
         $this->dispatch('toast', type: 'success', title: 'User Banned', message: "User banned until {$bannedUntil->format('M d, Y')}");
     }
 
@@ -146,13 +153,28 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
     }
 
+    public bool $showAdminDeletePostModal = false;
+    public ?int $adminDeletePostId = null;
+    public string $adminDeletePostReason = '';
+    public function openAdminDeletePostModal($postId) { $this->adminDeletePostId=(int)$postId; $this->adminDeletePostReason=''; $this->showAdminDeletePostModal=true; }
+    public function adminDeletePost() {
+        $this->validate(['adminDeletePostReason'=>'required|string|min:10|max:500']);
+        $post=\App\Models\Post::with('user')->find($this->adminDeletePostId);
+        if(!$post){ $this->dispatch('toast', type:'error', title:'Error', message:'Post not found.'); $this->showAdminDeletePostModal=false; return; }
+        $owner=$post->user; $excerpt=\Illuminate\Support\Str::limit($post->content??'',500); $reason=$this->adminDeletePostReason;
+        $post->delete();
+        try { if($owner && $owner->email) Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner,$excerpt,$reason)); } catch(\Throwable $e){ \Log::error('PostDeletedMail failed: '.$e->getMessage()); }
+        $this->showAdminDeletePostModal=false; $this->adminDeletePostId=null;
+        $this->dispatch('toast', type: 'success', title: 'Post Deleted', message: 'Post removed and owner notified.');
+    }
     public function deletePost($postId)
     {
-        $post = \App\Models\Post::find($postId);
-
+        $post = \App\Models\Post::with('user')->find($postId);
         if ($post) {
+            $owner=$post->user; $excerpt=\Illuminate\Support\Str::limit($post->content??'',500);
             $post->delete();
-            $this->dispatch('toast', type: 'success', title: 'Post Deleted', message: 'Post has been removed.');
+            try { if($owner && $owner->email) Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner,$excerpt,'Removed by admin.')); } catch(\Throwable $e){ \Log::error('PostDeletedMail failed: '.$e->getMessage()); }
+            $this->dispatch('toast', type: 'success', title: 'Post Deleted', message: 'Post removed and owner notified.');
         }
     }
 
@@ -167,6 +189,9 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $user->update([
             'banned_until' => null,
+            'banned_reason' => null,
+            'banned_by' => null,
+            'banned_at' => null,
         ]);
 
         $this->dispatch('toast', type: 'success', title: 'User Unbanned', message: 'User account has been reactivated.');
@@ -395,8 +420,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 <flux:icon name="no-symbol" class="size-4 inline mr-1" /> Ban User
                             </button>
                         @endif
-                        <button wire:click="deletePost({{ $report->post_id }})"
-                            wire:confirm="Are you sure you want to delete this post?"
+                        <button wire:click="openAdminDeletePostModal({{ $report->post_id }})"
                             class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium">
                             <flux:icon name="trash" class="size-4 inline mr-1" /> Delete Post
                         </button>
@@ -437,33 +461,49 @@ new #[Layout('components.layouts.app')] class extends Component {
         {{ $reports->links() }}
     </div>
 
-    <!-- Ban User Modal -->
-    <flux:modal name="ban-user-modal" wire:model="showBanModal" class="sm:max-w-lg">
+    <!-- Ban User Modal — flatpickr calendar date-only, max 365 days -->
+    <flux:modal wire:model="showBanModal" class="sm:max-w-lg">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Ban User</flux:heading>
-                <flux:subheading>Temporarily suspend user account</flux:subheading>
+                <flux:heading size="lg">{{ __('Ban User') }}</flux:heading>
+                <flux:subheading>{{ __('Temporarily suspend account — pick end date') }}</flux:subheading>
             </div>
-
             <div class="space-y-4">
                 <div>
-                    <flux:label>Ban Duration (Days)</flux:label>
-                    <flux:input type="number" wire:model="banDays" min="1" max="365" />
+                    <flux:label>{{ __('Quick select') }}</flux:label>
+                    <div class="flex flex-wrap gap-2 mt-1.5">
+                        <button type="button" wire:click="setPreset(7)" class="px-3 py-1.5 rounded-full border text-xs font-semibold {{ $bannedUntil === now()->addDays(7)->format('Y-m-d') ? 'bg-purple-600 text-white border-purple-600' : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300' }}">7 {{ __('days') }}</button>
+                        <button type="button" wire:click="setPreset(14)" class="px-3 py-1.5 rounded-full border text-xs font-semibold {{ $bannedUntil === now()->addDays(14)->format('Y-m-d') ? 'bg-purple-600 text-white border-purple-600' : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300' }}">14 {{ __('days') }}</button>
+                        <button type="button" wire:click="setPreset(30)" class="px-3 py-1.5 rounded-full border text-xs font-semibold {{ $bannedUntil === now()->addDays(30)->format('Y-m-d') ? 'bg-purple-600 text-white border-purple-600' : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300' }}">30 {{ __('days') }}</button>
+                        <button type="button" wire:click="setPreset(90)" class="px-3 py-1.5 rounded-full border text-xs font-semibold {{ $bannedUntil === now()->addDays(90)->format('Y-m-d') ? 'bg-purple-600 text-white border-purple-600' : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300' }}">90 {{ __('days') }}</button>
+                        <button type="button" wire:click="setPreset(365)" class="px-3 py-1.5 rounded-full border text-xs font-semibold {{ $bannedUntil === now()->addDays(365)->format('Y-m-d') ? 'bg-purple-600 text-white border-purple-600' : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300' }}">365 {{ __('days') }}</button>
+                    </div>
                 </div>
-
+                <div x-data="{ fp:null, init(){ const el=this.$refs.banDate; const max=new Date(); max.setDate(max.getDate()+365); this.fp=flatpickr(el,{dateFormat:'Y-m-d',altInput:true,altFormat:'F j, Y',minDate:'today',maxDate:max,allowInput:true,disableMobile:true,onChange:(s,str)=>$wire.set('bannedUntil',str)}); this.$watch('$wire.bannedUntil',v=>{ if(v && this.fp && this.fp.input.value!==v) this.fp.setDate(v,true); if(!v && this.fp) this.fp.clear(); }); }}">
+                    <flux:label>{{ __('Banned until (date)') }} *</flux:label>
+                    <flux:input x-ref="banDate" wire:model="bannedUntil" placeholder="{{ __('Select end date — max 365 days') }}" icon="calendar-days" readonly />
+                    @error('bannedUntil') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    <p class="text-xs text-zinc-400 mt-1">{{ __('Max 365 days. Time set to end of day.') }}</p>
+                </div>
                 <div>
-                    <flux:label>Reason for Ban</flux:label>
-                    <flux:textarea wire:model="banReason" rows="3"
-                        placeholder="Explain why this user is being banned..." />
+                    <flux:label>{{ __('Reason') }} *</flux:label>
+                    <flux:textarea wire:model="banReason" rows="3" placeholder="{{ __('Explain why — user will receive this by email') }}" />
+                    @error('banReason') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
-
             <div class="flex gap-2 justify-end">
-                <flux:modal.close>
-                    <flux:button variant="ghost">Cancel</flux:button>
-                </flux:modal.close>
-                <flux:button variant="danger" wire:click="banUser">Ban User</flux:button>
+                <flux:modal.close><flux:button variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close>
+                <flux:button variant="danger" wire:click="banUser">{{ __('Ban User') }}</flux:button>
             </div>
+        </div>
+    </flux:modal>
+
+    <!-- Admin Delete Post Modal -->
+    <flux:modal wire:model="showAdminDeletePostModal" class="sm:max-w-lg">
+        <div class="space-y-6">
+            <div><flux:heading size="lg">{{ __('Delete Post') }}</flux:heading><flux:subheading>{{ __('Remove and notify owner by email.') }}</flux:subheading></div>
+            <div><flux:label>{{ __('Reason') }} *</flux:label><flux:textarea wire:model="adminDeletePostReason" rows="3" placeholder="{{ __('Why — owner will receive by email') }}" />@error('adminDeletePostReason') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror</div>
+            <div class="flex gap-2 justify-end"><flux:modal.close><flux:button variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close><flux:button variant="danger" wire:click="adminDeletePost">{{ __('Delete & Notify') }}</flux:button></div>
         </div>
     </flux:modal>
 </div>

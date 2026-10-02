@@ -150,6 +150,11 @@ new class extends Component {
 
     public $showReportModal = false;
     public $reportReason = '';
+    public bool $showAdminDeletePostModal = false;
+    public string $adminDeletePostReason = '';
+    public bool $showAdminDeleteCommentModal = false;
+    public ?int $adminDeleteCommentId = null;
+    public string $adminDeleteCommentReason = '';
 
     public function openReportModal()
     {
@@ -172,6 +177,47 @@ new class extends Component {
 
         $this->showReportModal = false;
         $this->dispatch('toast', type: 'success', title: 'Report Submitted', message: 'Thank you for reporting. We will review this post.');
+    }
+
+    public function openAdminDeletePostModal()
+    {
+        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
+        $this->adminDeletePostReason = '';
+        $this->showAdminDeletePostModal = true;
+    }
+    public function adminDeletePost()
+    {
+        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
+        $this->validate(['adminDeletePostReason' => 'required|string|min:10|max:500']);
+        if (!$this->post) return;
+        $owner = $this->post->user; $excerpt = \Illuminate\Support\Str::limit($this->post->content ?? '', 500); $reason = $this->adminDeletePostReason;
+        $this->post->delete(); $this->post = null;
+        try { if ($owner && $owner->email) \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner, $excerpt, $reason)); } catch (\Throwable $e) { \Log::error('PostDeletedMail failed: '.$e->getMessage()); }
+        $this->showAdminDeletePostModal = false;
+        $this->dispatch('modal-close', name: 'post-detail-drawer');
+        $this->dispatch('post-deleted');
+        $this->dispatch('toast', type: 'success', title: 'Post Deleted', message: 'Post removed and owner notified.');
+    }
+    public function openAdminDeleteCommentModal($commentId)
+    {
+        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
+        $this->adminDeleteCommentId = (int) $commentId;
+        $this->adminDeleteCommentReason = '';
+        $this->showAdminDeleteCommentModal = true;
+    }
+    public function adminDeleteComment()
+    {
+        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
+        $this->validate(['adminDeleteCommentReason' => 'required|string|min:10|max:500']);
+        $comment = Comment::with('user')->find($this->adminDeleteCommentId);
+        if (!$comment) { $this->dispatch('toast', type:'error', title:'Error', message:'Comment not found.'); $this->showAdminDeleteCommentModal=false; return; }
+        $owner = $comment->user; $excerpt = $comment->content; $reason = $this->adminDeleteCommentReason;
+        $comment->delete();
+        try { if ($owner && $owner->email) \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\CommentDeletedMail($owner, $excerpt, $reason)); } catch (\Throwable $e) { \Log::error('CommentDeletedMail failed: '.$e->getMessage()); }
+        $this->showAdminDeleteCommentModal = false; $this->adminDeleteCommentId = null;
+        if ($this->post) $this->loadPost($this->post->id);
+        $this->dispatch('comment-added');
+        $this->dispatch('toast', type: 'success', title: 'Comment Deleted', message: 'Comment removed and owner notified.');
     }
 }; ?>
 
@@ -236,8 +282,14 @@ new class extends Component {
                                             wire:confirm="{{ __('Are you sure you want to delete this post?') }}"
                                             icon="trash" variant="danger">{{ __('Delete') }}</flux:menu.item>
                                     @else
-                                        <flux:menu.item wire:click="openReportModal" icon="flag">{{ __('Report') }}
-                                        </flux:menu.item>
+                                        <flux:menu.item wire:click="openReportModal" icon="flag">{{ __('Report') }}</flux:menu.item>
+                                    @endif
+                                    @if(auth()->check() && auth()->user()->isAdmin())
+                                        <flux:menu.separator />
+                                        @if($post->user_id !== auth()->id())
+                                            <flux:menu.item x-data @click="$dispatch('open-ban-modal', {userId: {{ $post->user_id }}, userName: '{{ addslashes($post->user->name) }}'})" icon="no-symbol">{{ $post->user->isBanned() ? __('Extend Ban') : __('Ban User') }}</flux:menu.item>
+                                        @endif
+                                        <flux:menu.item wire:click="openAdminDeletePostModal" icon="trash" variant="danger">{{ __('Delete Post (Admin)') }}</flux:menu.item>
                                     @endif
                                 </flux:menu>
                             </flux:dropdown>
@@ -427,12 +479,20 @@ new class extends Component {
                                         <p class="text-sm text-zinc-600 dark:text-zinc-400">
                                             {{ htmlspecialchars_decode($comment->content, ENT_QUOTES) }}
                                         </p>
-                                        @if (!$post->challenge_id)
-                                            <button wire:click="setReplyTo({{ $comment->id }})"
-                                                class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
-                                                {{ __('Reply') }}
-                                            </button>
-                                        @endif
+                                        <div class="flex items-center gap-3 flex-wrap">
+                                            @if (!$post->challenge_id)
+                                                <button wire:click="setReplyTo({{ $comment->id }})"
+                                                    class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
+                                                    {{ __('Reply') }}
+                                                </button>
+                                            @endif
+                                            @if(auth()->check() && auth()->user()->isAdmin())
+                                                <button wire:click="openAdminDeleteCommentModal({{ $comment->id }})" class="text-xs text-red-500 hover:underline flex items-center gap-1"><flux:icon name="trash" class="size-3" /> {{ __('Delete') }}</button>
+                                                @if($comment->user_id !== auth()->id())
+                                                    <button x-data @click="$dispatch('open-ban-modal', {userId: {{ $comment->user_id }}, userName: '{{ addslashes($comment->user->name) }}'})" class="text-xs text-amber-600 hover:underline flex items-center gap-1"><flux:icon name="no-symbol" class="size-3" /> {{ $comment->user->isBanned() ? __('Extend Ban') : __('Ban') }}</button>
+                                                @endif
+                                            @endif
+                                        </div>
 
                                         <!-- Replies -->
                                         @if ($comment->replies->count() > 0)
@@ -459,6 +519,14 @@ new class extends Component {
                                                         <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
                                                             {{ htmlspecialchars_decode($reply->content, ENT_QUOTES) }}
                                                         </p>
+                                                        @if(auth()->check() && auth()->user()->isAdmin())
+                                                            <div class="flex items-center gap-2 mt-1">
+                                                                <button wire:click="openAdminDeleteCommentModal({{ $reply->id }})" class="text-xs text-red-500 hover:underline flex items-center gap-1"><flux:icon name="trash" class="size-3" /> {{ __('Delete') }}</button>
+                                                                @if($reply->user_id !== auth()->id())
+                                                                    <button x-data @click="$dispatch('open-ban-modal', {userId: {{ $reply->user_id }}, userName: '{{ addslashes($reply->user->name) }}'})" class="text-xs text-amber-600 hover:underline flex items-center gap-1"><flux:icon name="no-symbol" class="size-3" /> {{ $reply->user->isBanned() ? __('Extend Ban') : __('Ban') }}</button>
+                                                                @endif
+                                                            </div>
+                                                        @endif
                                                     </div>
                                                     </div>
                                                 @endforeach
@@ -512,6 +580,37 @@ new class extends Component {
                 </div>
             </div>
         @endif
+    </flux:modal>
+
+    <!-- Admin Delete Post Modal -->
+    <flux:modal wire:model="showAdminDeletePostModal" class="sm:max-w-lg">
+        <div class="space-y-6">
+            <div><flux:heading size="lg">{{ __('Delete Post') }}</flux:heading><flux:subheading>{{ __('Remove this post and notify owner by email.') }}</flux:subheading></div>
+            <div>
+                <flux:label>{{ __('Reason') }} *</flux:label>
+                <flux:textarea wire:model="adminDeletePostReason" rows="3" placeholder="{{ __('Why — owner will receive by email') }}" />
+                @error('adminDeletePostReason') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
+            <div class="flex gap-2 justify-end">
+                <flux:modal.close><flux:button variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close>
+                <flux:button variant="danger" wire:click="adminDeletePost">{{ __('Delete & Notify') }}</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+    <!-- Admin Delete Comment Modal -->
+    <flux:modal wire:model="showAdminDeleteCommentModal" class="sm:max-w-lg">
+        <div class="space-y-6">
+            <div><flux:heading size="lg">{{ __('Delete Comment') }}</flux:heading><flux:subheading>{{ __('Remove and notify author.') }}</flux:subheading></div>
+            <div>
+                <flux:label>{{ __('Reason') }} *</flux:label>
+                <flux:textarea wire:model="adminDeleteCommentReason" rows="3" placeholder="{{ __('Reason — author will receive by email') }}" />
+                @error('adminDeleteCommentReason') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
+            <div class="flex gap-2 justify-end">
+                <flux:modal.close><flux:button variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close>
+                <flux:button variant="danger" wire:click="adminDeleteComment">{{ __('Delete & Notify') }}</flux:button>
+            </div>
+        </div>
     </flux:modal>
 
     <!-- Report Post Modal -->

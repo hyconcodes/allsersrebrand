@@ -201,7 +201,9 @@
 
     @auth
         <livewire:dashboard.create-post-modal />
-
+        @if(auth()->user()->isAdmin())
+            <livewire:admin.ban-modal />
+        @endif
     @endauth
 
     @auth
