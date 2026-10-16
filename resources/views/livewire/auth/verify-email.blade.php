@@ -12,9 +12,27 @@
             </p>
         </div>
 
+        @if (session('status') == 'registered-pending-verification')
+            <div class="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 text-center">
+                <p class="text-[13px] font-bold text-emerald-700 dark:text-emerald-300">{{ __('Your account has been created. Enter the 8-character code we sent to your email address to finish signing up.') }}</p>
+            </div>
+        @endif
+
+        @if (session('status') == 'registered-pending-verification-send-failed')
+            <div class="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-center">
+                <p class="text-[13px] font-bold text-amber-700 dark:text-amber-300">{{ __('Your account has been created. We couldn’t send the verification email right now — please try Resend below in a moment.') }}</p>
+            </div>
+        @endif
+
         @if (session('status') == 'verification-code-sent')
             <div class="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 text-center">
                 <p class="text-[13px] font-bold text-emerald-700 dark:text-emerald-300">{{ __('A new verification code has been sent to your email address.') }}</p>
+            </div>
+        @endif
+
+        @if (session('status') == 'verification-code-failed')
+            <div class="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-center">
+                <p class="text-[13px] font-bold text-red-700 dark:text-red-300">{{ __('We couldn’t send a new code right now. Please try again shortly.') }}</p>
             </div>
         @endif
 

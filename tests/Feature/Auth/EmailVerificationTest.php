@@ -13,7 +13,7 @@ test('email verification screen can be rendered', function () {
 
     $response->assertStatus(200)
         ->assertSee('Verify your email')
-        ->assertSee('Enter the 8-character verification code');
+        ->assertSee('Enter the 8-character code we sent to');
 });
 
 test('email can be verified with a valid OTP', function () {

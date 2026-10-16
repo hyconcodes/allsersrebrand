@@ -32,6 +32,10 @@ class EmailVerificationController extends Controller
 
         $user->sendEmailVerificationNotification();
 
+        if ($user->emailVerificationSendFailed) {
+            return back()->with('status', 'verification-code-failed');
+        }
+
         return back()->with('status', 'verification-code-sent');
     }
 

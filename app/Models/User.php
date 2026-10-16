@@ -9,14 +9,24 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use NotificationChannels\WebPush\HasPushSubscriptions;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasPushSubscriptions, TwoFactorAuthenticatable;
+    use HasFactory, HasPushSubscriptions, Notifiable, TwoFactorAuthenticatable;
+
+    /**
+     * Whether the last email verification notification failed to send.
+     *
+     * Transient flag: not persisted, reflects the outcome of the most
+     * recent sendEmailVerificationNotification() call on this instance.
+     */
+    public bool $emailVerificationSendFailed = false;
 
     /**
      * The attributes that are mass assignable.
@@ -129,7 +139,17 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         $code = $this->generateEmailVerificationCode();
 
-        $this->notify(new EmailVerificationCodeNotification($code));
+        try {
+            $this->notify(new EmailVerificationCodeNotification($code));
+        } catch (TransportExceptionInterface $e) {
+            $this->emailVerificationSendFailed = true;
+
+            Log::error('Email verification code could not be sent.', [
+                'user_id' => $this->id,
+                'email' => $this->email,
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function getRouteKeyName()
@@ -143,7 +163,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
         static::creating(function ($user) {
             if (empty($user->slug)) {
-                $user->slug = Str::slug($user->name) . '-' . Str::random(8);
+                $user->slug = Str::slug($user->name).'-'.Str::random(8);
             }
         });
     }
@@ -153,7 +173,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return Str::of($this->name)
             ->explode(' ')
             ->take(2)
-            ->map(fn($word) => Str::substr($word, 0, 1))
+            ->map(fn ($word) => Str::substr($word, 0, 1))
             ->implode('');
     }
 
@@ -317,7 +337,7 @@ class User extends Authenticatable implements MustVerifyEmail
         $filledCount = 0;
 
         foreach ($fields as $field => $label) {
-            if (!empty($this->{$field})) {
+            if (! empty($this->{$field})) {
                 $completed[] = ['field' => $field, 'label' => $label];
                 $filledCount++;
             } else {
@@ -334,6 +354,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'is_complete' => $filledCount === count($fields),
         ];
     }
+
     public function reviews()
     {
         return $this->hasMany(Review::class, 'artisan_id');
@@ -387,6 +408,7 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getCurrencySymbolAttribute(): string
     {
         $code = strtoupper($this->country_code ?? '');
-        return config('currencies.symbols.' . $code, config('currencies.default'));
+
+        return config('currencies.symbols.'.$code, config('currencies.default'));
     }
 }
