@@ -54,36 +54,52 @@ new class extends Component {
 
         $this->username = strtolower(trim($this->username));
 
-        $validated = $this->validate([
+        $isArtisan = $user->isArtisan();
+
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'username' => ['nullable', 'string', 'max:255', new Username, Rule::unique(User::class)->ignore($user->id)],
             'photo' => ['nullable', 'image', 'max:1024'], // 1MB Max
-            'gender' => ['nullable', 'string', 'max:50'],
-            'work' => ['nullable', 'string', 'max:255'],
-            'bio' => ['nullable', 'string', 'max:500'],
-            'experience_year' => ['nullable', 'integer', 'min:0'],
-            'work_status' => ['nullable', 'string', 'max:255'],
-            'phone_number' => ['nullable', 'string', 'max:20'],
-            'address' => ['nullable', 'string', 'max:255'],
             'country_code' => ['required', 'string', 'size:2'],
-        ]);
+        ];
+
+        if ($isArtisan) {
+            $rules += [
+                'gender' => ['nullable', 'string', 'max:50'],
+                'work' => ['nullable', 'string', 'max:255'],
+                'bio' => ['nullable', 'string', 'max:500'],
+                'experience_year' => ['nullable', 'integer', 'min:0'],
+                'work_status' => ['nullable', 'string', 'max:255'],
+                'phone_number' => ['nullable', 'string', 'max:20'],
+                'address' => ['nullable', 'string', 'max:255'],
+            ];
+        }
+
+        $validated = $this->validate($rules);
 
         if ($this->photo) {
             $user->profile_picture = $this->photo->store('profilePics', 'public');
         }
 
-        $user->fill([
+        $attributes = [
             'name' => $validated['name'],
             'username' => $validated['username'],
-            'gender' => $validated['gender'],
-            'work' => $validated['work'],
-            'bio' => $validated['bio'],
-            'experience_year' => $validated['experience_year'],
-            'work_status' => $validated['work_status'],
-            'phone_number' => $validated['phone_number'],
-            'address' => $validated['address'],
             'country_code' => $validated['country_code'],
-        ]);
+        ];
+
+        if ($isArtisan) {
+            $attributes += [
+                'gender' => $validated['gender'],
+                'work' => $validated['work'],
+                'bio' => $validated['bio'],
+                'experience_year' => $validated['experience_year'],
+                'work_status' => $validated['work_status'],
+                'phone_number' => $validated['phone_number'],
+                'address' => $validated['address'],
+            ];
+        }
+
+        $user->fill($attributes);
         $user->save();
 
         $this->dispatch('profile-updated', name: $user->name);
@@ -109,6 +125,7 @@ new class extends Component {
 }; ?>
 
 <x-settings.layout :active="'profile'">
+    @php($isArtisan = auth()->user()->isArtisan())
     <form wire:submit="updateProfileInformation" class="space-y-8">
 
         <!-- Profile Picture -->
@@ -158,30 +175,32 @@ new class extends Component {
                 disabled />
         </div>
 
-        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+        @if ($isArtisan)
+            <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
 
-        <!-- Contact -->
-        <div class="space-y-4">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Contact') }}</h2>
-            <flux:input wire:model="phone_number" :label="__('Phone Number')" type="text" />
-            <flux:input wire:model="address" :label="__('Address')" type="text" />
-        </div>
+            <!-- Contact -->
+            <div class="space-y-4">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Contact') }}</h2>
+                <flux:input wire:model="phone_number" :label="__('Phone Number')" type="text" />
+                <flux:input wire:model="address" :label="__('Address')" type="text" />
+            </div>
 
-        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+            <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
 
-        <!-- Work -->
-        <div class="space-y-4">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Work') }}</h2>
-            <flux:input wire:model="gender" :label="__('Gender')" type="text" />
-            <flux:select wire:model="work_status" :label="__('Work Status')" placeholder="Select status">
-                <option value="employed">Employed</option>
-                <option value="unemployed">Unemployed</option>
-                <option value="student">Student</option>
-                <option value="freelancer">Freelancer</option>
-            </flux:select>
-            <flux:input wire:model="work" :label="__('Work / Job Title')" type="text" />
-            <flux:input wire:model="experience_year" :label="__('Experience (Years)')" type="number" min="0" />
-        </div>
+            <!-- Work -->
+            <div class="space-y-4">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Work') }}</h2>
+                <flux:input wire:model="gender" :label="__('Gender')" type="text" />
+                <flux:select wire:model="work_status" :label="__('Work Status')" placeholder="Select status">
+                    <option value="employed">Employed</option>
+                    <option value="unemployed">Unemployed</option>
+                    <option value="student">Student</option>
+                    <option value="freelancer">Freelancer</option>
+                </flux:select>
+                <flux:input wire:model="work" :label="__('Work / Job Title')" type="text" />
+                <flux:input wire:model="experience_year" :label="__('Experience (Years)')" type="number" min="0" />
+            </div>
+        @endif
 
         <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
 
@@ -205,13 +224,15 @@ new class extends Component {
             </p>
         </div>
 
-        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+        @if ($isArtisan)
+            <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
 
-        <!-- Bio -->
-        <div class="space-y-4">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Bio') }}</h2>
-            <flux:textarea wire:model="bio" :label="__('About you')" rows="4" placeholder="Tell us about yourself..." />
-        </div>
+            <!-- Bio -->
+            <div class="space-y-4">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Bio') }}</h2>
+                <flux:textarea wire:model="bio" :label="__('About you')" rows="4" placeholder="Tell us about yourself..." />
+            </div>
+        @endif
 
         @if (auth()->user() instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && !auth()->user()->hasVerifiedEmail())
             <div>
