@@ -3,6 +3,7 @@
 namespace App\Actions\Fortify;
 
 use App\Models\User;
+use App\Rules\Username;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -28,9 +29,11 @@ class CreateNewUser implements CreatesNewUsers
         }
         RateLimiter::hit('register:'.request()->ip(), 3600);
 
+        $input['username'] = strtolower(trim((string) ($input['username'] ?? '')));
+
         $rules = [
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', Rule::unique(User::class)],
+            'username' => ['required', 'string', 'max:255', new Username, Rule::unique(User::class)],
             'email' => [
                 'required',
                 'string',

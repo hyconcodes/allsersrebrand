@@ -36,3 +36,63 @@ test('new users can register', function () {
 
     $this->assertAuthenticated();
 });
+
+test('registration lowercases the username before storing it', function () {
+    $response = $this->post(route('register.store'), [
+        'name' => 'John Doe',
+        'username' => 'John_Doe1',
+        'email' => 'upper@example.com',
+        'role' => 'guest',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        'g-recaptcha-response' => 'valid-token',
+    ]);
+
+    $response->assertSessionHasNoErrors()
+        ->assertRedirect(route('verification.notice', absolute: false));
+
+    $this->assertDatabaseHas('users', [
+        'email' => 'upper@example.com',
+        'username' => 'john_doe1',
+    ]);
+});
+
+test('registration accepts usernames with numbers and underscores', function () {
+    $response = $this->post(route('register.store'), [
+        'name' => 'John Doe',
+        'username' => 'john_doe1',
+        'email' => 'underscore@example.com',
+        'role' => 'guest',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        'g-recaptcha-response' => 'valid-token',
+    ]);
+
+    $response->assertSessionHasNoErrors()
+        ->assertRedirect(route('verification.notice', absolute: false));
+
+    $this->assertDatabaseHas('users', [
+        'email' => 'underscore@example.com',
+        'username' => 'john_doe1',
+    ]);
+});
+
+test('registration rejects usernames with special characters', function (string $username) {
+    $response = $this->post(route('register.store'), [
+        'name' => 'John Doe',
+        'username' => $username,
+        'email' => 'special'.md5($username).'@example.com',
+        'role' => 'guest',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        'g-recaptcha-response' => 'valid-token',
+    ]);
+
+    $response->assertSessionHasErrors('username');
+    $this->assertGuest();
+})->with([
+    'hyphen' => 'john-doe',
+    'at sign' => 'john@doe',
+    'dot' => 'john.doe',
+    'space' => 'john doe',
+]);

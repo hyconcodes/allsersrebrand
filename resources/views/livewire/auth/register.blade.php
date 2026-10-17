@@ -30,7 +30,10 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <flux:input name="name" :label="__('Full name')" :value="old('name')" type="text" required autofocus autocomplete="name" placeholder="John Doe" />
-                    <flux:input name="username" :label="__('Username')" :value="old('username')" type="text" required autocomplete="username" placeholder="johndoe" />
+                    <div>
+                        <flux:input name="username" :label="__('Username')" :value="old('username')" type="text" required autocomplete="username" placeholder="johndoe" pattern="[a-z0-9_]+" oninput="this.value = this.value.toLowerCase()" />
+                        <p class="mt-1.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{{ __('Lowercase letters, numbers and underscores only.') }}</p>
+                    </div>
                 </div>
 
                 <div class="mt-4">

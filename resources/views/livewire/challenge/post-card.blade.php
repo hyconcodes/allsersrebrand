@@ -120,8 +120,14 @@ new class extends Component {
                 @endforeach
             </div>
         @elseif($post->video)
-            <div class="rounded-2xl overflow-hidden mb-6 bg-black aspect-video flex items-center justify-center">
-                <video src="{{ asset('storage/' . $post->video) }}" class="w-full h-full" controls></video>
+            <div x-data="{ muted: true }" class="relative rounded-2xl overflow-hidden mb-6 bg-black aspect-video flex items-center justify-center">
+                <video x-ref="video" data-autoplay muted src="{{ asset('storage/' . $post->video) }}" class="w-full h-full" controls playsinline preload="metadata"></video>
+                <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                    class="absolute top-2 right-2 z-10 flex items-center justify-center size-8 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                    :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                    <flux:icon x-show="muted" name="speaker-xmark" class="size-4" />
+                    <flux:icon x-show="!muted" name="speaker-wave" class="size-4" style="display: none;" />
+                </button>
             </div>
         @endif
 

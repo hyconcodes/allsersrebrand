@@ -93,7 +93,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 this.$refs.video.play().then(() => {
                                     this.playing = true;
                                 }).catch(() => {
-                                    this.playing = false;
+                                    this.$refs.video.muted = true;
+                                    this.$refs.video.play().then(() => {
+                                        this.playing = true;
+                                    }).catch(() => {
+                                        this.playing = false;
+                                    });
                                 });
                             } else {
                                 this.$refs.video.pause();
@@ -105,6 +110,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 },
                 togglePlay() {
                     if (this.$refs.video.paused) {
+                        this.$refs.video.muted = false;
                         this.$refs.video.play();
                         this.playing = true;
                     } else {
@@ -115,7 +121,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             }">
 
             <!-- Video -->
-            <video x-ref="video" src="{{ route('images.show', ['path' => $post->video]) }}"
+            <video x-ref="video" muted src="{{ route('images.show', ['path' => $post->video]) }}"
                 class="absolute inset-0 w-full h-full object-cover cursor-pointer" loop playsinline
                 @click="togglePlay"></video>
 

@@ -339,10 +339,16 @@ new class extends Component {
 
                         <!-- Video -->
                         @if ($post->video)
-                            <div class="rounded-xl overflow-hidden h-80 border border-zinc-100 dark:border-zinc-800">
-                                <video src="{{ route('videos.show', ['path' => $post->video]) }}"
+                            <div x-data="{ muted: true }" class="relative rounded-xl overflow-hidden h-80 border border-zinc-100 dark:border-zinc-800">
+                                <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->video]) }}"
                                     class="w-full h-full object-cover" controls controlsList="nodownload" playsinline
                                     preload="metadata"></video>
+                                <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                                    class="absolute top-2 right-2 z-10 flex items-center justify-center size-8 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                                    :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                                    <flux:icon x-show="muted" name="speaker-xmark" class="size-4" />
+                                    <flux:icon x-show="!muted" name="speaker-wave" class="size-4" style="display: none;" />
+                                </button>
                             </div>
                         @endif
 
@@ -398,11 +404,17 @@ new class extends Component {
                                         </div>
                                     @endif
                                 @elseif($post->repostOf->video)
-                                    <div
-                                        class="h-32 rounded-lg overflow-hidden bg-black flex items-center justify-center border border-zinc-200/50">
-                                        <video src="{{ route('videos.show', ['path' => $post->repostOf->video]) }}"
+                                    <div x-data="{ muted: true }"
+                                        class="relative h-32 rounded-lg overflow-hidden bg-black flex items-center justify-center border border-zinc-200/50">
+                                        <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->repostOf->video]) }}"
                                             class="w-full h-full object-cover" controls controlsList="nodownload"
                                             playsinline preload="metadata"></video>
+                                        <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                                            class="absolute top-1.5 right-1.5 z-10 flex items-center justify-center size-7 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                                            :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                                            <flux:icon x-show="muted" name="speaker-xmark" class="size-3.5" />
+                                            <flux:icon x-show="!muted" name="speaker-wave" class="size-3.5" style="display: none;" />
+                                        </button>
                                     </div>
                                 @endif
                             </div>

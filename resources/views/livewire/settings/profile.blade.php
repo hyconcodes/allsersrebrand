@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Rules\Username;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Validation\Rule;
@@ -51,9 +52,11 @@ new class extends Component {
     {
         $user = Auth::user();
 
+        $this->username = strtolower(trim($this->username));
+
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['nullable', 'string', 'max:255', Rule::unique(User::class)->ignore($user->id)],
+            'username' => ['nullable', 'string', 'max:255', new Username, Rule::unique(User::class)->ignore($user->id)],
             'photo' => ['nullable', 'image', 'max:1024'], // 1MB Max
             'gender' => ['nullable', 'string', 'max:50'],
             'work' => ['nullable', 'string', 'max:255'],
@@ -147,7 +150,10 @@ new class extends Component {
         <div class="space-y-4">
             <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Account') }}</h2>
             <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
-            <flux:input wire:model="username" :label="__('Username')" type="text" autocomplete="username" />
+            <div>
+                <flux:input wire:model="username" :label="__('Username')" type="text" autocomplete="username" pattern="[a-z0-9_]+" oninput="this.value = this.value.toLowerCase()" />
+                <p class="mt-1.5 text-xs text-zinc-500">{{ __('Lowercase letters, numbers and underscores only.') }}</p>
+            </div>
             <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" readonly
                 disabled />
         </div>

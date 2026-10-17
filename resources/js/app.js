@@ -1,4 +1,5 @@
 import './echo';
+import './video-autoplay';
 
 document.addEventListener('livewire:init', () => {
     Livewire.hook('request', ({ fail }) => {
