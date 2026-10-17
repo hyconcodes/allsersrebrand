@@ -288,44 +288,49 @@ new class extends Component {
                 @endif
             @endif
 
-            <!-- Images Grid -->
-            @if ($post->images)
-                @php
-                    $imageArray = is_array($post->images)
-                        ? $post->images
-                        : array_filter(explode(',', (string) $post->images));
-                    $imageUrls = array_map(fn($img) => route('images.show', ['path' => trim($img)]), $imageArray);
-                    $imageCount = count($imageArray);
-                @endphp
-                @if ($imageCount > 0)
-                    <div class="mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 shadow-sm">
-                        @if ($imageCount === 1)
-                            <div class="max-h-[400px] overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+            <!-- Media (images and/or video) -->
+            @php
+                $imageArray = $post->images
+                    ? (is_array($post->images) ? $post->images : array_filter(explode(',', (string) $post->images)))
+                    : [];
+                $imageUrls = array_map(fn($img) => route('images.show', ['path' => trim($img)]), $imageArray);
+                $imageCount = count($imageArray);
+                $hasVideo = filled($post->video);
+            @endphp
+
+            @if ($imageCount > 0 && $hasVideo)
+                <div class="mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 shadow-sm">
+                    @if ($imageCount === 1)
+                        <div class="grid grid-cols-2 gap-0.5">
+                            <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
                                 @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
                                 <img loading="lazy" src="{{ route('images.show', ['path' => trim($imageArray[0])]) }}" alt="Post image"
-                                    class="w-full h-auto max-h-[400px] object-cover hover:scale-[1.01] transition-transform duration-300">
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
                             </div>
-                        @elseif($imageCount === 2)
-                            <div class="grid grid-cols-2 gap-0.5">
-                                @foreach ($imageArray as $index => $image)
-                                    <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
-                                        @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: {{ $index }} })">
-                                        <img loading="lazy" src="{{ route('images.show', ['path' => trim($image)]) }}" alt="Post image"
-                                            class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
-                                    </div>
-                                @endforeach
+                            <div x-data="{ muted: true }" class="relative overflow-hidden bg-black">
+                                <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->video]) }}"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px]"
+                                    controls controlsList="nodownload" playsinline preload="metadata"></video>
+                                <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                                    class="absolute top-2 right-2 z-10 flex items-center justify-center size-7 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                                    :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                                    <flux:icon x-show="muted" name="speaker-x-mark" class="size-3.5" />
+                                    <flux:icon x-show="!muted" name="speaker-wave" class="size-3.5" style="display: none;" />
+                                </button>
                             </div>
-                        @else
-                            @php
-                                $displayImages = array_slice($imageArray, 0, 2);
-                                $remaining = $imageCount - 2;
-                            @endphp
-                            <div class="grid grid-cols-2 gap-0.5">
-                                <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
-                                    @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
-                                    <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[0])]) }}" alt="Post image"
-                                        class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
-                                </div>
+                        </div>
+                    @else
+                        @php
+                            $displayImages = array_slice($imageArray, 0, 2);
+                            $remaining = $imageCount - 2;
+                        @endphp
+                        <div class="grid grid-cols-2 gap-0.5">
+                            <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
+                                <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[0])]) }}" alt="Post image"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                            </div>
+                            @if ($remaining > 0)
                                 <div class="relative overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
                                     @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 1 })"
                                     aria-label="{{ __('Show :count more images', ['count' => $remaining]) }}">
@@ -335,14 +340,69 @@ new class extends Component {
                                         <span class="text-white text-xl sm:text-2xl font-extrabold tracking-tight">+{{ $remaining }}</span>
                                     </div>
                                 </div>
+                            @else
+                                <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                    @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 1 })">
+                                    <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[1])]) }}" alt="Post image"
+                                        class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                                </div>
+                            @endif
+                        </div>
+                        <div x-data="{ muted: true }" class="relative bg-black">
+                            <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->video]) }}"
+                                class="w-full h-auto max-h-[260px] object-cover"
+                                controls controlsList="nodownload" playsinline preload="metadata"></video>
+                            <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                                class="absolute top-2 right-2 z-10 flex items-center justify-center size-7 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                                :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                                <flux:icon x-show="muted" name="speaker-x-mark" class="size-3.5" />
+                                <flux:icon x-show="!muted" name="speaker-wave" class="size-3.5" style="display: none;" />
+                            </button>
+                        </div>
+                    @endif
+                </div>
+            @elseif ($imageCount > 0)
+                <div class="mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 shadow-sm">
+                    @if ($imageCount === 1)
+                        <div class="max-h-[400px] overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                            @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
+                            <img loading="lazy" src="{{ route('images.show', ['path' => trim($imageArray[0])]) }}" alt="Post image"
+                                class="w-full h-auto max-h-[400px] object-cover hover:scale-[1.01] transition-transform duration-300">
+                        </div>
+                    @elseif($imageCount === 2)
+                        <div class="grid grid-cols-2 gap-0.5">
+                            @foreach ($imageArray as $index => $image)
+                                <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                    @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: {{ $index }} })">
+                                    <img loading="lazy" src="{{ route('images.show', ['path' => trim($image)]) }}" alt="Post image"
+                                        class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        @php
+                            $displayImages = array_slice($imageArray, 0, 2);
+                            $remaining = $imageCount - 2;
+                        @endphp
+                        <div class="grid grid-cols-2 gap-0.5">
+                            <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
+                                <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[0])]) }}" alt="Post image"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
                             </div>
-                        @endif
-                    </div>
-                @endif
-            @endif
-
-            <!-- Video Player -->
-            @if ($post->video)
+                            <div class="relative overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                @click="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 1 })"
+                                aria-label="{{ __('Show :count more images', ['count' => $remaining]) }}">
+                                <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[1])]) }}" alt="Post image"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px]">
+                                <div class="absolute inset-0 bg-black/55 flex items-center justify-center">
+                                    <span class="text-white text-xl sm:text-2xl font-extrabold tracking-tight">+{{ $remaining }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @elseif ($hasVideo)
                 <div x-data="{ muted: true }" class="relative mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 max-h-[400px] bg-black shadow-sm">
                     <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->video]) }}" class="w-full h-auto max-h-[400px] object-cover"
                         controls controlsList="nodownload" playsinline preload="metadata"></video>
@@ -382,21 +442,41 @@ new class extends Component {
                             {!! $post->repostOf->formatted_content !!}
                         </p>
                     </div>
-                    @if ($post->repostOf->images)
-                        @php
-                            $originImages = is_array($post->repostOf->images)
+                    @php
+                        $originImages = $post->repostOf->images
+                            ? (is_array($post->repostOf->images)
                                 ? $post->repostOf->images
-                                : array_filter(explode(',', (string) $post->repostOf->images));
-                            $originUrls = array_map(fn($o) => route('images.show', ['path' => trim($o)]), $originImages);
-                        @endphp
-                        @if (count($originImages) > 0)
-                            <div class="h-32 overflow-hidden border-t border-zinc-200 dark:border-zinc-800/80 cursor-pointer"
+                                : array_filter(explode(',', (string) $post->repostOf->images)))
+                            : [];
+                        $originUrls = array_map(fn($o) => route('images.show', ['path' => trim($o)]), $originImages);
+                        $originHasVideo = filled($post->repostOf->video);
+                    @endphp
+                    @if (count($originImages) > 0 && $originHasVideo)
+                        <div class="flex h-32 border-t border-zinc-200 dark:border-zinc-800/80">
+                            <div class="w-1/2 overflow-hidden cursor-pointer"
                                 @click="$dispatch('open-lightbox', { images: {{ Js::from($originUrls) }}, index: 0 })">
                                 <img loading="lazy" src="{{ route('images.show', ['path' => trim($originImages[0])]) }}"
                                     class="w-full h-full object-cover">
                             </div>
-                        @endif
-                    @elseif($post->repostOf->video)
+                            <div x-data="{ muted: true }" class="relative w-1/2 overflow-hidden bg-black">
+                                <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->repostOf->video]) }}"
+                                    class="w-full h-full object-cover" controls controlsList="nodownload" playsinline
+                                    preload="metadata"></video>
+                                <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                                    class="absolute top-2 right-2 z-10 flex items-center justify-center size-7 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                                    :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                                    <flux:icon x-show="muted" name="speaker-x-mark" class="size-3.5" />
+                                    <flux:icon x-show="!muted" name="speaker-wave" class="size-3.5" style="display: none;" />
+                                </button>
+                            </div>
+                        </div>
+                    @elseif (count($originImages) > 0)
+                        <div class="h-32 overflow-hidden border-t border-zinc-200 dark:border-zinc-800/80 cursor-pointer"
+                            @click="$dispatch('open-lightbox', { images: {{ Js::from($originUrls) }}, index: 0 })">
+                            <img loading="lazy" src="{{ route('images.show', ['path' => trim($originImages[0])]) }}"
+                                class="w-full h-full object-cover">
+                        </div>
+                    @elseif($originHasVideo)
                         <div x-data="{ muted: true }" class="relative h-32 overflow-hidden bg-black border-t border-zinc-200 dark:border-zinc-800/80">
                             <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->repostOf->video]) }}"
                                 class="w-full h-full object-cover" controls controlsList="nodownload" playsinline

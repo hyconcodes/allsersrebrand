@@ -204,10 +204,10 @@ new class extends Component {
                 'video' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:10240',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            foreach ($e->validator->errors()->getMessages() as $field => $messages) {
-                if (str_contains($field, 'images') || str_contains($field, 'video')) {
-                    if (str_contains(implode(' ', $messages), 'kilobytes') || str_contains(implode(' ', $messages), 'large')) {
-                        $this->dispatch('toast', type: 'error', title: 'File Too Large', message: 'Images and videos must be less than 10MB.');
+            foreach ($e->validator->failed() as $field => $rules) {
+                if (str_starts_with($field, 'images') || $field === 'video') {
+                    if (isset($rules['Max'])) {
+                        $this->dispatch('toast', type: 'warning', title: 'File Too Large', message: 'Images and videos must be 10MB or less.');
                         break;
                     }
                 }
@@ -395,12 +395,12 @@ new class extends Component {
                                         <label class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
                                             <flux:icon name="photo" class="size-4" />
                                             <span class="hidden sm:inline">{{ __('Photo') }}</span>
-                                            <input type="file" wire:model="images" multiple accept="image/*" class="hidden" :disabled="video != null">
+                                            <input type="file" wire:model="images" multiple accept="image/*" class="hidden" :disabled="video != null" x-on:change="guardFileSize($el, 10240)">
                                         </label>
                                         <label class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
                                             <flux:icon name="video-camera" class="size-4" />
                                             <span class="hidden sm:inline">{{ __('Video') }}</span>
-                                            <input type="file" wire:model="video" accept="video/*" class="hidden" :disabled="images.length > 0">
+                                            <input type="file" wire:model="video" accept="video/*" class="hidden" :disabled="images.length > 0" x-on:change="guardFileSize($el, 10240)">
                                         </label>
                                         <button type="button" @click="showPrice = !showPrice"
                                             class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors">

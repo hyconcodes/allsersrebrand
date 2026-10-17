@@ -43,10 +43,10 @@ trait HandlesPostActions
                 'repostVideo' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:10240',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            foreach ($e->validator->errors()->getMessages() as $field => $messages) {
-                if (str_contains($field, 'repostImage') || str_contains($field, 'repostVideo')) {
-                    if (str_contains(implode(' ', $messages), 'kilobytes') || str_contains(implode(' ', $messages), 'large')) {
-                        $this->dispatch('toast', type: 'error', title: 'File Too Large', message: 'Images and videos must be less than 10MB.');
+            foreach ($e->validator->failed() as $field => $rules) {
+                if (str_starts_with($field, 'repostImage') || str_starts_with($field, 'repostVideo')) {
+                    if (isset($rules['Max'])) {
+                        $this->dispatch('toast', type: 'warning', title: 'File Too Large', message: 'Images and videos must be 10MB or less.');
                         break;
                     }
                 }
