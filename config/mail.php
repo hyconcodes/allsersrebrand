@@ -47,6 +47,9 @@ return [
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+            // ADD THESE ROOT LEVEL KEYS FOR SYMFONY MAILER:
+            'verify_peer' => false,
+            'verify_peer_name' => false,
 
             'stream' => [
                 'ssl' => [
