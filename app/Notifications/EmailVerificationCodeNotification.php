@@ -22,6 +22,7 @@ class EmailVerificationCodeNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
+            ->mailer('mailtrap')
             ->subject('Your Allsers email verification code')
             ->greeting('Hello ' . ($notifiable->name ?? 'there') . '!')
             ->line('Use the verification code below to confirm your email address.')

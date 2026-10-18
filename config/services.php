@@ -52,4 +52,13 @@ return [
         'secret' => env('RECAPTCHA_SECRET_KEY', ''),
     ],
 
+    'mailtrap' => [
+        'token' => env('MAILTRAP_API_TOKEN'),
+        'endpoint' => env('MAILTRAP_ENDPOINT', 'https://send.api.mailtrap.io/api/send'),
+        'from' => [
+            'address' => env('MAILTRAP_FROM_ADDRESS', 'hello@demomailtrap.co'),
+            'name' => env('MAILTRAP_FROM_NAME', 'Allsers'),
+        ],
+    ],
+
 ];

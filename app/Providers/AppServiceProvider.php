@@ -2,10 +2,13 @@
 
 namespace App\Providers;
 
+use App\Mail\Transports\MailtrapApiTransport;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Client\Factory as HttpClientFactory;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Minishlink\WebPush\WebPush;
@@ -59,6 +62,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Mail::extend('mailtrap', function (array $config): MailtrapApiTransport {
+            $svc = config('services.mailtrap', []);
+
+            return new MailtrapApiTransport(
+                app(HttpClientFactory::class),
+                $svc['endpoint'] ?? 'https://send.api.mailtrap.io/api/send',
+                $svc['token'] ?? '',
+                $svc['from'] ?? [
+                    'address' => 'hello@demomailtrap.co',
+                    'name' => config('app.name', 'Allsers'),
+                ],
+            );
+        });
+
         \Illuminate\Support\Facades\Event::listen(
             \Illuminate\Auth\Events\Login::class,
             \App\Listeners\UpdateUserLocationOnLogin::class,

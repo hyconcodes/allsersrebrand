@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Notifications\EmailVerificationCodeNotification;
+use App\Notifications\PasswordResetNotification;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -150,6 +151,11 @@ class User extends Authenticatable implements MustVerifyEmail
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new PasswordResetNotification($token));
     }
 
     public function getRouteKeyName()

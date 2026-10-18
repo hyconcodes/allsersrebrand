@@ -23,6 +23,15 @@ abstract class TestCase extends BaseTestCase
     {
         Fortify::$registersRoutes = true;
 
-        return parent::createApplication();
+        $app = parent::createApplication();
+
+        // Route the named "mailtrap" mailer to Laravel's in-memory array
+        // transport so auth notifications never hit the network in tests.
+        // MailtrapApiTest re-enables the real transport per test.
+        // Use $app['config'] directly: config() would hit the previous app
+        // instance mid-boot.
+        $app['config']->set('mail.mailers.mailtrap', ['transport' => 'array']);
+
+        return $app;
     }
 }
