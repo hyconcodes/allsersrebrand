@@ -11,6 +11,10 @@ beforeEach(function () {
     // in-memory array transport so other tests never hit the network).
     config(['mail.mailers.mailtrap' => ['transport' => 'mailtrap']]);
 
+    // Auth notifications follow the global mail driver (admin toggle), so put
+    // the config in the state the settings page would: Mailtrap API active.
+    config(['mail.default' => 'mailtrap']);
+
     config([
         'services.mailtrap.token' => 'test-mailtrap-token',
         'services.mailtrap.endpoint' => 'https://send.api.mailtrap.io/api/send',

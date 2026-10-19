@@ -23,6 +23,10 @@ abstract class TestCase extends BaseTestCase
     {
         Fortify::$registersRoutes = true;
 
+        // SystemSetting memoizes settings in a static to avoid per-request
+        // queries; reset it BEFORE boot so each test sees the current DB.
+        \App\Models\SystemSetting::flushResolved();
+
         $app = parent::createApplication();
 
         // Route the named "mailtrap" mailer to Laravel's in-memory array

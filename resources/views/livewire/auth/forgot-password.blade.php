@@ -8,24 +8,30 @@
                 {{ __('Forgot password?') }}
             </h1>
             <p class="mt-2 text-[13.5px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 max-w-[34ch]">
-                {{ __('No worries — enter your email and we’ll send you a reset link.') }}
+                {{ __('No worries — enter your email and we’ll send you a reset code.') }}
             </p>
         </div>
 
         <x-auth-session-status class="text-center" :status="session('status')" />
+
+        @if ($errors->any())
+            <div class="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-center text-[13px] font-medium text-red-700 dark:text-red-300">
+                {{ $errors->first() }}
+            </div>
+        @endif
 
         <form method="POST" action="{{ route('password.email') }}" class="flex flex-col gap-5">
             @csrf
 
             <div class="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-800/50 p-4">
                 <flux:input name="email" :label="__('Email address')" type="email" required autofocus placeholder="you@example.com" />
-                <p class="mt-2 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{{ __('We’ll send the reset link to this address if it exists in our system.') }}</p>
+                <p class="mt-2 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{{ __('We’ll email a reset code to this address if it exists in our system.') }}</p>
             </div>
 
             <flux:button variant="primary" type="submit" class="w-full h-[48px] rounded-xl bg-[var(--color-brand-purple)] hover:bg-[#5a0eb0] text-[15px] font-extrabold tracking-tight shadow-lg shadow-[var(--color-brand-purple)]/20 hover:shadow-xl hover:-translate-y-[1px] active:translate-y-0 transition-all" data-test="email-password-reset-link-button">
                 <span class="flex items-center justify-center gap-2">
                     <flux:icon name="paper-airplane" class="size-4" />
-                    {{ __('Send reset link') }}
+                    {{ __('Send reset code') }}
                 </span>
             </flux:button>
 

@@ -89,6 +89,11 @@
                             <flux:icon name="shield-check" class="size-4" />
                             {{ __('Admin Dashboard') }}
                         </a>
+                        <a href="{{ route('admin.settings') }}" wire:navigate @click="menuOpen = false"
+                            class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                            <flux:icon name="cog-6-tooth" class="size-4" />
+                            {{ __('Admin Settings') }}
+                        </a>
                     </div>
                 @endif
 
@@ -179,6 +184,11 @@
                                     class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                                     <flux:icon name="shield-check" class="size-5" />
                                     {{ __('Admin Dashboard') }}
+                                </a>
+                                <a href="{{ route('admin.settings') }}" wire:navigate @click="menuOpen = false"
+                                    class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                                    <flux:icon name="cog-6-tooth" class="size-5" />
+                                    {{ __('Admin Settings') }}
                                 </a>
                             </div>
                         @endif

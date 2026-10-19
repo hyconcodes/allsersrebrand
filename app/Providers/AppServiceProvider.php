@@ -2,11 +2,15 @@
 
 namespace App\Providers;
 
+use App\Listeners\SendWelcomeEmail;
 use App\Mail\Transports\MailtrapApiTransport;
+use App\Models\SystemSetting;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Client\Factory as HttpClientFactory;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
@@ -32,13 +36,13 @@ class AppServiceProvider extends ServiceProvider
             ->give(function (): WebPush {
                 $config = config('webpush');
                 $auth = [];
-                if (!empty($config['vapid']['public_key']) && !empty($config['vapid']['private_key'])) {
+                if (! empty($config['vapid']['public_key']) && ! empty($config['vapid']['private_key'])) {
                     $auth['VAPID'] = [
                         'publicKey' => $config['vapid']['public_key'],
                         'privateKey' => $config['vapid']['private_key'],
                         'subject' => $config['vapid']['subject'] ?: url('/'),
                     ];
-                    if (!empty($config['vapid']['pem_file'])) {
+                    if (! empty($config['vapid']['pem_file'])) {
                         $pem = $config['vapid']['pem_file'];
                         if (Str::startsWith($pem, 'storage')) {
                             $pem = base_path($pem);
@@ -50,8 +54,9 @@ class AppServiceProvider extends ServiceProvider
                 $client = version_compare(Application::VERSION, '13.13.0', '<')
                     ? new Client(['timeout' => 30, ...$options])
                     : Http::timeout(30)->withOptions($options)->buildClient();
+
                 /** @var ClientInterface $client */
-                return (new WebPush($auth, [], $client, new HttpFactory(), new HttpFactory()))
+                return (new WebPush($auth, [], $client, new HttpFactory, new HttpFactory))
                     ->setReuseVAPIDHeaders(true)
                     ->setAutomaticPadding($config['automatic_padding'] ?? true);
             });
@@ -62,6 +67,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        SystemSetting::applyMailDriver();
+
         Mail::extend('mailtrap', function (array $config): MailtrapApiTransport {
             $svc = config('services.mailtrap', []);
 
@@ -76,10 +83,12 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        \Illuminate\Support\Facades\Event::listen(
+        Event::listen(
             \Illuminate\Auth\Events\Login::class,
             \App\Listeners\UpdateUserLocationOnLogin::class,
         );
+
+        Event::listen(Verified::class, SendWelcomeEmail::class);
 
         \App\Models\Review::observe(\App\Observers\ReviewObserver::class);
     }

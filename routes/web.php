@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\EmailVerificationController;
+use App\Http\Controllers\Auth\PasswordResetOtpController;
 use App\Http\Controllers\PushSubscriptionController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/email/verify', [EmailVerificationController::class, 'verify'])->name('verification.verify');
     Route::post('/email/verification-notification', [EmailVerificationController::class, 'send'])->name('verification.send');
 });
+
+// OTP-based password reset (code emailed instead of a reset link).
+Route::get('/reset-password-code', [PasswordResetOtpController::class, 'create'])
+    ->middleware('guest')
+    ->name('password.code');
+Route::post('/reset-password-code', [PasswordResetOtpController::class, 'store'])
+    ->middleware('guest')
+    ->name('password.code.update');
 
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
@@ -121,6 +130,7 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['admin'])->group(function () {
         Volt::route('admin/dashboard', 'admin.dashboard')->name('admin.dashboard');
         Volt::route('admin/reports', 'admin.reports')->name('admin.reports');
+        Volt::route('admin/settings', 'admin.settings')->name('admin.settings');
     });
 
     // Challenge routes

@@ -107,6 +107,9 @@
                     <flux:navlist.item icon="flag" :href="route('admin.reports')"
                         :current="request()->routeIs('admin.reports')" wire:navigate>{{ __('Reports') }}
                     </flux:navlist.item>
+                    <flux:navlist.item icon="cog-6-tooth" :href="route('admin.settings')"
+                        :current="request()->routeIs('admin.settings')" wire:navigate>{{ __('Settings') }}
+                    </flux:navlist.item>
                 </flux:navlist.group>
             @endif
         </flux:navlist>

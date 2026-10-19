@@ -22,12 +22,11 @@ class EmailVerificationCodeNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->mailer('mailtrap')
             ->subject('Your Allsers email verification code')
-            ->greeting('Hello ' . ($notifiable->name ?? 'there') . '!')
+            ->greeting('Hello '.($notifiable->name ?? 'there').'!')
             ->line('Use the verification code below to confirm your email address.')
             ->line('')
-            ->line('Verification code: ' . $this->code)
+            ->line('Verification code: '.$this->code)
             ->line('This code expires in 15 minutes.')
             ->line('Enter this code on the verification page to complete your sign up.')
             ->action('Verify My Email', url('/email/verify'));

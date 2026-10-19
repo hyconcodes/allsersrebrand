@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Notifications\EmailVerificationCodeNotification;
-use App\Notifications\PasswordResetNotification;
+use App\Notifications\PasswordResetCodeNotification;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,6 +20,14 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, HasPushSubscriptions, Notifiable, TwoFactorAuthenticatable;
+
+    /**
+     * Whether the last password reset code notification failed to send.
+     *
+     * Transient static flag: not persisted; read by the Fortify
+     * password-reset-link response to flash an honest status message.
+     */
+    public static bool $passwordResetSendFailed = false;
 
     /**
      * Whether the last email verification notification failed to send.
@@ -63,6 +71,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'onesignal_player_id',
         'email_verification_code',
         'email_verification_expires_at',
+        'password_reset_code',
+        'password_reset_expires_at',
     ];
 
     /**
@@ -87,6 +97,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'email_verification_expires_at' => 'datetime',
+            'password_reset_expires_at' => 'datetime',
             'password' => 'hashed',
             'latitude' => 'decimal:8',
             'longitude' => 'decimal:8',
@@ -153,9 +164,58 @@ class User extends Authenticatable implements MustVerifyEmail
         }
     }
 
+    public function generatePasswordResetCode(): string
+    {
+        $code = strtoupper(Str::random(8));
+
+        $this->forceFill([
+            'password_reset_code' => $code,
+            'password_reset_expires_at' => Date::now()->addMinutes(15),
+        ])->save();
+
+        return $code;
+    }
+
+    public function passwordResetCodeIsValid(string $code): bool
+    {
+        $normalizedCode = strtoupper(trim($code));
+
+        if (blank($this->password_reset_code) || blank($this->password_reset_expires_at)) {
+            return false;
+        }
+
+        if ($this->password_reset_expires_at->isPast()) {
+            return false;
+        }
+
+        return hash_equals($this->password_reset_code, $normalizedCode);
+    }
+
+    public function clearPasswordResetCode(): void
+    {
+        $this->forceFill([
+            'password_reset_code' => null,
+            'password_reset_expires_at' => null,
+        ])->save();
+    }
+
     public function sendPasswordResetNotification($token): void
     {
-        $this->notify(new PasswordResetNotification($token));
+        static::$passwordResetSendFailed = false;
+
+        $code = $this->generatePasswordResetCode();
+
+        try {
+            $this->notify(new PasswordResetCodeNotification($code));
+        } catch (TransportExceptionInterface $e) {
+            static::$passwordResetSendFailed = true;
+
+            Log::error('Password reset code could not be sent.', [
+                'user_id' => $this->id,
+                'email' => $this->email,
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function getRouteKeyName()
