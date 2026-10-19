@@ -4,11 +4,14 @@ use App\Models\User;
 use App\Models\Post;
 use App\Models\Report;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
 new class extends Component {
+    use WithPagination;
+
     public $totalUsers;
     public $totalPosts;
     public $totalReports;
@@ -47,7 +50,10 @@ new class extends Component {
     protected function getAvailableYears(): array
     {
         try {
-            $years = User::selectRaw('YEAR(created_at) as year')
+            $yearExpression = DB::getDriverName() === 'sqlite'
+                ? "strftime('%Y', created_at) as year"
+                : 'YEAR(created_at) as year';
+            $years = User::selectRaw($yearExpression)
                 ->distinct()
                 ->orderBy('year', 'desc')
                 ->pluck('year')
@@ -81,6 +87,11 @@ new class extends Component {
             $this->loadTopLists();
             $this->dispatch('admin-charts-updated');
         }
+    }
+
+    public function updatedUserSearchQuery(): void
+    {
+        $this->resetPage();
     }
 
     public function clearFilter()
@@ -127,15 +138,16 @@ new class extends Component {
                 ->get();
         }
 
-        $managedUsers = [];
-        if (strlen($this->userSearchQuery) >= 3) {
-            $managedUsers = User::where('name', 'like', '%' . $this->userSearchQuery . '%')
-                ->orWhere('username', 'like', '%' . $this->userSearchQuery . '%')
-                ->orWhere('email', 'like', '%' . $this->userSearchQuery . '%')
-                ->latest()
-                ->limit(10)
-                ->get();
+        $managedUsers = User::query()->latest();
+        if (filled(trim($this->userSearchQuery))) {
+            $search = trim($this->userSearchQuery);
+            $managedUsers->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('username', 'like', '%' . $search . '%')
+                    ->orWhere('email', 'like', '%' . $search . '%');
+            });
         }
+        $managedUsers = $managedUsers->paginate(10);
 
         $bannedUsers = User::whereNotNull('banned_until')->where('banned_until', '>', now())->latest('banned_until');
         if (strlen($this->bannedSearchQuery) >= 2) {
@@ -283,7 +295,10 @@ new class extends Component {
             $refYear = $year ?? (int) Carbon::now()->year;
             $refMonth = $month ?? (int) Carbon::now()->month;
             $daysInMonth = Carbon::create($refYear, $refMonth, 1)->daysInMonth;
-            $dailyGrowth = User::select(DB::raw('DAY(created_at) as day'), DB::raw('count(*) as count'))
+            $dayExpression = DB::getDriverName() === 'sqlite'
+                ? "CAST(strftime('%d', created_at) AS INTEGER) as day"
+                : 'DAY(created_at) as day';
+            $dailyGrowth = User::select(DB::raw($dayExpression), DB::raw('count(*) as count'))
                 ->whereYear('created_at', $refYear)
                 ->whereMonth('created_at', $refMonth)
                 ->groupBy('day')
@@ -347,6 +362,7 @@ new class extends Component {
 
         $this->loadStats();
         $this->loadChartData();
+        $this->dispatch('admin-charts-updated');
         $this->dispatch('toast', type: 'success', title: 'Role Updated', message: "User {$user->name} is now a {$newRole}.");
     }
 
@@ -604,6 +620,14 @@ new class extends Component {
                 </div>
             </div>
         </div>
+
+        <!-- Chart data (inside the component so it re-renders with every Livewire
+             response; initAdminCharts reads it instead of values baked into the
+             pushed script, which go stale because pushed scripts are only emitted
+             on full page loads) -->
+        <div id="admin-chart-data" class="hidden"
+            data-growth="{{ json_encode($userGrowthChartData ?: []) }}"
+            data-roles="{{ json_encode($roleDistributionData ?: []) }}"></div>
 
         <!-- Charts Section -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -864,22 +888,24 @@ new class extends Component {
                         </div>
                     </div>
                 @empty
-                    @if (strlen($userSearchQuery) >= 3)
-                        <div class="text-center py-12">
-                            <flux:icon name="magnifying-glass"
-                                class="size-12 text-zinc-200 dark:text-zinc-800 mx-auto mb-4" />
+                    <div class="text-center py-12">
+                        <flux:icon name="magnifying-glass"
+                            class="size-12 text-zinc-200 dark:text-zinc-800 mx-auto mb-4" />
+                        @if (filled(trim($userSearchQuery)))
                             <p class="text-sm text-zinc-400">{{ __('No users found matching') }}
                                 "{{ $userSearchQuery }}"</p>
-                        </div>
-                    @else
-                        <div
-                            class="text-center py-12 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-3xl">
-                            <p class="text-xs text-zinc-400 font-bold uppercase ">
-                                {{ __('Enter at least 3 characters to search users') }}</p>
-                        </div>
-                    @endif
+                        @else
+                            <p class="text-sm text-zinc-400">{{ __('No users yet.') }}</p>
+                        @endif
+                    </div>
                 @endforelse
             </div>
+
+            @if ($managedUsers->hasPages())
+                <div class="mt-6">
+                    {{ $managedUsers->links() }}
+                </div>
+            @endif
         </div>
     </div>
 
@@ -1127,15 +1153,27 @@ new class extends Component {
                 const existingRole = Chart.getChart(roleCtx);
                 if (existingRole) existingRole.destroy();
 
+                // Read fresh data from the component DOM (morphs on every render).
+                let growth = {};
+                let roles = {};
+                try {
+                    const dataEl = document.getElementById('admin-chart-data');
+                    growth = JSON.parse(dataEl?.dataset.growth || '{}') || {};
+                    roles = JSON.parse(dataEl?.dataset.roles || '{}') || {};
+                } catch (e) {
+                    growth = {};
+                    roles = {};
+                }
+
                 const colorPurple = '#a855f7';
 
                 new Chart(growthCtx, {
                     type: 'line',
                     data: {
-                        labels: @js($userGrowthChartData['labels'] ?? []),
+                        labels: growth.labels || [],
                         datasets: [{
                             label: 'New Users',
-                            data: @js($userGrowthChartData['data'] ?? []),
+                            data: growth.data || [],
                             borderColor: colorPurple,
                             backgroundColor: 'rgba(168, 85, 247, 0.1)',
                             borderWidth: 4,
@@ -1184,9 +1222,9 @@ new class extends Component {
                 new Chart(roleCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: @js($roleDistributionData['labels'] ?? []),
+                        labels: roles.labels || [],
                         datasets: [{
-                            data: @js($roleDistributionData['data'] ?? []),
+                            data: roles.data || [],
                             backgroundColor: [colorPurple, '#3b82f6'],
                             borderWidth: 0,
                             hoverOffset: 10
