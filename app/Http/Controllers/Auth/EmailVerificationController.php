@@ -62,6 +62,10 @@ class EmailVerificationController extends Controller
             ])->withInput();
         }
 
+        // Drop any stale intended URL so post-activation flows always land
+        // on the dashboard instead of whatever the guest visited earlier.
+        $request->session()->forget('url.intended');
+
         return redirect()->route('dashboard', ['verified' => 1]);
     }
 }

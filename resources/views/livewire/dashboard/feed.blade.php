@@ -17,7 +17,7 @@ new class extends Component {
     #[Validate('nullable|array|max:4')]
     public $images = [];
 
-    #[Validate('nullable|file|mimes:mp4,mov,avi,wmv|max:10240')]
+    #[Validate('nullable|file|mimes:mp4,mov,avi,wmv|max:35840')]
     public $video = null;
 
     #[Validate('nullable|numeric|min:0')]
@@ -200,14 +200,14 @@ new class extends Component {
             $validated = $this->validate([
                 'content' => 'nullable|string|max:1000',
                 'images' => 'nullable|array|max:4',
-                'images.*' => 'nullable|image|max:10240',
-                'video' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:10240',
+                'images.*' => 'nullable|image|max:35840',
+                'video' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:35840',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             foreach ($e->validator->failed() as $field => $rules) {
                 if (str_starts_with($field, 'images') || $field === 'video') {
                     if (isset($rules['Max'])) {
-                        $this->dispatch('toast', type: 'warning', title: 'File Too Large', message: 'Images and videos must be 10MB or less.');
+                        $this->dispatch('toast', type: 'warning', title: 'File Too Large', message: 'Images and videos must be 35MB or less.');
                         break;
                     }
                 }
@@ -395,12 +395,12 @@ new class extends Component {
                                         <label class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
                                             <flux:icon name="photo" class="size-4" />
                                             <span class="hidden sm:inline">{{ __('Photo') }}</span>
-                                            <input type="file" wire:model="images" multiple accept="image/*" class="hidden" :disabled="video != null" x-on:change="guardFileSize($el, 10240)">
+                                            <input type="file" wire:model="images" multiple accept="image/*" class="hidden" :disabled="video != null" x-on:change="guardFileSize($el, 35840)">
                                         </label>
                                         <label class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
                                             <flux:icon name="video-camera" class="size-4" />
                                             <span class="hidden sm:inline">{{ __('Video') }}</span>
-                                            <input type="file" wire:model="video" accept="video/*" class="hidden" :disabled="images.length > 0" x-on:change="guardFileSize($el, 10240)">
+                                            <input type="file" wire:model="video" accept="video/*" class="hidden" :disabled="images.length > 0" x-on:change="guardFileSize($el, 35840)">
                                         </label>
                                         <button type="button" @click="showPrice = !showPrice"
                                             class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors">

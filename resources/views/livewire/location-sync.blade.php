@@ -2,7 +2,8 @@
 
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     public string $context = 'page'; // 'lila' | 'finder' | 'page'
 }; ?>
 
@@ -25,8 +26,6 @@ new class extends Component {
                 this._log('href', location.href);
                 this._log('navigator.geolocation exists?', typeof navigator !== 'undefined' && !!navigator.geolocation);
                 this._log('Permissions API exists?', !!(navigator.permissions && navigator.permissions.query));
-                this._log('Flux exists?', !!(window.Flux && typeof Flux.toast === 'function'), window.Flux);
-                this._log('throttleMs', this.throttleMs, '(1s debounce only — every entry will sync)');
                 this._log('ts', new Date().toISOString());
             });
 
@@ -35,33 +34,23 @@ new class extends Component {
                 return;
             }
 
-            const doSync = (reason) => {
-                this._group(`doSync triggered — reason: ${reason}`, () => {
-                    this._log('href', location.href);
-                    this._log('syncing flag', this.syncing);
-                    this._log('lastSyncAt', this.lastSyncAt, this.lastSyncAt ? `(${((Date.now()-this.lastSyncAt)/1000).toFixed(1)}s ago)` : '(never)');
-                    this._log('now', Date.now());
-                });
-                this.syncLocation(reason);
-            };
+            // One sync per page view. This component only mounts on Lila/finder —
+            // the old document-level 'livewire:navigated' listener (never cleaned
+            // up) leaked across SPA navigations and re-fired sync + toasts on
+            // every page in the app. Mount alone covers /lila ↔ /finder because
+            // the component remounts on each navigation.
+            setTimeout(() => {
+                if (! this.$el || ! this.$el.isConnected) {
+                    this._log('SKIP: navigated away before mount timer fired — no sync');
+                    return;
+                }
+                this.syncLocation('mount+delay:700ms');
+            }, 700);
 
-            // Initial sync — small delay so Flux, Livewire & toast are fully ready
-            setTimeout(() => doSync('mount+delay:700ms'), 700);
-
-            // Every SPA navigation to this page (e.g. /lila ↔ /finder)
-            document.addEventListener('livewire:navigated', () => doSync('livewire:navigated'));
-
-            // Banner save — just log, do NOT block next page entry
-            window.addEventListener('location-saved', (e) => {
-                this._log('event: location-saved received (banner/manual)', e.detail);
-            });
-
-            // Observe permission changes live
             if (navigator.permissions && navigator.permissions.query) {
                 navigator.permissions.query({ name: 'geolocation' }).then(status => {
                     this._log('PermissionsAPI initial state →', status.state);
                     this._log('granted = silent sync OK | prompt = native dialog may require gesture → silent call can fail code 1 | denied = blocked');
-                    status.onchange = () => this._log('PermissionsAPI state changed →', status.state);
                 }).catch(e => this._warn('PermissionsAPI query failed', e));
             }
         },
@@ -77,54 +66,26 @@ new class extends Component {
             this._group(`dispatchToast [source: ${source}]`, () => {
                 this._log('heading', heading);
                 this._log('text', text);
-                this._log('readableAddress', readableAddress);
-                this._log('shortAddr', shortAddr);
-                this._log('window.Flux exists?', !!(window.Flux));
-                this._log('Flux.toast is function?', !!(window.Flux && typeof Flux.toast === 'function'));
             });
 
-            // Try Flux first
-            let fluxOk = false;
-            if (window.Flux && typeof Flux.toast === 'function') {
-                try {
-                    Flux.toast({ variant: 'success', heading, text });
-                    fluxOk = true;
-                    this._log('✓ Flux.toast dispatched', { heading, text });
-                } catch (e) {
-                    this._error('✗ Flux.toast threw', e);
-                }
-            } else {
-                this._warn('Flux.toast not available at dispatch time — will fallback to custom toast event', { Flux: window.Flux });
-            }
-
-            // Always dispatch custom toast event too (guaranteed via x-ui/toast)
+            // Single toast channel: the custom 'toast' event rendered by
+            // x-ui/toast (the app-wide pattern). Flux.toast used to fire as
+            // well — every sync showed two identical toasts.
             try {
                 const detail = { type: 'success', title: heading, message: text, timeout: 6500 };
                 window.dispatchEvent(new CustomEvent('toast', { detail }));
-                this._log('✓ Custom toast event dispatched', detail);
+                this._log('✓ toast dispatched', detail);
             } catch (e) {
-                this._error('✗ Failed to dispatch custom toast event', e);
+                this._error('✗ Failed to dispatch toast event', e);
             }
 
-            // Broadcast for page UIs (Lila header, Finder base location)
+            // Broadcast for page UIs (Lila header, Finder base location, banner)
             try {
                 window.dispatchEvent(new CustomEvent('location-synced', {
                     detail: { address: readableAddress, short_address: shortAddr, source, ctx: this.ctx }
                 }));
                 this._log('✓ location-synced broadcast dispatched');
             } catch (e) { this._warn('location-synced broadcast failed', e); }
-
-            // Retry Flux once shortly after (covers race where Flux loads after this component)
-            if (!fluxOk) {
-                this._log('Scheduling Flux retry in 500ms…');
-                setTimeout(() => {
-                    if (window.Flux && typeof Flux.toast === 'function') {
-                        try { Flux.toast({ variant: 'success', heading, text }); this._log('✓ Retry Flux.toast dispatched'); } catch (e) { this._warn('Retry Flux.toast threw', e); }
-                    } else {
-                        this._warn('Retry: Flux still not available', { Flux: window.Flux });
-                    }
-                }, 500);
-            }
         },
         async checkPermission() {
             if (!navigator.permissions || !navigator.permissions.query) {
@@ -160,6 +121,11 @@ new class extends Component {
                 return;
             }
 
+            // Claim the slot immediately so every exit path (denied, code 1,
+            // POST failure, success) is throttled — the mount+delay attempt
+            // can no longer double-toast within the throttle window.
+            this.lastSyncAt = now;
+
             const perm = await this.checkPermission();
             this._log('Permission state before getCurrentPosition', { perm, reason });
 
@@ -167,12 +133,7 @@ new class extends Component {
                 this._warn('ABORT: permission = denied — browser blocks geolocation. Silent sync not possible.');
                 console.info(`%c[Allsers][LocationSync][${this.ctx}] ℹ Permission DENIED — user must enable via the banner (Enable location) or browser site settings (lock icon). No auto prompt will appear.`, 'color:#b45309;font-weight:700');
                 const detail = { type: 'warning', title: 'TURN ON YOUR LOCATION', message: 'Location is blocked. Enable it to find trusted pros near you.', timeout: 6500 };
-                if (window.Flux && typeof Flux.toast === 'function') {
-                    try { Flux.toast({ variant: 'warning', heading: detail.title, text: detail.message }); } catch (_) {}
-                    try { window.dispatchEvent(new CustomEvent('toast', { detail })); } catch (_) {}
-                } else {
-                    window.dispatchEvent(new CustomEvent('toast', { detail }));
-                }
+                try { window.dispatchEvent(new CustomEvent('toast', { detail })); } catch (_) {}
                 this._log('Dispatched TURN ON YOUR LOCATION toast (blocked)', detail);
                 return;
             }
@@ -229,7 +190,6 @@ new class extends Component {
                 const json = await res.json();
                 this._log('POST /location JSON', json);
                 const readable = (json.short_address || json.address || '').trim();
-                this.lastSyncAt = now;
 
                 if (readable) {
                     this._log('✓ Got readable address from server', { readable, short_address: json.short_address, full: json.address });
@@ -273,7 +233,6 @@ new class extends Component {
                     console.info(`%c[Allsers][LocationSync][${this.ctx}] ✗ PERMISSION_DENIED (code 1) — user dismissed/denied the prompt, or browser blocked silent prompt without user gesture.`, 'color:#dc2626;font-weight:700');
                     this._warn('Hint: On Chrome/Safari, silent getCurrentPosition with perm=prompt often requires a user gesture. Manual Enable location button will work; silent entry re-sync will work after user grants once (→ granted).');
                     const d2 = { type: 'warning', title: 'TURN ON YOUR LOCATION', message: 'Please allow location to find pros nearby.', timeout: 6500 };
-                    if (window.Flux && typeof Flux.toast === 'function') try { Flux.toast({ variant: 'warning', heading: d2.title, text: d2.message }); } catch (_) {}
                     try { window.dispatchEvent(new CustomEvent('toast', { detail: d2 })); } catch (_) {}
                     this._log('Dispatched TURN ON YOUR LOCATION toast (code 1)', d2);
                 } else if (code === 2) {

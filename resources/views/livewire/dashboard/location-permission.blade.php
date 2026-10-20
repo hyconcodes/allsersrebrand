@@ -2,7 +2,8 @@
 
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     public bool $hasLocation = false;
 
     public function mount(): void
@@ -87,7 +88,7 @@ new class extends Component {
             try {
                 if (!navigator.geolocation) {
                     this.errorMsg = 'Location is not supported on this device.';
-                    if (window.Flux) Flux.toast({ variant: 'error', heading: 'Not supported', text: this.errorMsg });
+                    try { window.dispatchEvent(new CustomEvent('toast', { detail: { type: 'error', title: 'Not supported', message: this.errorMsg } })); } catch (_) {}
                     return;
                 }
                 const position = await new Promise((resolve, reject) => {
@@ -135,12 +136,8 @@ new class extends Component {
                 this.show = false;
                 const heading = 'Location sync.';
                 const text = shortReadable;
-                const fluxOk = !!(window.Flux && typeof Flux.toast === 'function');
-                console.log('[Allsers][LocationBanner] dispatching toast', { heading, text, fluxOk });
-                if (fluxOk) { try { Flux.toast({ variant: 'success', heading, text }); console.log('[Allsers][LocationBanner] Flux.toast OK'); } catch (e) { console.warn('[Allsers][LocationBanner] Flux.toast threw', e); } }
-                // Always dispatch custom toast too so ui/toast shows it even if Flux race
-                try { window.dispatchEvent(new CustomEvent('toast', { detail: { type: 'success', title: heading, message: text, timeout: 6500 } })); console.log('[Allsers][LocationBanner] custom toast dispatched'); } catch (e) { console.error('[Allsers][LocationBanner] custom toast failed', e); }
-                if (!fluxOk) setTimeout(() => { if (window.Flux && typeof Flux.toast === 'function') try { Flux.toast({ variant: 'success', heading, text }); console.log('[Allsers][LocationBanner] retry Flux.toast OK'); } catch (_) {} }, 500);
+                console.log('[Allsers][LocationBanner] dispatching toast', { heading, text });
+                try { window.dispatchEvent(new CustomEvent('toast', { detail: { type: 'success', title: heading, message: text, timeout: 6500 } })); console.log('[Allsers][LocationBanner] toast dispatched'); } catch (e) { console.error('[Allsers][LocationBanner] toast failed', e); }
                 window.dispatchEvent(new CustomEvent('location-saved', { detail: { latitude: lat, longitude: lng, address: readable, short_address: shortReadable } }));
                 window.dispatchEvent(new CustomEvent('location-synced', { detail: { latitude: lat, longitude: lng, address: readable, short_address: shortReadable } }));
                 console.log('[Allsers][LocationBanner] broadcast location-saved + location-synced');
@@ -148,19 +145,22 @@ new class extends Component {
             } catch (e) {
                 console.warn('Location enable failed:', e);
                 const code = e && e.code;
+                const errorToast = (title, message) => {
+                    try { window.dispatchEvent(new CustomEvent('toast', { detail: { type: 'error', title, message } })); } catch (_) {}
+                };
                 if (code === 1) {
                     this.errorMsg = 'Location permission was denied. You can enable it anytime in your browser settings (lock icon in the address bar).';
-                    if (window.Flux) Flux.toast({ variant: 'error', heading: 'Permission denied', text: 'Enable location in your browser settings — tap the lock icon near the address bar.' });
+                    errorToast('Permission denied', 'Enable location in your browser settings — tap the lock icon near the address bar.');
                     this.dismiss();
                 } else if (code === 2) {
                     this.errorMsg = 'Could not detect your location. Please try again.';
-                    if (window.Flux) Flux.toast({ variant: 'error', heading: 'Location unavailable', text: this.errorMsg });
+                    errorToast('Location unavailable', this.errorMsg);
                 } else if (code === 3) {
                     this.errorMsg = 'Location request timed out. Please try again.';
-                    if (window.Flux) Flux.toast({ variant: 'error', heading: 'Timed out', text: this.errorMsg });
+                    errorToast('Timed out', this.errorMsg);
                 } else {
                     this.errorMsg = e.message || 'Could not save your location. Please try again.';
-                    if (window.Flux) Flux.toast({ variant: 'error', heading: 'Something went wrong', text: this.errorMsg });
+                    errorToast('Something went wrong', this.errorMsg);
                 }
             } finally {
                 this.loading = false;

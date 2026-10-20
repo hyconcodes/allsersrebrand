@@ -79,14 +79,14 @@ new class extends Component {
         try {
             $this->validate([
                 'repostContent' => 'nullable|string|max:1000',
-                'repostImage' => 'nullable|image|max:10240',
-                'repostVideo' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:10240',
+                'repostImage' => 'nullable|image|max:35840',
+                'repostVideo' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:35840',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             foreach ($e->validator->failed() as $field => $rules) {
                 if (str_starts_with($field, 'repostImage') || str_starts_with($field, 'repostVideo')) {
                     if (isset($rules['Max'])) {
-                        $this->dispatch('toast', type: 'warning', title: 'File Too Large', message: 'Images and videos must be 10MB or less.');
+                        $this->dispatch('toast', type: 'warning', title: 'File Too Large', message: 'Images and videos must be 35MB or less.');
                         break;
                     }
                 }
@@ -176,13 +176,13 @@ new class extends Component {
                         class="flex items-center gap-2 text-zinc-500 hover:text-[var(--color-brand-purple)] text-sm font-medium transition-colors cursor-pointer">
                         <flux:icon name="photo" class="size-5" />
                         <span>{{ __('Add Image') }}</span>
-                        <input type="file" wire:model="repostImage" accept="image/*" class="hidden" x-on:change="guardFileSize($el, 10240)">
+                        <input type="file" wire:model="repostImage" accept="image/*" class="hidden" x-on:change="guardFileSize($el, 35840)">
                     </label>
                     <label
                         class="flex items-center gap-2 text-zinc-500 hover:text-[var(--color-brand-purple)] text-sm font-medium transition-colors cursor-pointer">
                         <flux:icon name="video-camera" class="size-5" />
                         <span>{{ __('Add Video') }}</span>
-                        <input type="file" wire:model="repostVideo" accept="video/*" class="hidden" x-on:change="guardFileSize($el, 10240)">
+                        <input type="file" wire:model="repostVideo" accept="video/*" class="hidden" x-on:change="guardFileSize($el, 35840)">
                     </label>
                 </div>
 

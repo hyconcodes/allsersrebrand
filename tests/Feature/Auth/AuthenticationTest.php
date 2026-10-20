@@ -26,6 +26,25 @@ test('users can authenticate using the login screen', function () {
     $this->assertAuthenticated();
 });
 
+test('login always redirects to the dashboard even with a stale intended url', function () {
+    $user = User::factory()->withoutTwoFactor()->create();
+
+    // Simulate the session left behind when a guest visited an auth-only
+    // page (e.g. /settings/profile) before logging in.
+    $response = $this->withSession(['url.intended' => route('profile.edit')])
+        ->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('dashboard', absolute: false));
+
+    expect(session()->has('url.intended'))->toBeFalse();
+    $this->assertAuthenticated();
+});
+
 test('users can not authenticate with invalid password', function () {
     $user = User::factory()->create();
 

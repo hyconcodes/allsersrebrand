@@ -16,9 +16,9 @@ class BookmarksRepostUploadTest extends TestCase
     {
         $this->actingAs(User::factory()->create());
 
-        // 11MB: passes Livewire's temporary-upload cap (12MB) but exceeds
-        // the component's max:10240 rule, hitting the try/catch toast path.
-        $oversizedVideo = UploadedFile::fake()->create('clip.mp4', 11000, 'video/mp4');
+        // 37MB: passes Livewire's temporary-upload cap (40MB, config/livewire.php)
+        // but exceeds the component's max:35840 rule, hitting the try/catch toast path.
+        $oversizedVideo = UploadedFile::fake()->create('clip.mp4', 37000, 'video/mp4');
 
         Livewire::test('dashboard.bookmarks-feed')
             ->set('repostVideo', $oversizedVideo)
@@ -31,7 +31,7 @@ class BookmarksRepostUploadTest extends TestCase
     {
         $this->actingAs(User::factory()->create());
 
-        $oversizedImage = UploadedFile::fake()->create('photo.jpg', 11000, 'image/jpeg');
+        $oversizedImage = UploadedFile::fake()->create('photo.jpg', 37000, 'image/jpeg');
 
         Livewire::test('dashboard.bookmarks-feed')
             ->set('repostImage', $oversizedImage)
