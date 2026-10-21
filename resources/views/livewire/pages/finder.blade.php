@@ -162,6 +162,8 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
             $artisan->notify(new ServiceInquiry($sender));
         }
 
+        \App\Support\PingAlert::send($sender, $artisan, $engagement);
+
         $this->dispatch('toast', type: 'success', title: 'Inquiry Sent!', message: 'Taking you to your conversation with ' . $artisan->name);
 
         return $this->redirect(route('chat', $conversation->id), navigate: true);

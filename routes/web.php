@@ -133,6 +133,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Admin routes
     Route::middleware(['admin'])->group(function () {
         Volt::route('admin/dashboard', 'admin.dashboard')->name('admin.dashboard');
+        Volt::route('admin/pings', 'admin.pings')->name('admin.pings');
         Volt::route('admin/reports', 'admin.reports')->name('admin.reports');
         Volt::route('admin/settings', 'admin.settings')->name('admin.settings');
     });

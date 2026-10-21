@@ -8,6 +8,11 @@ use Livewire\Volt\Component;
 new #[Layout('components.layouts.app')] class extends Component {
     public string $mailDriver = 'smtp';
 
+    public string $pingAlertEmail = '';
+
+    /** @var array<int, array{email: string, admin_id: int}> */
+    public array $pingAlertEmails = [];
+
     public function mount(): void
     {
         if (!auth()->user()?->isAdmin()) {
@@ -19,6 +24,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         if (!in_array($this->mailDriver, SystemSetting::MAIL_DRIVERS, true)) {
             $this->mailDriver = 'smtp';
         }
+
+        $this->pingAlertEmails = SystemSetting::getPingAlertEmails();
     }
 
     public function save(): void
@@ -81,6 +88,47 @@ new #[Layout('components.layouts.app')] class extends Component {
             'mailtrapEndpoint' => config('services.mailtrap.endpoint'),
             'activeDriver' => config('mail.default'),
         ];
+    }
+
+    public function addPingAlertEmail(): void
+    {
+        if (!auth()->user()?->isAdmin()) {
+            abort(403, 'Unauthorized access');
+        }
+
+        $result = SystemSetting::addPingAlertEmail($this->pingAlertEmail, auth()->id());
+
+        if ($result['ok']) {
+            $this->pingAlertEmail = '';
+            $this->pingAlertEmails = SystemSetting::getPingAlertEmails();
+        }
+
+        $this->dispatch(
+            'toast',
+            type: $result['ok'] ? 'success' : 'error',
+            title: $result['ok'] ? 'Email added' : 'Could not add email',
+            message: $result['message'],
+        );
+    }
+
+    public function removePingAlertEmail(string $email): void
+    {
+        if (!auth()->user()?->isAdmin()) {
+            abort(403, 'Unauthorized access');
+        }
+
+        $result = SystemSetting::removePingAlertEmail($email);
+
+        if ($result['ok']) {
+            $this->pingAlertEmails = SystemSetting::getPingAlertEmails();
+        }
+
+        $this->dispatch(
+            'toast',
+            type: $result['ok'] ? 'success' : 'error',
+            title: $result['ok'] ? 'Email removed' : 'Could not remove email',
+            message: $result['message'],
+        );
     }
 }
 ?>
@@ -153,6 +201,57 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <span wire:loading wire:target="save">{{ __('Saving...') }}</span>
                 </flux:button>
             </div>
+        @endif
+    </div>
+
+    <!-- Ping alert recipients -->
+    <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 sm:p-6 space-y-5">
+        <div>
+            <h2 class="text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
+                {{ __('Ping alerts') }}
+            </h2>
+            <p class="mt-1 text-sm text-zinc-500">
+                {{ __('Every admin here gets an instant email copy of each ping (service inquiry), including the pinger’s and the artisan’s business and contact info. Each admin can register one email. Leave the list empty to disable admin copies.') }}
+            </p>
+        </div>
+
+        @if (! $settingsTableExists)
+            <div class="rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 p-4 text-sm text-yellow-800 dark:text-yellow-300">
+                {{ __('The settings table does not exist yet. Run php artisan migrate first.') }}
+            </div>
+        @else
+            @if (count($pingAlertEmails) > 0)
+                <ul class="divide-y divide-zinc-200 dark:divide-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                    @foreach ($pingAlertEmails as $entry)
+                        <li class="flex items-center justify-between gap-3 px-4 py-3">
+                            <div class="min-w-0 flex items-center gap-2.5">
+                                <flux:icon name="envelope" class="size-4 shrink-0 text-zinc-400" />
+                                <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{{ $entry['email'] }}</span>
+                                @if ((int) ($entry['admin_id'] ?? 0) === (int) auth()->id())
+                                    <span class="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">{{ __('you') }}</span>
+                                @endif
+                            </div>
+                            <flux:button wire:click="removePingAlertEmail('{{ $entry['email'] }}')" wire:loading.attr="disabled" variant="ghost" size="sm" icon="trash" class="text-red-600 dark:text-red-400">
+                                {{ __('Remove') }}
+                            </flux:button>
+                        </li>
+                    @endforeach
+                </ul>
+            @else
+                <div class="rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-dashed border-zinc-300 dark:border-zinc-700 p-4 text-sm text-zinc-500 dark:text-zinc-400">
+                    {{ __('No ping alert emails registered yet.') }}
+                </div>
+            @endif
+
+            <form wire:submit="addPingAlertEmail" class="flex flex-col sm:flex-row gap-3 sm:items-end">
+                <div class="flex-1 min-w-0">
+                    <flux:input wire:model="pingAlertEmail" type="email" :label="__('Add your email')" placeholder="you@example.com" />
+                </div>
+                <flux:button type="submit" wire:loading.attr="disabled" variant="primary" icon="plus" class="shrink-0">
+                    <span wire:loading.remove wire:target="addPingAlertEmail">{{ __('Add email') }}</span>
+                    <span wire:loading wire:target="addPingAlertEmail">{{ __('Adding...') }}</span>
+                </flux:button>
+            </form>
         @endif
     </div>
 </div>

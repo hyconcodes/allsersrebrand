@@ -3,13 +3,14 @@
 use App\Models\Post;
 use App\Models\User;
 use App\Notifications\UserTagged;
+use App\Traits\HandlesPostActions;
+use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
-use Livewire\Attributes\Validate;
-use App\Traits\HandlesPostActions;
 
-new class extends Component {
-    use WithFileUploads, HandlesPostActions;
+new class extends Component
+{
+    use HandlesPostActions, WithFileUploads;
 
     public $showModal = false;
 
@@ -33,8 +34,9 @@ new class extends Component {
     #[On('open-create-post')]
     public function openModal()
     {
-        if (!auth()->user()->isArtisan()) {
+        if (! auth()->user()->isArtisan()) {
             $this->dispatch('toast', type: 'error', title: 'Artisans Only', message: 'Only artisans can create posts.');
+
             return;
         }
         $this->showModal = true;
@@ -42,13 +44,15 @@ new class extends Component {
 
     public function createPost()
     {
-        if (!auth()->user()->isArtisan()) {
+        if (! auth()->user()->isArtisan()) {
             $this->addError('permission', 'Only artisans can create posts.');
+
             return;
         }
 
         if (empty($this->content) && empty($this->images) && empty($this->video)) {
             $this->addError('content', 'Please add content, images, or a video.');
+
             return;
         }
 
@@ -78,7 +82,7 @@ new class extends Component {
             'price_max' => $this->price_max,
         ]);
 
-        if (!empty($this->images)) {
+        if (! empty($this->images)) {
             $imagePaths = [];
             foreach ($this->images as $image) {
                 $imagePaths[] = $image->store('posts/images', 'public');
@@ -124,7 +128,7 @@ new class extends Component {
         foreach ($usernames as $username) {
             $mentioned = User::where('username', $username)->first();
             if ($mentioned && $mentioned->id !== auth()->id()) {
-                $mentioned->notify(new UserTagged($post));
+                $mentioned->notify(new UserTagged($post, auth()->user()));
             }
         }
     }

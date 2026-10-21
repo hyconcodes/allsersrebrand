@@ -134,6 +134,7 @@
                         <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('Settings') }}</flux:menu.item>
                         @if (auth()->user()->isAdmin())
                             <flux:menu.item :href="route('admin.dashboard')" icon="shield-check" wire:navigate>{{ __('Admin') }}</flux:menu.item>
+                            <flux:menu.item :href="route('admin.pings')" icon="bolt" wire:navigate>{{ __('Pings') }}</flux:menu.item>
                             <flux:menu.item :href="route('admin.settings')" icon="cog-6-tooth" wire:navigate>{{ __('Admin Settings') }}</flux:menu.item>
                         @endif
                     </flux:menu.radio.group>

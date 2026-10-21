@@ -102,6 +102,8 @@ new class extends Component {
         ]);
 
         $this->createSystemMessage('inquiry', $engagement->id, "I'm interested in hiring you for: $title");
+
+        \App\Support\PingAlert::send(auth()->user(), $this->activeConversation->other_user, $engagement);
     }
 
     public function sendQuote($price, $time)
