@@ -149,7 +149,7 @@ test('search matches pinger or artisan names', function () {
         ->assertSet('stats.total', 1);
 });
 
-test('ping alert mail is queued to every registered admin email', function () {
+test('ping alert mail is sent synchronously to every registered admin email', function () {
     Mail::fake();
 
     $adminOne = User::factory()->create(['is_admin' => true]);
@@ -164,10 +164,10 @@ test('ping alert mail is queued to every registered admin email', function () {
 
     \App\Support\PingAlert::send($pinger, $artisan, $engagement);
 
-    Mail::assertQueued(AdminPingAlertMail::class, 2);
+    Mail::assertSent(AdminPingAlertMail::class, 2);
 
     $recipients = [];
-    Mail::queued(AdminPingAlertMail::class, function ($mail) use (&$recipients) {
+    Mail::sent(AdminPingAlertMail::class, function ($mail) use (&$recipients) {
         $recipients[] = strtolower(collect($mail->to)->pluck('address')->first());
 
         return true;
@@ -185,7 +185,7 @@ test('ping alert mail is skipped when no emails are registered', function () {
 
     \App\Support\PingAlert::send($pinger, $artisan, $engagement);
 
-    Mail::assertNothingQueued();
+    Mail::assertNothingSent();
 });
 
 test('each admin can only register one ping alert email', function () {

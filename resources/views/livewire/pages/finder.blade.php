@@ -4,6 +4,7 @@ use Livewire\Volt\Component;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ServiceInquiryMail;
 use App\Notifications\ServiceInquiry;
@@ -156,9 +157,14 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
 
         // 5. Notify
         try {
-            Mail::to($artisan->email)->queue(new ServiceInquiryMail($sender, $artisan));
+            Mail::to($artisan->email)->send(new ServiceInquiryMail($sender, $artisan));
             $artisan->notify(new ServiceInquiry($sender));
         } catch (\Exception $e) {
+            Log::error('Service inquiry email to artisan failed.', [
+                'to' => $artisan->email,
+                'engagement_id' => $engagement->id,
+                'exception' => $e->getMessage(),
+            ]);
             $artisan->notify(new ServiceInquiry($sender));
         }
 

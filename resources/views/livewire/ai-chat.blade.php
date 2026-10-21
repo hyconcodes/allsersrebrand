@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Mail\ServiceInquiryMail;
 use App\Notifications\ServiceInquiry;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Livewire\Volt\Component;
 use Livewire\Attributes\On;
 use Livewire\WithFileUploads;
@@ -119,9 +120,14 @@ new class extends Component {
 
         // 5. Notify
         try {
-            Mail::to($artisan->email)->queue(new ServiceInquiryMail($sender, $artisan));
+            Mail::to($artisan->email)->send(new ServiceInquiryMail($sender, $artisan));
             $artisan->notify(new ServiceInquiry($sender));
         } catch (\Exception $e) {
+            Log::error('Service inquiry email to artisan failed.', [
+                'to' => $artisan->email,
+                'engagement_id' => $engagement->id,
+                'exception' => $e->getMessage(),
+            ]);
             $artisan->notify(new ServiceInquiry($sender));
         }
 

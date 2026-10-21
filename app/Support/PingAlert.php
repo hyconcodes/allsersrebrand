@@ -26,9 +26,9 @@ class PingAlert
 
         foreach ($recipients as $email) {
             try {
-                Mail::to($email)->queue(new AdminPingAlertMail($pinger, $artisan, $engagement));
+                Mail::to($email)->send(new AdminPingAlertMail($pinger, $artisan, $engagement));
             } catch (\Throwable $e) {
-                Log::error('Could not queue admin ping alert.', [
+                Log::error('Could not send admin ping alert.', [
                     'to' => $email,
                     'engagement_id' => $engagement->id,
                     'exception' => $e->getMessage(),

@@ -101,9 +101,23 @@ new class extends Component {
             'title' => $title,
         ]);
 
+        $artisan = $this->activeConversation->other_user;
+
         $this->createSystemMessage('inquiry', $engagement->id, "I'm interested in hiring you for: $title");
 
-        \App\Support\PingAlert::send(auth()->user(), $this->activeConversation->other_user, $engagement);
+        try {
+            \Illuminate\Support\Facades\Mail::to($artisan->email)->send(new \App\Mail\ServiceInquiryMail(auth()->user(), $artisan));
+            $artisan->notify(new \App\Notifications\ServiceInquiry(auth()->user()));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Service inquiry email to artisan failed.', [
+                'to' => $artisan->email,
+                'engagement_id' => $engagement->id,
+                'exception' => $e->getMessage(),
+            ]);
+            $artisan->notify(new \App\Notifications\ServiceInquiry(auth()->user()));
+        }
+
+        \App\Support\PingAlert::send(auth()->user(), $artisan, $engagement);
     }
 
     public function sendQuote($price, $time)
