@@ -1,265 +1,150 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>Welcome to Allsers</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f8fafc;
             margin: 0;
             padding: 0;
-            -webkit-font-smoothing: antialiased;
+            background-color: #f4f4f5;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
         }
 
-        .container {
-            max-width: 600px;
-            margin: 40px auto;
-            background-color: #ffffff;
-            border-radius: 32px;
-            overflow: hidden;
-            box-shadow: 0 20px 50px rgba(109, 40, 217, 0.1);
+        table {
+            border-collapse: collapse;
         }
 
-        .header {
-            background: linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%);
-            padding: 60px 40px;
-            text-align: center;
-        }
-
-        .badge {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 8px 16px;
-            border-radius: 100px;
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-
-        .header h1 {
-            color: #ffffff;
-            font-size: 32px;
-            font-weight: 900;
-            margin: 0;
-            letter-spacing: -1px;
-        }
-
-        .content {
-            padding: 40px;
-            text-align: left;
-        }
-
-        .lila-row {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-
-        .lila-avatar {
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            border: 3px solid #6d28d9;
-            background-color: #f5f3ff;
-            flex-shrink: 0;
-        }
-
-        .lila-intro h2 {
-            margin: 0;
-            font-size: 20px;
-            color: #1e293b;
-        }
-
-        .lila-intro p {
-            margin: 4px 0 0;
-            font-size: 14px;
-            color: #64748b;
-        }
-
-        .content p {
-            font-size: 17px;
-            line-height: 1.6;
-            color: #334155;
-            margin-bottom: 20px;
-        }
-
-        .section-title {
-            font-size: 13px;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: #6d28d9;
-            margin: 32px 0 12px;
-        }
-
-        .benefit-list {
-            list-style: none;
-            padding: 0;
-            margin: 0 0 28px;
-        }
-
-        .benefit-list li {
-            position: relative;
-            padding: 10px 0 10px 36px;
-            font-size: 16px;
-            line-height: 1.5;
-            color: #334155;
-            border-bottom: 1px solid #f1f5f9;
-        }
-
-        .benefit-list li:last-child {
-            border-bottom: none;
-        }
-
-        .benefit-list li::before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            top: 10px;
-            width: 24px;
-            height: 24px;
-            border-radius: 8px;
-            background-color: #ede9fe;
-            color: #6d28d9;
-            font-size: 14px;
-            font-weight: 900;
-            text-align: center;
-            line-height: 24px;
-        }
-
-        .buttons {
-            text-align: center;
-            margin-top: 8px;
-        }
-
-        .button {
-            display: inline-block;
-            background-color: #6d28d9;
-            color: #ffffff !important;
-            padding: 18px 40px;
-            border-radius: 100px;
-            font-size: 15px;
-            font-weight: 900;
+        img {
+            border: 0;
+            outline: none;
             text-decoration: none;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            box-shadow: 0 10px 20px rgba(109, 40, 217, 0.3);
-            margin: 8px 6px;
+            -ms-interpolation-mode: bicubic;
         }
 
-        .button-secondary {
-            display: inline-block;
-            background-color: #ffffff;
-            color: #6d28d9 !important;
-            padding: 17px 40px;
-            border-radius: 100px;
-            border: 2px solid #6d28d9;
-            font-size: 15px;
-            font-weight: 900;
-            text-decoration: none;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin: 8px 6px;
-        }
+        @media only screen and (max-width: 620px) {
+            .card {
+                width: 100% !important;
+                border-radius: 0 !important;
+                border-left: none !important;
+                border-right: none !important;
+            }
 
-        .signature {
-            text-align: center;
-            padding-top: 28px;
-            margin-top: 28px;
-            border-top: 1px solid #f1f5f9;
-        }
+            .inner {
+                padding: 24px 16px !important;
+            }
 
-        .signature .lila-avatar {
-            width: 56px;
-            height: 56px;
-            margin: 0 auto 10px;
-            display: block;
-        }
+            .btn-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 0 0 10px !important;
+            }
 
-        .signature p {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 900;
-            color: #1e293b;
-        }
+            .btn {
+                display: block !important;
+                text-align: center !important;
+            }
 
-        .signature span {
-            display: block;
-            font-size: 13px;
-            font-weight: 700;
-            color: #94a3b8;
-            margin-top: 2px;
-        }
-
-        .footer {
-            padding: 40px;
-            text-align: center;
-            border-top: 1px solid #f1f5f9;
-            background-color: #fafafa;
-        }
-
-        .footer p {
-            font-size: 14px;
-            color: #94a3b8;
-            margin: 0;
+            .step-img {
+                width: 130px !important;
+            }
         }
     </style>
 </head>
 
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="badge">Welcome to Allsers</div>
-            <h1>You&rsquo;re in, {{ $user->name }}!</h1>
-        </div>
-        <div class="content">
-            <div class="lila-row">
-                <img class="lila-avatar" src="{{ asset('assets/lila-avatar.png') }}" alt="Lilia from Allsers">
-                <div class="lila-intro">
-                    <h2>Hi, I&rsquo;m Lilia!</h2>
-                    <p>Your Allsers guide &mdash; I&rsquo;m here to help you find what you need.</p>
-                </div>
-            </div>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust: 100%;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5;">
+        <tr>
+            <td align="center" style="padding: 32px 12px;">
+                <!--[if mso]>
+                <table role="presentation" width="560" align="center"><tr><td>
+                <![endif]-->
+                <table role="presentation" class="card" width="560" cellpadding="0" cellspacing="0"
+                    style="width: 100%; max-width: 560px; background-color: #ffffff; border: 1px solid #e4e4e7; border-radius: 12px; overflow: hidden;">
+                    <tr>
+                        <td class="inner" style="padding: 32px 40px;">
+                            <p style="margin: 0 0 20px; font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #a1a1aa;">
+                                Allsers
+                            </p>
 
-            <p>
-                <strong>Allsers</strong> is a services marketplace that connects people like you with
-                trusted local professionals &mdash; electricians, designers, chefs, tutors, builders
-                and more. Whatever you need done, there&rsquo;s a skilled artisan ready to help.
-            </p>
+                            <h1 style="margin: 0 0 12px; font-size: 22px; font-weight: 700; line-height: 1.3; color: #18181b;">
+                                You&rsquo;re in, {{ $user->name }}!
+                            </h1>
 
-            <div class="section-title">How Allsers helps you</div>
-            <ul class="benefit-list">
-                <li>Find vetted professionals near you in seconds</li>
-                <li>Post what you need and let artisans come to you</li>
-                <li>Chat directly with artisans before you hire</li>
-                <li>Ask Lila, our AI assistant, to find the right pro for any job</li>
-                <li>Follow community posts, save favorites and stay inspired</li>
-            </ul>
+                            <p style="margin: 0 0 14px; font-size: 14px; line-height: 1.7; color: #52525b;">
+                                Welcome to <strong style="color: #18181b;">Allsers</strong> &mdash; the services
+                                marketplace that connects you with trusted local professionals: electricians,
+                                designers, chefs, tutors, builders and more. Lilia, your Allsers guide, is here
+                                whenever you need help finding the right person for the job.
+                            </p>
 
-            <div class="buttons">
-                <a href="{{ route('finder') }}" class="button">Find Artisans</a>
-                <a href="{{ route('dashboard') }}" class="button-secondary">Go to Dashboard</a>
-            </div>
+                            <p style="margin: 0 0 6px; font-size: 14px; font-weight: 600; color: #18181b;">How it helps you</p>
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                                <tr>
+                                    <td style="padding: 5px 0; font-size: 14px; line-height: 1.6; color: #52525b; border-bottom: 1px solid #f4f4f5;">
+                                        &bull;&nbsp; Find vetted professionals near you in seconds
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 5px 0; font-size: 14px; line-height: 1.6; color: #52525b; border-bottom: 1px solid #f4f4f5;">
+                                        &bull;&nbsp; Post what you need and let artisans come to you
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 5px 0; font-size: 14px; line-height: 1.6; color: #52525b; border-bottom: 1px solid #f4f4f5;">
+                                        &bull;&nbsp; Chat with artisans before you hire
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 5px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
+                                        &bull;&nbsp; Ask Lila, our AI assistant, to find the right pro
+                                    </td>
+                                </tr>
+                            </table>
 
-            <div class="signature">
-                <img class="lila-avatar" src="{{ asset('assets/lila-avatar.png') }}" alt="Lilia">
-                <p>Lilia from Allsers.</p>
-                <span>We&rsquo;re glad you&rsquo;re here.</span>
-            </div>
-        </div>
-        <div class="footer">
-            <p>&copy; {{ date('Y') }} Allsers. Empowering Local Talent.</p>
-        </div>
-    </div>
+                            @include('emails.partials.install-guide')
+
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0 4px; border-collapse: collapse;">
+                                <tr>
+                                    <td class="btn-cell" width="50%" valign="top" style="padding: 0 5px 0 0;">
+                                        <a href="{{ route('finder') }}" class="btn"
+                                            style="display: block; padding: 12px 20px; background-color: #18181b; color: #ffffff; font-size: 13px; font-weight: 600; text-decoration: none; text-align: center; border-radius: 8px;">
+                                            Find Artisans
+                                        </a>
+                                    </td>
+                                    <td class="btn-cell" width="50%" valign="top" style="padding: 0 0 0 5px;">
+                                        <a href="{{ route('dashboard') }}" class="btn"
+                                            style="display: block; padding: 12px 20px; background-color: #ffffff; color: #18181b; font-size: 13px; font-weight: 600; text-decoration: none; text-align: center; border: 1px solid #d4d4d8; border-radius: 8px;">
+                                            Go to Dashboard
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 22px 0 0; padding-top: 18px; border-top: 1px solid #f4f4f5; font-size: 13px; color: #71717a;">
+                                Lilia from Allsers.<br>
+                                <span style="color: #a1a1aa;">We&rsquo;re glad you&rsquo;re here.</span>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="inner" style="padding: 14px 40px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+                            <p style="margin: 0; font-size: 12px; color: #a1a1aa; text-align: center;">
+                                &copy; {{ date('Y') }} Allsers. Empowering Local Talent.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+                <!--[if mso]>
+                </td></tr></table>
+                <![endif]-->
+            </td>
+        </tr>
+    </table>
 </body>
 
 </html>

@@ -104,6 +104,9 @@
                     <flux:navlist.item icon="shield-check" :href="route('admin.dashboard')"
                         :current="request()->routeIs('admin.dashboard')" wire:navigate>{{ __('Dashboard') }}
                     </flux:navlist.item>
+                    <flux:navlist.item icon="bolt" :href="route('admin.pings')"
+                        :current="request()->routeIs('admin.pings')" wire:navigate>{{ __('Pings') }}
+                    </flux:navlist.item>
                     <flux:navlist.item icon="flag" :href="route('admin.reports')"
                         :current="request()->routeIs('admin.reports')" wire:navigate>{{ __('Reports') }}
                     </flux:navlist.item>
