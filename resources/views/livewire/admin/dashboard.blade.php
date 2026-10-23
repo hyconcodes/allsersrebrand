@@ -401,6 +401,23 @@ new class extends Component {
         $this->dispatch('toast', type:'success', title:'User Unbanned', message: $user->name.' has been unbanned.');
     }
 
+    public function verifyUser($userId)
+    {
+        $user = User::findOrFail($userId);
+
+        if ($user->email_verified_at) {
+            return;
+        }
+
+        $user->forceFill(['email_verified_at' => now()])->save();
+
+        if ($this->selectedUser && (int) $this->selectedUser->id === (int) $user->id) {
+            $this->selectedUser->refresh();
+        }
+
+        $this->dispatch('toast', type: 'success', title: 'User Verified', message: "{$user->name} has been verified.");
+    }
+
     public function resolveReport($reportId, $action)
     {
         $report = Report::findOrFail($reportId);
@@ -489,7 +506,7 @@ new class extends Component {
     </div>
 
     <!-- Tab Navigation -->
-    <div class="flex overflow-x-auto gap-2 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-2xl w-fit">
+    <div class="flex overflow-x-auto gap-2 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-2xl w-fit max-w-full">
         <button @click="activeTab = 'overview'"
             :class="activeTab === 'overview' ? 'bg-white dark:bg-zinc-700  text-zinc-900 dark:text-white' :
                 'text-zinc-500 hover:text-zinc-700'"
@@ -778,7 +795,7 @@ new class extends Component {
             <div class="mt-8 space-y-4">
                 @forelse($managedPosts as $post)
                     <div
-                        class="p-6 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex items-start justify-between gap-4">
+                        class="p-6 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                         <div class="flex gap-4 min-w-0">
                             <div
                                 class="size-10 rounded-xl overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
@@ -802,7 +819,7 @@ new class extends Component {
                                     {{ $post->created_at->format('M d, Y • g:i A') }}</p>
                             </div>
                         </div>
-                        <flux:button wire:click="openAdminDeletePostModal({{ $post->id }})" variant="danger" size="sm" class="shrink-0">{{ __('Delete') }}</flux:button>
+                        <flux:button wire:click="openAdminDeletePostModal({{ $post->id }})" variant="danger" size="sm" class="shrink-0 self-start">{{ __('Delete') }}</flux:button>
                     </div>
                 @empty
                     @if (strlen($postSearchQuery) >= 3)
@@ -838,7 +855,7 @@ new class extends Component {
             <div class="mt-8 space-y-4">
                 @forelse($managedUsers as $user)
                     <div
-                        class="p-6 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-4">
+                        class="p-6 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div class="flex items-center gap-4 min-w-0">
                             <div
                                 class="size-12 rounded-2xl overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
@@ -852,18 +869,30 @@ new class extends Component {
                             </div>
                             <div class="min-w-0">
                                 <p class="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                                    {{ $user->name }}
+                                    <span class="truncate">{{ $user->name }}</span>
                                     <span
-                                        class="px-2 py-0.5 rounded text-xs font-bold uppercase  {{ $user->role === 'artisan' ? 'bg-zinc-100 text-purple-600' : 'bg-blue-100 text-blue-600' }}">
+                                        class="shrink-0 px-2 py-0.5 rounded text-xs font-bold uppercase  {{ $user->role === 'artisan' ? 'bg-zinc-100 text-purple-600 dark:bg-purple-500/15 dark:text-purple-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300' }}">
                                         {{ $user->role }}
                                     </span>
                                 </p>
-                                <p class="text-xs text-zinc-500">@<span>{{ $user->username }}</span> •
+                                <p class="text-xs text-zinc-500 truncate">@<span>{{ $user->username }}</span> •
                                     {{ $user->email }}</p>
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2 shrink-0">
+                            @if ($user->email_verified_at)
+                                <span
+                                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 text-xs font-bold whitespace-nowrap">
+                                    <flux:icon name="check-badge" class="size-3.5" />
+                                    {{ __('Verified') }} • {{ $user->email_verified_at->format('M j, Y g:i A') }}
+                                </span>
+                            @else
+                                <flux:button wire:click="verifyUser({{ $user->id }})" wire:loading.attr="disabled"
+                                    variant="primary" size="sm" class="font-bold text-xs uppercase whitespace-nowrap">
+                                    {{ __('Verify') }}
+                                </flux:button>
+                            @endif
                             <flux:button wire:click="viewUser({{ $user->id }})" variant="ghost" size="sm" class="font-bold text-xs uppercase">
                                 {{ __('View more') }}
                             </flux:button>

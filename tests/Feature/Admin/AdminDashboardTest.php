@@ -112,3 +112,50 @@ test('the chart data element the JavaScript reads is rendered inside the compone
         ->assertSeeHtml('data-growth=')
         ->assertSeeHtml('data-roles=');
 });
+
+test('verifyUser stamps email_verified_at and dispatches a toast', function () {
+    $user = User::factory()->unverified()->create();
+
+    Volt::test('admin.dashboard')
+        ->call('verifyUser', $user->id)
+        ->assertDispatched('toast', type: 'success', title: 'User Verified');
+
+    expect($user->refresh()->email_verified_at)->not->toBeNull();
+});
+
+test('verifyUser is a no-op when the user is already verified', function () {
+    $verifiedAt = now()->subDay()->startOfSecond();
+    $user = User::factory()->create(['email_verified_at' => $verifiedAt]);
+
+    Volt::test('admin.dashboard')->call('verifyUser', $user->id);
+
+    expect($user->refresh()->email_verified_at->equalTo($verifiedAt))->toBeTrue();
+});
+
+test('the users tab shows an active verify button for unverified users', function () {
+    $this->adminUser->forceFill(['email_verified_at' => null])->save();
+
+    $target = User::factory()->unverified()->create([
+        'username' => 'needsverify',
+        'created_at' => now(),
+    ]);
+
+    Volt::test('admin.dashboard')
+        ->assertSee('Verify')
+        ->assertSeeHtml('wire:click="verifyUser('.$target->id.')"')
+        ->assertDontSee('Verified');
+});
+
+test('the users tab shows the verified timestamp with a readable short date for verified users', function () {
+    User::factory()->create([
+        'created_at' => now(),
+        'email_verified_at' => now()->subDays(3)->setTime(15, 45),
+    ]);
+
+    $component = Volt::test('admin.dashboard')
+        ->assertSee('Verified')
+        ->assertDontSeeHtml('wire:click="verifyUser');
+
+    // "M j, Y g:i A" — e.g. "Oct 20, 2026 3:45 PM"
+    expect($component->html())->toContain(now()->subDays(3)->setTime(15, 45)->format('M j, Y g:i A'));
+});

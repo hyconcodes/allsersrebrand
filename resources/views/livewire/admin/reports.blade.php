@@ -239,7 +239,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     <!-- Filter Tabs -->
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6">
-        <div class="flex border-b border-zinc-200 dark:border-zinc-800">
+        <div class="flex flex-wrap border-b border-zinc-200 dark:border-zinc-800">
             <button wire:click="$set('filterStatus', 'pending')"
                 class="px-6 py-3 text-sm font-medium transition-colors {{ $filterStatus === 'pending' ? 'text-[var(--color-brand-purple)] border-b-2 border-[var(--color-brand-purple)]' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100' }}">
                 Pending ({{ $pendingCount }})
@@ -272,10 +272,10 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <h3 class="text-sm font-semibold text-zinc-500 uppercase tracking-wider">Search Results</h3>
                 @forelse($searchResults as $user)
                     <div
-                        class="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                        <div class="flex items-center gap-4">
+                        class="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-100 dark:border-zinc-800 gap-3">
+                        <div class="flex items-center gap-4 min-w-0">
                             <div
-                                class="size-10 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center overflow-hidden">
+                                class="size-10 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center overflow-hidden shrink-0">
                                 @if ($user->profile_picture_url)
                                     <img src="{{ $user->profile_picture_url }}" class="size-full object-cover">
                                 @else
@@ -285,17 +285,17 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     </div>
                                 @endif
                             </div>
-                            <div>
-                                <p class="font-bold text-zinc-900 dark:text-zinc-100">{{ $user->name }}
-                                    (@<span>{{ $user->username }}</span>)</p>
-                                <p class="text-sm text-zinc-500">{{ $user->email }}</p>
+                            <div class="min-w-0">
+                                <p class="font-bold text-zinc-900 dark:text-zinc-100 truncate">{{ $user->name }}
+                                    <span class="font-normal text-zinc-500">(@<span class="break-all">{{ $user->username }}</span>)</span></p>
+                                <p class="text-sm text-zinc-500 truncate">{{ $user->email }}</p>
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2 shrink-0">
                             @if ($user->isBanned())
                                 <span
-                                    class="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium mr-2">Banned
+                                    class="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">Banned
                                     until {{ $user->banned_until->format('M d, Y') }}</span>
                                 <button wire:click="unbanUser({{ $user->id }})"
                                     class="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium">
@@ -328,19 +328,19 @@ new #[Layout('components.layouts.app')] class extends Component {
     <div class="space-y-4">
         @forelse($reports as $report)
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
-                <div class="flex items-start justify-between mb-4">
-                    <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+                    <div class="flex items-center gap-3 min-w-0">
                         <div
-                            class="size-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                            class="size-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
                             <flux:icon name="flag" class="size-5 text-red-600 dark:text-red-400" />
                         </div>
-                        <div>
+                        <div class="min-w-0">
                             <h3 class="font-bold text-zinc-900 dark:text-zinc-100">Report #{{ $report->id }}</h3>
                             <p class="text-sm text-zinc-500">{{ $report->created_at->diffForHumans() }}</p>
                         </div>
                     </div>
                     <span
-                        class="px-3 py-1 rounded-full text-xs font-bold {{ $report->status === 'pending' ? 'bg-yellow-100 text-yellow-700' : ($report->status === 'reviewed' ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-700') }}">
+                        class="shrink-0 px-3 py-1 rounded-full text-xs font-bold {{ $report->status === 'pending' ? 'bg-yellow-100 text-yellow-700' : ($report->status === 'reviewed' ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-700') }}">
                         {{ ucfirst($report->status) }}
                     </span>
                 </div>
@@ -349,18 +349,18 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <!-- Reporter Info -->
                     <div class="space-y-3">
                         <h4 class="font-semibold text-zinc-900 dark:text-zinc-100">Reporter</h4>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
                             <div
-                                class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
+                                class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
                                 @if ($report->user->profile_picture_url)
                                     <img src="{{ $report->user->profile_picture_url }}" class="size-full object-cover">
                                 @else
                                     <span class="text-xs font-bold">{{ $report->user->initials() }}</span>
                                 @endif
                             </div>
-                            <div>
-                                <p class="font-medium text-sm">{{ $report->user->name }}</p>
-                                <p class="text-xs text-zinc-500">{{ $report->user->email }}</p>
+                            <div class="min-w-0">
+                                <p class="font-medium text-sm truncate">{{ $report->user->name }}</p>
+                                <p class="text-xs text-zinc-500 truncate">{{ $report->user->email }}</p>
                             </div>
                         </div>
                         <div class="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
@@ -372,9 +372,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <!-- Post Owner Info -->
                     <div class="space-y-3">
                         <h4 class="font-semibold text-zinc-900 dark:text-zinc-100">Post Owner</h4>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
                             <div
-                                class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
+                                class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
                                 @if ($report->post->user->profile_picture_url)
                                     <img src="{{ $report->post->user->profile_picture_url }}"
                                         class="size-full object-cover">
@@ -382,9 +382,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     <span class="text-xs font-bold">{{ $report->post->user->initials() }}</span>
                                 @endif
                             </div>
-                            <div>
-                                <p class="font-medium text-sm">{{ $report->post->user->name }}</p>
-                                <p class="text-xs text-zinc-500">{{ $report->post->user->email }}</p>
+                            <div class="min-w-0">
+                                <p class="font-medium text-sm truncate">{{ $report->post->user->name }}</p>
+                                <p class="text-xs text-zinc-500 truncate">{{ $report->post->user->email }}</p>
                             </div>
                         </div>
                         <div class="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
