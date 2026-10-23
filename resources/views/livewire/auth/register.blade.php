@@ -16,7 +16,7 @@
         <x-auth-session-status class="text-center" :status="session('status')" />
 
         <form id="register-form" method="POST" action="{{ route('register.store') }}" class="flex flex-col gap-5"
-            x-data="{ password: '', showPw: false, agree: false }">
+            x-data="{ password: '', showPw: false, agree: false, emailCapWarning: false, emailWarnTimer: null, onEmailInput(e) { const el = e.target; if (/[A-Z]/.test(el.value)) { el.value = el.value.toLowerCase(); this.emailCapWarning = true; clearTimeout(this.emailWarnTimer); this.emailWarnTimer = setTimeout(() => { this.emailCapWarning = false; }, 2500); } } }">
             @csrf
 
             <!-- Personal details -->
@@ -37,8 +37,13 @@
                 </div>
 
                 <div class="mt-4">
-                    <flux:input name="email" :label="__('Email address')" :value="old('email')" type="email" required autocomplete="email" placeholder="you@example.com" />
-                    <p class="mt-1.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{{ __('We’ll send your verification code here.') }}</p>
+                    <flux:input name="email" :label="__('Email address')" :value="old('email')" type="email" required autocomplete="email" placeholder="you@example.com" autocapitalize="off" autocorrect="off" spellcheck="false" @input="onEmailInput($event)" />
+                    <p x-show="emailCapWarning" x-cloak x-transition.opacity
+                        class="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                        <flux:icon name="exclamation-triangle" class="size-3 shrink-0" />
+                        {{ __('Only lowercase letters are allowed — capitals are blocked as you type.') }}
+                    </p>
+                    <p x-show="!emailCapWarning" class="mt-1.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{{ __('We’ll send your verification code here.') }}</p>
                 </div>
             </div>
 

@@ -30,6 +30,7 @@ class CreateNewUser implements CreatesNewUsers
         RateLimiter::hit('register:'.request()->ip(), 3600);
 
         $input['username'] = strtolower(trim((string) ($input['username'] ?? '')));
+        $input['email'] = strtolower(trim((string) ($input['email'] ?? '')));
 
         $rules = [
             'name' => ['required', 'string', 'max:255'],

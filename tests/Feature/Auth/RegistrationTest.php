@@ -57,6 +57,25 @@ test('registration lowercases the username before storing it', function () {
     ]);
 });
 
+test('registration lowercases the email before storing it', function () {
+    $response = $this->post(route('register.store'), [
+        'name' => 'John Doe',
+        'username' => 'johndoe',
+        'email' => 'MixedCase@Example.COM',
+        'role' => 'guest',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        'g-recaptcha-response' => 'valid-token',
+    ]);
+
+    $response->assertSessionHasNoErrors()
+        ->assertRedirect(route('verification.notice', absolute: false));
+
+    $this->assertDatabaseHas('users', [
+        'email' => 'mixedcase@example.com',
+    ]);
+});
+
 test('registration accepts usernames with numbers and underscores', function () {
     $response = $this->post(route('register.store'), [
         'name' => 'John Doe',
