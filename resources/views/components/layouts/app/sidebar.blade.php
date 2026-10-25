@@ -160,7 +160,7 @@
         </aside>
     @else
         <!-- Guest Header -->
-        <header class="sticky top-0 z-50 w-full bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800">
+        <header class="sticky top-0 z-50 w-full bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 pt-[env(safe-area-inset-top,0px)]">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between w-full">
                 <a href="{{ route('home') }}" class="flex items-center space-x-2" wire:navigate>
                     <img loading="lazy" src="{{ asset('assets/allsers.png') }}" alt="{{ config('app.name') }}" class="h-8 w-8" />

@@ -113,6 +113,26 @@ test('the chart data element the JavaScript reads is rendered inside the compone
         ->assertSeeHtml('data-roles=');
 });
 
+test('all admin pages render the top bar with section tabs and status-bar safe area', function () {
+    $routes = ['admin.dashboard', 'admin.pings', 'admin.reports', 'admin.settings'];
+
+    foreach ($routes as $name) {
+        $response = $this->get(route($name));
+
+        $response->assertOk();
+
+        foreach ($routes as $tabRoute) {
+            $response->assertSeeHtml('href="'.route($tabRoute).'"');
+        }
+
+        // Only components/top-bar.blade.php emits this class for logged-in pages
+        $response->assertSeeHtml('safe-area-inset-top');
+
+        // Avatar profile menu from the top bar
+        $response->assertSee('View Profile');
+    }
+});
+
 test('verifyUser stamps email_verified_at and dispatches a toast', function () {
     $user = User::factory()->unverified()->create();
 

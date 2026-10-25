@@ -444,7 +444,12 @@ new class extends Component {
     }
 }; ?>
 
-<div class="px-4 py-8 max-w-7xl mx-auto space-y-8" x-data="{ activeTab: 'overview' }">
+<div class="max-w-7xl mx-auto" x-data="{ activeTab: 'overview' }">
+    <x-top-bar>
+        <x-slot:left>@include('partials.admin-top-tabs')</x-slot:left>
+    </x-top-bar>
+
+    <div class="px-4 py-8 space-y-8">
     <!-- Header -->
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div class="min-w-0">
@@ -1291,4 +1296,5 @@ new class extends Component {
             document.addEventListener('livewire:initialized', initAdminCharts);
         </script>
     @endpush
+    </div>
 </div>

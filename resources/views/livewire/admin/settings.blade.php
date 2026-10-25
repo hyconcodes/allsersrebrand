@@ -132,7 +132,12 @@ new #[Layout('components.layouts.app')] class extends Component {
     }
 }
 ?>
-<div class="px-4 py-8 max-w-3xl mx-auto space-y-6">
+<div class="max-w-3xl mx-auto">
+    <x-top-bar>
+        <x-slot:left>@include('partials.admin-top-tabs')</x-slot:left>
+    </x-top-bar>
+
+    <div class="px-4 py-8 space-y-6">
     <!-- Header -->
     <div class="min-w-0">
         <h1 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 italic uppercase tracking-tighter">
@@ -253,5 +258,6 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </flux:button>
             </form>
         @endif
+    </div>
     </div>
 </div>

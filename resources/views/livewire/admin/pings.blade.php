@@ -375,7 +375,12 @@ new #[Layout('components.layouts.app')] class extends Component {
     }
 }; ?>
 
-<div class="px-4 py-8 max-w-7xl mx-auto space-y-6">
+<div class="max-w-7xl mx-auto">
+    <x-top-bar>
+        <x-slot:left>@include('partials.admin-top-tabs')</x-slot:left>
+    </x-top-bar>
+
+    <div class="px-4 py-8 space-y-6">
     <!-- Header -->
     <div class="flex flex-wrap items-start justify-between gap-4 min-w-0">
         <div class="min-w-0">
@@ -642,4 +647,5 @@ new #[Layout('components.layouts.app')] class extends Component {
             document.addEventListener('livewire:initialized', initPingChart);
         </script>
     @endpush
+    </div>
 </div>

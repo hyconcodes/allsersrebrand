@@ -7,7 +7,7 @@
         : route('user.profile', $user);
 @endphp
 
-<div class="flex items-center justify-between mb-1 border-b border-zinc-200/50 dark:border-zinc-800/50 sticky top-0 z-30 bg-white dark:bg-zinc-950">
+<div class="flex items-center justify-between mb-1 border-b border-zinc-200/50 dark:border-zinc-800/50 sticky top-0 z-30 bg-white dark:bg-zinc-950 pt-[env(safe-area-inset-top,0px)]">
     <div class="flex items-center gap-6 min-w-0">
         @if ($title)
             <h1 class="py-3 text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{{ $title }}</h1>

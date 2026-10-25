@@ -198,7 +198,12 @@ new #[Layout('components.layouts.app')] class extends Component {
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto px-4 py-8">
+<div class="max-w-7xl mx-auto">
+    <x-top-bar>
+        <x-slot:left>@include('partials.admin-top-tabs')</x-slot:left>
+    </x-top-bar>
+
+    <div class="px-4 py-8">
     <div class="mb-8">
         <h1 class="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Admin Panel - Reports</h1>
         <p class="text-zinc-600 dark:text-zinc-400 mt-2">Manage flagged posts and user reports</p>
@@ -506,4 +511,5 @@ new #[Layout('components.layouts.app')] class extends Component {
             <div class="flex gap-2 justify-end"><flux:modal.close><flux:button variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close><flux:button variant="danger" wire:click="adminDeletePost">{{ __('Delete & Notify') }}</flux:button></div>
         </div>
     </flux:modal>
+    </div>
 </div>
