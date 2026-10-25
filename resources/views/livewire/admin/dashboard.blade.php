@@ -469,18 +469,7 @@ new class extends Component {
                 <span class="text-xs font-bold uppercase">{{ __('Live System Data') }}</span>
             </div>
             <!-- Refresh: text button on desktop, icon-only on mobile -->
-            <button wire:click="refreshDashboard" wire:loading.attr="disabled"
-                class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold uppercase tracking-wide hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50">
-                <flux:icon name="arrow-path" class="size-4" wire:loading.remove wire:target="refreshDashboard" />
-                <span wire:loading wire:target="refreshDashboard" class="size-4 border-2 border-white/30 dark:border-zinc-900/20 border-t-white dark:border-t-zinc-900 rounded-full animate-spin"></span>
-                <span wire:loading.remove wire:target="refreshDashboard">{{ __('Refresh') }}</span>
-                <span wire:loading wire:target="refreshDashboard">{{ __('Refreshing...') }}</span>
-            </button>
-            <button wire:click="refreshDashboard" wire:loading.attr="disabled" aria-label="{{ __('Refresh') }}"
-                class="sm:hidden size-10 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 shrink-0">
-                <flux:icon name="arrow-path" class="size-5" wire:loading.remove wire:target="refreshDashboard" />
-                <span wire:loading wire:target="refreshDashboard" class="size-5 border-2 border-white/30 dark:border-zinc-900/20 border-t-white dark:border-t-zinc-900 rounded-full animate-spin"></span>
-            </button>
+            @include('partials.admin-refresh-button', ['action' => 'refreshDashboard'])
         </div>
     </div>
 
@@ -1166,14 +1155,28 @@ new class extends Component {
     @push('scripts')
         <script src="https://cdn.jsdelivr.net/npm/chart.js" data-navigate-once></script>
         <script>
-            // Re-init charts when Livewire updates filtered data
-            document.addEventListener('livewire:initialized', () => {
-                if (window.Livewire) {
-                    Livewire.on('admin-charts-updated', () => {
-                        setTimeout(() => initAdminCharts(), 80);
-                    });
+            // Chart.js is loaded from the CDN above — never let an init run (and die) before it exists.
+            function bootAdminCharts(attempt = 0) {
+                if (typeof Chart === 'undefined') {
+                    if (attempt < 100) setTimeout(() => bootAdminCharts(attempt + 1), 50);
+                    return;
                 }
-            });
+                initAdminCharts();
+            }
+
+            // Re-init charts when Livewire updates filtered data.
+            // Bind immediately if Livewire already booted (script injected during SPA navigation),
+            // otherwise wait for its initialization event — registering inside the event itself
+            // would silently miss the event if it fired before this script ran.
+            function bindChartsUpdatedEvent() {
+                if (!window.Livewire || window.__adminChartsEventBound) return;
+                window.__adminChartsEventBound = true;
+                Livewire.on('admin-charts-updated', () => setTimeout(() => bootAdminCharts(), 80));
+            }
+
+            document.addEventListener('livewire:initialized', bindChartsUpdatedEvent);
+            bindChartsUpdatedEvent();
+
             function initAdminCharts() {
                 const growthCtx = document.getElementById('growthChart');
                 const roleCtx = document.getElementById('roleChart');
@@ -1286,14 +1289,15 @@ new class extends Component {
                 });
             }
 
-            // Run on initial load and every navigation
-            document.addEventListener('livewire:navigated', initAdminCharts);
+            // Run on initial load and every navigation (guarded until Chart.js is ready)
+            document.addEventListener('livewire:navigated', () => bootAdminCharts());
+            document.addEventListener('DOMContentLoaded', () => bootAdminCharts());
+            document.addEventListener('livewire:initialized', () => bootAdminCharts());
 
-            // Initial call for the very first load
-            document.addEventListener('DOMContentLoaded', initAdminCharts);
-
-            // Also support Livewire's own initialization event
-            document.addEventListener('livewire:initialized', initAdminCharts);
+            // Safety nets: once everything (incl. CDN) finished loading, and a delayed
+            // retry to catch canvases that arrive after a Livewire morph.
+            window.addEventListener('load', () => bootAdminCharts());
+            setTimeout(() => bootAdminCharts(), 500);
         </script>
     @endpush
     </div>

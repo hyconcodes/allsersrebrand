@@ -81,6 +81,13 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->dispatch('ping-charts-updated');
     }
 
+    public function refreshPings(): void
+    {
+        $this->availableYears = $this->distinctYears();
+        $this->dispatch('ping-charts-updated');
+        $this->dispatch('toast', type: 'success', title: 'Pings Refreshed', message: 'Pings and chart data are up to date.');
+    }
+
     public function hasActiveFilters(): bool
     {
         return $this->scope !== '24h'
@@ -389,11 +396,14 @@ new #[Layout('components.layouts.app')] class extends Component {
             </h1>
             <p class="text-sm text-zinc-500">{{ __('Every service inquiry on the platform — who pinged whom, and when.') }}</p>
         </div>
-        @if ($this->hasActiveFilters())
-            <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">
-                {{ __('Reset to last 24h') }}
-            </flux:button>
-        @endif
+        <div class="flex flex-wrap items-center gap-3">
+            @if ($this->hasActiveFilters())
+                <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">
+                    {{ __('Reset to last 24h') }}
+                </flux:button>
+            @endif
+            @include('partials.admin-refresh-button', ['action' => 'refreshPings'])
+        </div>
     </div>
 
     <!-- Filters -->
@@ -582,13 +592,26 @@ new #[Layout('components.layouts.app')] class extends Component {
     @push('scripts')
         <script src="https://cdn.jsdelivr.net/npm/chart.js" data-navigate-once></script>
         <script>
-            document.addEventListener('livewire:initialized', () => {
-                if (window.Livewire) {
-                    Livewire.on('ping-charts-updated', () => {
-                        setTimeout(() => initPingChart(), 80);
-                    });
+            // Chart.js is loaded from the CDN above — never let an init run (and die) before it exists.
+            function bootPingChart(attempt = 0) {
+                if (typeof Chart === 'undefined') {
+                    if (attempt < 100) setTimeout(() => bootPingChart(attempt + 1), 50);
+                    return;
                 }
-            });
+                initPingChart();
+            }
+
+            // Bind immediately if Livewire already booted (script injected during SPA navigation),
+            // otherwise wait for its initialization event — registering inside the event itself
+            // would silently miss the event if it fired before this script ran.
+            function bindPingChartsUpdatedEvent() {
+                if (!window.Livewire || window.__pingChartsEventBound) return;
+                window.__pingChartsEventBound = true;
+                Livewire.on('ping-charts-updated', () => setTimeout(() => bootPingChart(), 80));
+            }
+
+            document.addEventListener('livewire:initialized', bindPingChartsUpdatedEvent);
+            bindPingChartsUpdatedEvent();
 
             function initPingChart() {
                 const ctx = document.getElementById('pingChart');
@@ -642,9 +665,15 @@ new #[Layout('components.layouts.app')] class extends Component {
                 });
             }
 
-            document.addEventListener('livewire:navigated', initPingChart);
-            document.addEventListener('DOMContentLoaded', initPingChart);
-            document.addEventListener('livewire:initialized', initPingChart);
+            // Run on initial load and every navigation (guarded until Chart.js is ready)
+            document.addEventListener('livewire:navigated', () => bootPingChart());
+            document.addEventListener('DOMContentLoaded', () => bootPingChart());
+            document.addEventListener('livewire:initialized', () => bootPingChart());
+
+            // Safety nets: once everything (incl. CDN) finished loading, and a delayed
+            // retry to catch canvases that arrive after a Livewire morph.
+            window.addEventListener('load', () => bootPingChart());
+            setTimeout(() => bootPingChart(), 500);
         </script>
     @endpush
     </div>

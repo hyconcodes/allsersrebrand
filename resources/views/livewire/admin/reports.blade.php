@@ -56,6 +56,11 @@ new #[Layout('components.layouts.app')] class extends Component {
         ];
     }
 
+    public function refreshReports(): void
+    {
+        $this->dispatch('toast', type: 'success', title: 'Reports Refreshed', message: 'Report counts and lists are up to date.');
+    }
+
     public function openBanModal($userId)
     {
         $this->banUserId = $userId;
@@ -204,9 +209,12 @@ new #[Layout('components.layouts.app')] class extends Component {
     </x-top-bar>
 
     <div class="px-4 py-8">
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Admin Panel - Reports</h1>
-        <p class="text-zinc-600 dark:text-zinc-400 mt-2">Manage flagged posts and user reports</p>
+    <div class="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+            <h1 class="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Admin Panel - Reports</h1>
+            <p class="text-zinc-600 dark:text-zinc-400 mt-2">Manage flagged posts and user reports</p>
+        </div>
+        @include('partials.admin-refresh-button', ['action' => 'refreshReports'])
     </div>
 
     <!-- Stats -->

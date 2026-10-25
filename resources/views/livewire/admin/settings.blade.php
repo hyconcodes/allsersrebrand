@@ -19,6 +19,13 @@ new #[Layout('components.layouts.app')] class extends Component {
             abort(403, 'Unauthorized access');
         }
 
+        $this->loadSettings();
+    }
+
+    protected function loadSettings(): void
+    {
+        SystemSetting::flushResolved();
+
         $this->mailDriver = SystemSetting::get('mail_driver', config('mail.default')) ?? 'smtp';
 
         if (!in_array($this->mailDriver, SystemSetting::MAIL_DRIVERS, true)) {
@@ -26,6 +33,16 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $this->pingAlertEmails = SystemSetting::getPingAlertEmails();
+    }
+
+    public function refreshSettings(): void
+    {
+        if (!auth()->user()?->isAdmin()) {
+            abort(403, 'Unauthorized access');
+        }
+
+        $this->loadSettings();
+        $this->dispatch('toast', type: 'success', title: 'Settings Refreshed', message: 'Mail driver and ping alerts re-read from the database.');
     }
 
     public function save(): void
@@ -139,11 +156,14 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     <div class="px-4 py-8 space-y-6">
     <!-- Header -->
-    <div class="min-w-0">
-        <h1 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 italic uppercase tracking-tighter">
-            {{ __('System Settings') }}
-        </h1>
-        <p class="text-sm text-zinc-500">{{ __('Platform-wide configuration') }}</p>
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+            <h1 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 italic uppercase tracking-tighter">
+                {{ __('System Settings') }}
+            </h1>
+            <p class="text-sm text-zinc-500">{{ __('Platform-wide configuration') }}</p>
+        </div>
+        @include('partials.admin-refresh-button', ['action' => 'refreshSettings'])
     </div>
 
     <!-- Mail delivery -->
