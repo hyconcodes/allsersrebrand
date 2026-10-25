@@ -65,15 +65,8 @@ new class extends Component {
         $this->loadingMore = false;
     }
 
-    public function loadPosts($reset = false)
+    protected function feedQuery()
     {
-        if ($reset) {
-            $this->page = 1;
-            $this->hasMore = true;
-            $this->posts = [];
-            $this->newPostsCount = 0;
-        }
-
         $query = Post::query()
             ->with([
                 'user',
@@ -124,7 +117,19 @@ new class extends Component {
             $query->orderBy('posts.created_at', 'desc')->orderBy('posts.id', 'desc');
         }
 
-        $newPosts = $query
+        return $query;
+    }
+
+    public function loadPosts($reset = false)
+    {
+        if ($reset) {
+            $this->page = 1;
+            $this->hasMore = true;
+            $this->posts = [];
+            $this->newPostsCount = 0;
+        }
+
+        $newPosts = $this->feedQuery()
             ->offset(($this->page - 1) * $this->perPage)
             ->limit($this->perPage)
             ->get();
@@ -143,12 +148,39 @@ new class extends Component {
         }
     }
 
+    /**
+     * Sync already-loaded posts in place (likes, bookmarks, comments, deletions)
+     * without discarding pages the user loaded via "Show more".
+     */
     #[Livewire\Attributes\On('comment-added')]
     #[Livewire\Attributes\On('post-liked')]
     #[Livewire\Attributes\On('post-bookmarked')]
     #[Livewire\Attributes\On('post-deleted')]
-    #[Livewire\Attributes\On('post-created')]
     public function refreshFeed()
+    {
+        if (empty($this->posts)) {
+            $this->loadPosts(true);
+
+            return;
+        }
+
+        $fresh = $this->feedQuery()
+            ->whereIn('posts.id', collect($this->posts)->pluck('id'))
+            ->get()
+            ->keyBy('id');
+
+        $this->posts = collect($this->posts)
+            ->map(fn ($post) => $fresh->get($post->id))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * A new post must appear at the top of the feed, so this one still resets.
+     */
+    #[Livewire\Attributes\On('post-created')]
+    public function onPostCreated()
     {
         $this->loadPosts(true);
     }
