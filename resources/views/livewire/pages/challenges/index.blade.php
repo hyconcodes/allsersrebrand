@@ -78,7 +78,7 @@ new class extends Component {
                     <!-- Banner -->
                     <div class="h-40 sm:h-48 relative overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                         @if ($challenge->banner_url)
-                            <img src="{{ asset('storage/' . $challenge->banner_url) }}"
+                            <img src="{{ route('images.show', ['path' => $challenge->banner_url]) }}"
                                 class="size-full object-cover group-hover:scale-110 transition-transform duration-700">
                         @endif
                         <div class="absolute inset-0 bg-gradient-to-t from-zinc-900/80 to-transparent"></div>

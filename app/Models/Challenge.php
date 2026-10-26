@@ -81,7 +81,7 @@ class Challenge extends Model
 
     public function hasEnded()
     {
-        return now()->isAfter($this->end_at);
+        return $this->end_at !== null && now()->isAfter($this->end_at);
     }
 
     public function isJudge(User $user)

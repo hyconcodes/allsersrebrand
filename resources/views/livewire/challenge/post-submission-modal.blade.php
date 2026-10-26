@@ -36,7 +36,7 @@ new class extends Component
             return;
         }
 
-        if (now()->lt($challenge->start_at) || $challenge->hasEnded()) {
+        if ($challenge->hasEnded()) {
             $this->dispatch('toast', type: 'error', title: 'Challenge Unavailable', message: 'Submissions are only available while the challenge is active.');
 
             return;
@@ -55,7 +55,7 @@ new class extends Component
         abort_unless(
             auth()->check()
                 && $challenge->isParticipant(auth()->user())
-                && now()->between($challenge->start_at, $challenge->end_at),
+                && ! $challenge->hasEnded(),
             403,
         );
 

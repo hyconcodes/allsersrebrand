@@ -148,7 +148,7 @@ new class extends Component {
                 <!-- Banner Image / Background -->
                 <div class="h-72 sm:h-64 relative bg-zinc-100 dark:bg-zinc-800">
                     @if ($challenge->banner_url)
-                        <img src="{{ asset('storage/' . $challenge->banner_url) }}"
+                        <img src="{{ route('images.show', ['path' => $challenge->banner_url]) }}"
                             class="size-full object-cover opacity-60">
                     @endif
                     <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>

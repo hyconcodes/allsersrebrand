@@ -203,7 +203,7 @@ new class extends Component {
                         x-show="!expired"
                         class="relative flex-none w-[min(76vw,200px)] sm:w-[260px] aspect-[4/3] rounded-2xl sm:rounded-3xl overflow-hidden snap-center group shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 ring-1 ring-white/10 bg-gradient-to-br from-purple-950 via-zinc-900 to-zinc-950">
                         @if ($challenge->banner_url)
-                            <img loading="lazy" src="{{ asset('storage/' . $challenge->banner_url) }}" alt=""
+                            <img loading="lazy" src="{{ route('images.show', ['path' => $challenge->banner_url]) }}" alt=""
                                 class="absolute inset-0 size-full object-cover opacity-50 transition-transform duration-700 group-hover:scale-105">
                         @endif
                         <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/10"></div>

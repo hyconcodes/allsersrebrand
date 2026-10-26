@@ -128,7 +128,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <div class="mt-2 flex flex-wrap items-center gap-4 sm:gap-6">
                         @if ($challenge->banner_url || $banner)
                             <div class="size-24 rounded-xl overflow-hidden shadow-sm">
-                                <img src="{{ $banner ? $banner->temporaryUrl() : asset('storage/' . $challenge->banner_url) }}"
+                                <img src="{{ $banner ? $banner->temporaryUrl() : route('images.show', ['path' => $challenge->banner_url]) }}"
                                     class="size-full object-cover">
                             </div>
                         @endif
