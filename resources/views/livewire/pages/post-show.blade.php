@@ -279,16 +279,21 @@ new class extends Component {
                     <span>{{ $post->user->name }} reposted</span>
                 </div>
             @endif
-            <div class="flex justify-between items-start mb-3">
-                <div class="flex items-center gap-3">
+            <div class="flex gap-3">
+                <div class="flex flex-col items-center shrink-0">
                     <a href="{{ route('artisan.profile', $post->user) }}" wire:navigate
-                        class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm overflow-hidden cursor-pointer shrink-0">
+                        class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm overflow-hidden cursor-pointer shrink-0"
+                        style="box-shadow: 0 0 0 2px {{ $post->user->accentColor() }}">
                         @if ($post->user->profile_picture_url)
                             <img loading="lazy" src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
                         @else
                             {{ $post->user->initials() }}
                         @endif
                     </a>
+                    <div class="w-0.5 flex-1 min-h-[16px]" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
+                </div>
+                <div class="flex-1 min-w-0">
+                <div class="flex justify-between items-start mb-3">
                     <div>
                         <div class="flex items-center gap-2">
                             <h3 class="font-bold text-zinc-100 hover:text-purple-500 cursor-pointer">
@@ -297,9 +302,8 @@ new class extends Component {
                         </div>
                         <p class="text-xs text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
                     </div>
-                </div>
 
-                <flux:dropdown>
+                <flux:dropdown class="post-menu">
                     <button class="text-zinc-500 hover:text-zinc-300">
                         <flux:icon name="ellipsis-horizontal" class="size-5" />
                     </button>
@@ -531,6 +535,8 @@ new class extends Component {
                     </a>
                 @endif
             </div>
+                </div>
+            </div>
         </div>
 
         <!-- Comments Section -->
@@ -539,7 +545,8 @@ new class extends Component {
                 <div class="flex gap-3 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
                     <div class="flex flex-col items-center">
                         <div
-                            class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm shrink-0 overflow-hidden">
+                            class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm shrink-0 overflow-hidden"
+                            style="box-shadow: 0 0 0 2px {{ $comment->user->accentColor() }}">
                             @if ($comment->user->profile_picture_url)
                                 <img loading="lazy" src="{{ $comment->user->profile_picture_url }}"
                                     class="size-full object-cover">
@@ -548,7 +555,7 @@ new class extends Component {
                             @endif
                         </div>
                         @if (!$loop->last)
-                            <div class="w-0.5 flex-1 bg-zinc-200 dark:bg-zinc-800 mt-2"></div>
+                            <div class="w-0.5 flex-1" style="background-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
                         @endif
                     </div>
                     <div class="flex-1 min-w-0">
@@ -582,11 +589,14 @@ new class extends Component {
                         @endif
 
                         @if ($comment->replies->count() > 0)
-                            <div class="mt-3 space-y-3 pl-4 border-l-2 border-zinc-200 dark:border-zinc-800">
+                            <div class="mt-3 space-y-3 pl-4 relative">
+                                <div class="absolute -left-[33px] top-0 w-[35px] h-4 border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none" style="border-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
+                                <div class="absolute left-0 top-4 bottom-0 w-0.5 pointer-events-none" style="background-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
                                 @foreach ($comment->replies as $reply)
                                     <div class="flex gap-2">
                                         <div
-                                            class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 font-bold text-xs shrink-0 overflow-hidden">
+                                            class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 font-bold text-xs shrink-0 overflow-hidden"
+                                            style="box-shadow: 0 0 0 2px {{ $reply->user->accentColor() }}">
                                             @if ($reply->user->profile_picture_url)
                                                 <img loading="lazy" src="{{ $reply->user->profile_picture_url }}"
                                                     class="size-full object-cover">
@@ -644,7 +654,8 @@ new class extends Component {
                 @endif
                 <div class="flex items-center gap-3">
                     <div
-                        class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 text-xs font-bold shrink-0 overflow-hidden">
+                        class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 text-xs font-bold shrink-0 overflow-hidden"
+                        style="box-shadow: 0 0 0 2px {{ auth()->user()->accentColor() }}">
                         @if (auth()->user()->profile_picture_url)
                             <img loading="lazy" src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
                         @else

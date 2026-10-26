@@ -59,16 +59,20 @@ new class extends Component {
 <div
     class="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden {{ $post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists() ? 'ring-2 ring-[var(--color-brand-purple)] ring-offset-4 dark:ring-offset-zinc-950' : '' }}">
     <!-- Post Body -->
-    <div class="p-6">
+    <div class="flex gap-3 p-6">
+        <div class="flex flex-col items-center shrink-0 self-stretch">
+            <a href="{{ route('artisan.profile', $post->user) }}"
+                class="size-12 rounded-full overflow-hidden bg-zinc-100 hover:opacity-80 transition-opacity"
+                style="box-shadow: 0 0 0 2px {{ $post->user->accentColor() }}">
+                @if ($post->user->profile_picture_url)
+                    <img src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
+                @endif
+            </a>
+            <div class="w-0.5 flex-1 min-h-[16px]" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
+        </div>
+        <div class="flex-1 min-w-0">
         <div class="flex items-start justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <a href="{{ route('artisan.profile', $post->user) }}"
-                    class="size-12 rounded-full overflow-hidden bg-zinc-100 hover:opacity-80 transition-opacity">
-                    @if ($post->user->profile_picture_url)
-                        <img src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
-                    @endif
-                </a>
-                <div>
+            <div>
                     <div class="flex items-center gap-2">
                         <h3 class="font-bold text-zinc-900 dark:text-white capitalize">{{ $post->user->username }}</h3>
                         @if ($post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists())
@@ -83,7 +87,6 @@ new class extends Component {
                     </div>
                     <p class="text-xs text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
                 </div>
-            </div>
 
             <!-- Pin Button (Only for Creator) -->
             @if (auth()->id() === $post->challenge->creator_id)
@@ -183,6 +186,7 @@ new class extends Component {
                     </button>
                 @endfor
             </div>
+        </div>
         </div>
     </div>
 </div>

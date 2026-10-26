@@ -38,6 +38,27 @@ class User extends Authenticatable implements MustVerifyEmail
     public bool $emailVerificationSendFailed = false;
 
     /**
+     * Curated palette of accent colors for thread lines.
+     *
+     * Users pick one in settings; users without a saved color get a
+     * deterministic pick from this palette based on their id.
+     *
+     * @var list<string>
+     */
+    public const ACCENT_PALETTE = [
+        '#e5484d',
+        '#f76b15',
+        '#ffb224',
+        '#30a46c',
+        '#00a2c7',
+        '#3e63dd',
+        '#8e4ec6',
+        '#d6409f',
+        '#e93d82',
+        '#6e56cf',
+    ];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -51,6 +72,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'username',
         'slug',
         'profile_picture',
+        'accent_color',
         'gender',
         'work',
         'bio',
@@ -241,6 +263,24 @@ class User extends Authenticatable implements MustVerifyEmail
             ->take(2)
             ->map(fn ($word) => Str::substr($word, 0, 1))
             ->implode('');
+    }
+
+    /**
+     * Get the user's accent color as a valid hex string.
+     *
+     * Falls back to a deterministic palette pick when unset or invalid.
+     */
+    public function accentColor(): string
+    {
+        $color = $this->accent_color;
+
+        if (is_string($color) && preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+            return strtolower($color);
+        }
+
+        $palette = self::ACCENT_PALETTE;
+
+        return $palette[abs($this->id ?? 0) % count($palette)];
     }
 
     /**

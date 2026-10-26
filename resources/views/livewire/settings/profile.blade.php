@@ -24,6 +24,7 @@ new class extends Component {
     public string $phone_number = '';
     public string $address = '';
     public string $country_code = 'NG';
+    public string $accent_color = '#6a11cb';
 
     /**
      * Mount the component.
@@ -43,6 +44,7 @@ new class extends Component {
         $this->phone_number = $user->phone_number ?? '';
         $this->address = $user->address ?? '';
         $this->country_code = $user->country_code ?? 'NG';
+        $this->accent_color = $user->accentColor();
     }
 
     /**
@@ -61,6 +63,7 @@ new class extends Component {
             'username' => ['nullable', 'string', 'max:255', new Username, Rule::unique(User::class)->ignore($user->id)],
             'photo' => ['nullable', 'image', 'max:1024'], // 1MB Max
             'country_code' => ['required', 'string', 'size:2'],
+            'accent_color' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
 
         if ($isArtisan) {
@@ -85,6 +88,7 @@ new class extends Component {
             'name' => $validated['name'],
             'username' => $validated['username'],
             'country_code' => $validated['country_code'],
+            'accent_color' => strtolower($validated['accent_color']),
         ];
 
         if ($isArtisan) {
@@ -159,6 +163,57 @@ new class extends Component {
                 <h3 class="font-bold text-zinc-900 dark:text-zinc-100">{{ __('Profile Photo') }}</h3>
                 <p class="text-sm text-zinc-500">{{ __('Update your profile picture.') }}</p>
             </div>
+        </div>
+
+        <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
+
+        <!-- Thread Color -->
+        <div class="space-y-4">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-400">{{ __('Thread Color') }}</h2>
+            <p class="text-sm text-zinc-500">
+                {{ __('This colors the line that connects your posts and replies in comment threads.') }}
+            </p>
+
+            <div class="flex items-start gap-5">
+                <!-- Preview -->
+                <div class="flex items-center gap-2 shrink-0 pt-1">
+                    <div
+                        class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm overflow-hidden"
+                        style="box-shadow: 0 0 0 2px {{ $accent_color }}">
+                        @if (auth()->user()->profile_picture_url)
+                            <img src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover" alt="">
+                        @else
+                            {{ auth()->user()->initials() }}
+                        @endif
+                    </div>
+                    <div class="h-12 w-0.5 rounded-full" style="background-color: {{ $accent_color }}"></div>
+                </div>
+
+                <div class="flex-1 space-y-3 min-w-0">
+                    <!-- Preset palette -->
+                    <div class="flex flex-wrap gap-2">
+                        @foreach (\App\Models\User::ACCENT_PALETTE as $color)
+                            <button type="button" wire:click="$set('accent_color', '{{ $color }}')"
+                                aria-label="{{ $color }}"
+                                class="size-7 rounded-full transition-transform hover:scale-110 {{ $accent_color === $color ? 'ring-2 ring-offset-2 ring-zinc-500 dark:ring-offset-zinc-950' : 'ring-1 ring-black/10 dark:ring-white/15' }}"
+                                style="background-color: {{ $color }}"></button>
+                        @endforeach
+                    </div>
+
+                    <!-- Custom color input -->
+                    <div class="flex items-center gap-3">
+                        <label for="accent-color"
+                            class="text-sm font-medium text-zinc-700 dark:text-zinc-300">{{ __('Custom') }}</label>
+                        <input id="accent-color" type="color" wire:model.live="accent_color"
+                            class="h-9 w-14 rounded-md cursor-pointer border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1">
+                        <span class="text-xs font-mono text-zinc-500">{{ $accent_color }}</span>
+                    </div>
+                </div>
+            </div>
+
+            @error('accent_color')
+                <p class="text-xs text-red-500">{{ $message }}</p>
+            @enderror
         </div>
 
         <div class="h-px bg-zinc-100 dark:bg-zinc-800"></div>
