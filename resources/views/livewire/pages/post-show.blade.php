@@ -1,21 +1,32 @@
 <?php
 
-use App\Models\Post;
 use App\Models\Comment;
-use Livewire\Volt\Component;
+use App\Models\Post;
 use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     public Post $post;
+
     public string $commentContent = '';
+
     public ?int $replyToId = null;
+
     public string $replyToName = '';
+
     public $showReportModal = false;
+
     public $reportReason = '';
+
     public bool $showAdminDeletePostModal = false;
+
     public string $adminDeletePostReason = '';
+
     public bool $showAdminDeleteCommentModal = false;
+
     public ?int $adminDeleteCommentId = null;
+
     public string $adminDeleteCommentReason = '';
 
     public function mount(Post $post)
@@ -33,7 +44,7 @@ new class extends Component {
 
     public function addComment()
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
 
@@ -82,7 +93,7 @@ new class extends Component {
 
     public function toggleBookmark()
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
 
@@ -106,7 +117,7 @@ new class extends Component {
 
     public function toggleLike()
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
 
@@ -134,57 +145,107 @@ new class extends Component {
 
     public function deletePost()
     {
-        if (!auth()->check()) { return redirect()->route('login'); }
+        if (! auth()->check()) {
+            return redirect()->route('login');
+        }
         if ($this->post && ($this->post->user_id === auth()->id() || auth()->user()->isAdmin())) {
             // Admin is routed to modal; owner direct delete
             if (auth()->user()->isAdmin() && $this->post->user_id !== auth()->id()) {
                 $this->showAdminDeletePostModal = true;
                 $this->adminDeletePostReason = '';
+
                 return;
             }
             $this->post->delete();
+
             return redirect()->route('dashboard')->with('toast', ['type' => 'success', 'title' => 'Deleted', 'message' => 'Post has been deleted.']);
         } else {
             $this->dispatch('toast', type: 'error', title: 'Error', message: 'You cannot delete this post.');
         }
     }
+
     public function openAdminDeletePostModal()
     {
-        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
-        $this->adminDeletePostReason=''; $this->showAdminDeletePostModal=true;
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
+        $this->adminDeletePostReason = '';
+        $this->showAdminDeletePostModal = true;
     }
+
     public function adminDeletePost()
     {
-        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
-        $this->validate(['adminDeletePostReason'=>'required|string|min:10|max:500']);
-        $owner = $this->post->user; $excerpt=\Illuminate\Support\Str::limit($this->post->content??'',500); $reason=$this->adminDeletePostReason;
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
+        $this->validate(['adminDeletePostReason' => 'required|string|min:10|max:500']);
+        $owner = $this->post->user;
+        $excerpt = \Illuminate\Support\Str::limit($this->post->content ?? '', 500);
+        $reason = $this->adminDeletePostReason;
         $this->post->delete();
-        try { if($owner && $owner->email) \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner,$excerpt,$reason)); } catch(\Throwable $e){ \Log::error('PostDeletedMail failed: '.$e->getMessage()); }
-        $this->showAdminDeletePostModal=false;
-        return redirect()->route('dashboard')->with('toast',['type'=>'success','title'=>'Post Deleted','message'=>'Post removed and owner notified.']);
+        try {
+            if ($owner && $owner->email) {
+                \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner, $excerpt, $reason));
+            }
+        } catch (\Throwable $e) {
+            \Log::error('PostDeletedMail failed: '.$e->getMessage());
+        }
+        $this->showAdminDeletePostModal = false;
+
+        return redirect()->route('dashboard')->with('toast', ['type' => 'success', 'title' => 'Post Deleted', 'message' => 'Post removed and owner notified.']);
     }
+
     public function openAdminDeleteCommentModal($commentId)
     {
-        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
-        $this->adminDeleteCommentId=(int)$commentId; $this->adminDeleteCommentReason=''; $this->showAdminDeleteCommentModal=true;
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
+        $this->adminDeleteCommentId = (int) $commentId;
+        $this->adminDeleteCommentReason = '';
+        $this->showAdminDeleteCommentModal = true;
     }
+
     public function adminDeleteComment()
     {
-        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
-        $this->validate(['adminDeleteCommentReason'=>'required|string|min:10|max:500']);
-        $comment=Comment::with('user')->find($this->adminDeleteCommentId);
-        if(!$comment){ $this->dispatch('toast', type:'error', title:'Error', message:'Comment not found.'); $this->showAdminDeleteCommentModal=false; return; }
-        $owner=$comment->user; $excerpt=$comment->content; $reason=$this->adminDeleteCommentReason;
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
+        $this->validate(['adminDeleteCommentReason' => 'required|string|min:10|max:500']);
+        $comment = Comment::with('user')->find($this->adminDeleteCommentId);
+        if (! $comment) {
+            $this->dispatch('toast', type: 'error', title: 'Error', message: 'Comment not found.');
+            $this->showAdminDeleteCommentModal = false;
+
+            return;
+        }
+        $owner = $comment->user;
+        $excerpt = $comment->content;
+        $reason = $this->adminDeleteCommentReason;
         $comment->delete();
-        try { if($owner && $owner->email) \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\CommentDeletedMail($owner,$excerpt,$reason)); } catch(\Throwable $e){ \Log::error('CommentDeletedMail failed: '.$e->getMessage()); }
-        $this->showAdminDeleteCommentModal=false; $this->adminDeleteCommentId=null;
+        try {
+            if ($owner && $owner->email) {
+                \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\CommentDeletedMail($owner, $excerpt, $reason));
+            }
+        } catch (\Throwable $e) {
+            \Log::error('CommentDeletedMail failed: '.$e->getMessage());
+        }
+        $this->showAdminDeleteCommentModal = false;
+        $this->adminDeleteCommentId = null;
         $this->mount($this->post);
-        $this->dispatch('toast', type:'success', title:'Comment Deleted', message:'Comment removed and owner notified.');
+        $this->dispatch('toast', type: 'success', title: 'Comment Deleted', message: 'Comment removed and owner notified.');
     }
 
     public function openReportModal()
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
         $this->showReportModal = true;
@@ -193,13 +254,14 @@ new class extends Component {
 
     public function submitReport()
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
 
-        $throttleKey = 'report:' . auth()->id();
+        $throttleKey = 'report:'.auth()->id();
         if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
             $this->dispatch('toast', type: 'error', title: 'Too Many Reports', message: 'Please wait before submitting another report.');
+
             return;
         }
         RateLimiter::hit($throttleKey, 3600);
@@ -221,7 +283,7 @@ new class extends Component {
 
     public function deleteComment($commentId)
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return;
         }
 
@@ -235,16 +297,17 @@ new class extends Component {
 
     public function sendQuickComment($emoji)
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
 
         $this->commentContent = $emoji;
         $this->addComment();
     }
+
     public function rendering(\Illuminate\View\View $view)
     {
-        $title = $this->post->user->name . ' on Allsers: "' . Str::limit($this->post->content, 50) . '"';
+        $title = $this->post->user->name.' on Allsers: "'.Str::limit($this->post->content, 50).'"';
         $description = Str::limit($this->post->content, 160);
 
         $image = null;
@@ -280,7 +343,7 @@ new class extends Component {
                 </div>
             @endif
             <div class="flex gap-3">
-                <div class="flex flex-col items-center shrink-0">
+                <div class="flex flex-col items-center shrink-0 self-stretch">
                     <a href="{{ route('artisan.profile', $post->user) }}" wire:navigate
                         class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm overflow-hidden cursor-pointer shrink-0"
                         style="box-shadow: 0 0 0 2px {{ $post->user->accentColor() }}">
@@ -291,14 +354,25 @@ new class extends Component {
                         @endif
                     </a>
                     <div class="w-0.5 flex-1 min-h-[16px]" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
+                    <span class="size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
+                        style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true">
+                        <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-3 object-contain">
+                    </span>
                 </div>
                 <div class="flex-1 min-w-0">
                 <div class="flex justify-between items-start mb-3">
                     <div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 flex-wrap">
                             <h3 class="font-bold text-zinc-100 hover:text-purple-500 cursor-pointer">
                                 <a href="{{ route('artisan.profile', $post->user) }}" wire:navigate>{{ $post->user->username }}</a>
                             </h3>
+                            @if ($post->user->work && !$post->repost_of_id)
+                                <span title="{{ $post->user->work }}"
+                                    class="max-w-[160px] sm:max-w-[220px] truncate rounded-full px-2 py-0.5 text-xs font-medium"
+                                    style="color: {{ $post->user->accentColor() }}; border: 1px dotted {{ $post->user->accentColor() }}; background-color: {{ $post->user->accentColor() }}1a; display: inline-block;">
+                                    {{ $post->user->work }}
+                                </span>
+                            @endif
                         </div>
                         <p class="text-xs text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
                     </div>

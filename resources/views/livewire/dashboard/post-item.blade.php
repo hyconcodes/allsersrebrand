@@ -1,22 +1,30 @@
 <?php
 
-use Livewire\Volt\Component;
-use App\Models\Post;
 use App\Models\Comment;
-use App\Models\Conversation;
+use App\Models\Post;
 use App\Models\Report;
+use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     public Post $post;
+
     public $commentContent = '';
+
     public bool $showAllComments = false;
 
     public $showReportModal = false;
+
     public $reportReason = '';
+
     public bool $showAdminDeletePostModal = false;
+
     public string $adminDeletePostReason = '';
+
     public bool $showAdminDeleteCommentModal = false;
+
     public ?int $adminDeleteCommentId = null;
+
     public string $adminDeleteCommentReason = '';
 
     public function toggleLike()
@@ -69,7 +77,7 @@ new class extends Component {
     public function addComment()
     {
         $user = auth()->user();
-        if (!$user || empty(trim($this->commentContent))) {
+        if (! $user || empty(trim($this->commentContent))) {
             return;
         }
 
@@ -131,20 +139,34 @@ new class extends Component {
 
     public function openAdminDeletePostModal()
     {
-        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
         $this->adminDeletePostReason = '';
         $this->showAdminDeletePostModal = true;
     }
 
     public function adminDeletePost()
     {
-        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
         $this->validate(['adminDeletePostReason' => 'required|string|min:10|max:500']);
         $owner = $this->post->user;
         $excerpt = \Illuminate\Support\Str::limit($this->post->content ?? '', 500);
         $reason = $this->adminDeletePostReason;
         $this->post->delete();
-        try { if ($owner && $owner->email) \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner, $excerpt, $reason)); } catch (\Throwable $e) { \Log::error('PostDeletedMail failed: '.$e->getMessage()); }
+        try {
+            if ($owner && $owner->email) {
+                \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\PostDeletedMail($owner, $excerpt, $reason));
+            }
+        } catch (\Throwable $e) {
+            \Log::error('PostDeletedMail failed: '.$e->getMessage());
+        }
         $this->showAdminDeletePostModal = false;
         $this->dispatch('post-deleted');
         $this->dispatch('toast', type: 'success', title: 'Post Deleted', message: 'Post removed and owner notified.');
@@ -152,7 +174,11 @@ new class extends Component {
 
     public function openAdminDeleteCommentModal($commentId)
     {
-        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
         $this->adminDeleteCommentId = (int) $commentId;
         $this->adminDeleteCommentReason = '';
         $this->showAdminDeleteCommentModal = true;
@@ -160,15 +186,30 @@ new class extends Component {
 
     public function adminDeleteComment()
     {
-        if (!auth()->check() || !auth()->user()->isAdmin()) { $this->dispatch('toast', type:'error', title:'Unauthorized', message:'Admin only.'); return; }
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
         $this->validate(['adminDeleteCommentReason' => 'required|string|min:10|max:500']);
         $comment = Comment::with('user')->find($this->adminDeleteCommentId);
-        if (!$comment) { $this->dispatch('toast', type:'error', title:'Error', message:'Comment not found.'); $this->showAdminDeleteCommentModal=false; return; }
+        if (! $comment) {
+            $this->dispatch('toast', type: 'error', title: 'Error', message: 'Comment not found.');
+            $this->showAdminDeleteCommentModal = false;
+
+            return;
+        }
         $owner = $comment->user;
         $excerpt = $comment->content;
         $reason = $this->adminDeleteCommentReason;
         $comment->delete();
-        try { if ($owner && $owner->email) \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\CommentDeletedMail($owner, $excerpt, $reason)); } catch (\Throwable $e) { \Log::error('CommentDeletedMail failed: '.$e->getMessage()); }
+        try {
+            if ($owner && $owner->email) {
+                \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\CommentDeletedMail($owner, $excerpt, $reason));
+            }
+        } catch (\Throwable $e) {
+            \Log::error('CommentDeletedMail failed: '.$e->getMessage());
+        }
         $this->showAdminDeleteCommentModal = false;
         $this->adminDeleteCommentId = null;
         $this->post->refresh();
@@ -194,6 +235,10 @@ new class extends Component {
                 @endif
             </a>
             <div class="w-0.5 flex-1" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
+            <span class="size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
+                style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true">
+                <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-3 object-contain">
+            </span>
         </div>
 
         <!-- Main Content Area -->
@@ -203,12 +248,18 @@ new class extends Component {
                 <div class="flex items-center gap-1.5 text-sm min-w-0 flex-wrap leading-none">
                     <span class="font-bold text-zinc-900 dark:text-zinc-100 hover:underline truncate">{{ '@' . $post->user->username }}</span>
 
-                    @if ($post->user->work && !$post->repost_of_id)
-                        <span title="{{ $post->user->work }}"
-                            class="text-xs text-purple-500 font-medium px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 truncate max-w-[160px] sm:max-w-[220px]">
-                            {{ $post->user->work }}
-                        </span>
-                    @endif
+            @if ($post->user->work && !$post->repost_of_id)
+                <span title="{{ $post->user->work }}"
+                    class="text-xs font-medium truncate"
+                    style="color: {{ $post->user->accentColor() }};
+                           border: 1px dotted {{ $post->user->accentColor() }};
+                           background-color: {{ $post->user->accentColor() }}1a;
+                           padding: 0.25rem 0.5rem;
+                           border-radius: 9999px;
+                           display: inline-block;">
+                    {{ $post->user->work }}
+                </span>
+            @endif
 
                     <span class="text-xs text-zinc-500">· {{ $post->created_at->diffForHumans(null, true) }}</span>
 
@@ -583,8 +634,8 @@ new class extends Component {
                 $inlineComments = $showAllComments
                     ? $post->comments()->latest()->with('user')->get()
                     : ($post->relationLoaded('comments')
-                        ? $post->comments->take(2)
-                        : $post->comments()->latest()->with('user')->take(2)->get());
+                        ? $post->comments->take(3)
+                        : $post->comments()->latest()->with('user')->take(3)->get());
                 $commentsTotal = $post->all_comments_count ?? $post->allComments()->count();
             @endphp
             @if ($inlineComments->isNotEmpty())

@@ -8,22 +8,36 @@ use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
-new class extends Component {
+new class extends Component
+{
     use WithFileUploads;
 
     public string $name = '';
+
     public string $email = '';
+
     public string $username = '';
+
     public string $profile_picture = '';
+
     public $photo; // New upload
+
     public string $gender = '';
+
     public string $work = '';
+
     public string $bio = '';
+
     public string $experience_year = '';
+
     public string $work_status = '';
+
     public string $phone_number = '';
+
     public string $address = '';
+
     public string $country_code = 'NG';
+
     public string $accent_color = '#6a11cb';
 
     /**

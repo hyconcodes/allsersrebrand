@@ -53,11 +53,21 @@ test('the work badge is truncated to one line with a hover tooltip', function ()
     $html = Volt::test('dashboard.post-item', ['post' => $this->post])->html();
 
     expect($html)->toContain('title="'.$work.'"')
-        ->toContain('truncate max-w-[160px] sm:max-w-[220px]');
+        ->toContain('Master Electrician And Solar Panel Installation Specialist')
+        ->toContain('border: 1px dotted '.$this->author->accentColor());
+});
+
+test('the author thread ends in a small logo badge outlined with the author color', function () {
+    $html = Volt::test('dashboard.post-item', ['post' => $this->post])->html();
+
+    expect($html)
+        ->toContain('src="'.asset('assets/allsers.png').'"')
+        ->toContain('class="size-5 shrink-0 rounded-full border-2')
+        ->toContain('style="border-color: '.$this->author->accentColor().'"');
 });
 
 test('see all comments expands the remaining comments inline instead of navigating', function () {
-    foreach (['Oldest remark', 'Middle remark', 'Newest remark'] as $content) {
+    foreach (['Oldest remark', 'Middle remark', 'Newest remark', 'Fourth remark'] as $content) {
         Comment::create([
             'user_id' => $this->author->id,
             'post_id' => $this->post->id,
@@ -67,9 +77,9 @@ test('see all comments expands the remaining comments inline instead of navigati
 
     $component = Volt::test('dashboard.post-item', ['post' => $this->post]);
 
-    // The link is a wire:click button, not an anchor that navigates away
+    // The button is a wire:click button, not an anchor that navigates away
     expect($component->html())
-        ->toContain('See all 3 comments')
+        ->toContain('See all 4 comments')
         ->toContain('wire:click="expandComments"');
 
     $component->call('expandComments');
@@ -78,10 +88,30 @@ test('see all comments expands the remaining comments inline instead of navigati
 
     expect($html)
         ->not->toContain('wire:click="expandComments"')
-        ->not->toContain('See all 3 comments')
+        ->not->toContain('See all 4 comments')
         ->toContain('Oldest remark')
         ->toContain('Middle remark')
-        ->toContain('Newest remark');
+        ->toContain('Newest remark')
+        ->toContain('Fourth remark');
+});
+
+test('post cards keep the preview to three comments before the expand control', function () {
+    foreach (['First remark', 'Second remark', 'Third remark', 'Fourth remark'] as $content) {
+        Comment::create([
+            'user_id' => $this->author->id,
+            'post_id' => $this->post->id,
+            'content' => $content,
+        ]);
+    }
+
+    $html = Volt::test('dashboard.post-item', ['post' => $this->post])->html();
+
+    expect($html)
+        ->toContain('See all 4 comments')
+        ->toContain('First remark')
+        ->toContain('Second remark')
+        ->toContain('Third remark')
+        ->not->toContain('Fourth remark');
 });
 
 test('the three-dot menu button is always visible and marked for the black mobile sheet', function () {

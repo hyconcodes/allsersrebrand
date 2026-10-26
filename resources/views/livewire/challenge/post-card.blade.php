@@ -1,12 +1,15 @@
 <?php
 
-use App\Models\Post;
 use App\Models\ChallengeRating;
+use App\Models\Post;
 use Livewire\Volt\Component;
 
-new class extends Component {
+new class extends Component
+{
     public Post $post;
+
     public $isJudge = false;
+
     public $userRating = 0;
 
     public function mount($post, $isJudge = false)
@@ -24,7 +27,7 @@ new class extends Component {
 
     public function setRating($stars)
     {
-        if (!$this->isJudge) {
+        if (! $this->isJudge) {
             return;
         }
 
@@ -39,7 +42,7 @@ new class extends Component {
 
     public function toggleLike()
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
 
@@ -69,11 +72,15 @@ new class extends Component {
                 @endif
             </a>
             <div class="w-0.5 flex-1 min-h-[16px]" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
+            <span class="size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
+                style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true">
+                <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-3 object-contain">
+            </span>
         </div>
         <div class="flex-1 min-w-0">
         <div class="flex items-start justify-between mb-4">
             <div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <h3 class="font-bold text-zinc-900 dark:text-white capitalize">{{ $post->user->username }}</h3>
                         @if ($post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists())
                             <div
@@ -83,6 +90,13 @@ new class extends Component {
                             <div
                                 class="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-normal">
                                 {{ __('PARTICIPANT') }}</div>
+                        @endif
+                        @if ($post->user->work && !$post->repost_of_id)
+                            <span title="{{ $post->user->work }}"
+                                class="max-w-[160px] sm:max-w-[220px] truncate rounded-full px-2 py-0.5 text-xs font-medium"
+                                style="color: {{ $post->user->accentColor() }}; border: 1px dotted {{ $post->user->accentColor() }}; background-color: {{ $post->user->accentColor() }}1a; display: inline-block;">
+                                {{ $post->user->work }}
+                            </span>
                         @endif
                     </div>
                     <p class="text-xs text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
