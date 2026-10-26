@@ -2,6 +2,7 @@
 
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
+use App\Models\Challenge;
 use App\Models\User;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -22,6 +23,7 @@ new class extends Component {
     public $inFeed = false;
     public $limit = 5;
     public $isWelcome = false;
+    public $challenges = [];
 
     // Inquiry Properties
     public $showInquiryForm = false;
@@ -58,6 +60,12 @@ new class extends Component {
         }
 
         $this->loadPros();
+        $this->challenges = Challenge::query()
+            ->withCount('participants')
+            ->where('end_at', '>', now())
+            ->orderByDesc('is_admin_challenge')
+            ->orderBy('end_at')
+            ->get();
     }
 
     public function loadPros()
@@ -162,10 +170,15 @@ new class extends Component {
     @if ($inFeed)
         {{-- Horizontal In-Feed Version --}}
         <div class="relative my-6 lg:my-8 group/scroll">
-            <div class="flex items-center justify-between px-1 mb-4">
+            <div class="flex items-center justify-between px-1 mb-3 sm:mb-4">
                 <h3 class="font-bold text-xs uppercase {{ $isWelcome ? 'text-zinc-600 dark:text-zinc-400' : 'text-zinc-400' }}">
                     {{ __('Near you') }}
                 </h3>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('challenges.index') }}" wire:navigate
+                        class="text-[10px] font-bold text-purple-600 dark:text-purple-400 hover:underline">
+                        {{ __('Allsers challenge') }}
+                    </a>
                 <div class="flex gap-2">
                     <button
                         class="hidden lg:flex items-center justify-center size-6 rounded-full {{ $isWelcome ? 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400' }} hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
@@ -178,10 +191,48 @@ new class extends Component {
                         <flux:icon name="chevron-right" class="size-3" />
                     </button>
                 </div>
+                </div>
             </div>
 
             <div id="pros-scroll-container"
-                class="flex overflow-x-auto pb-8 -mx-4 px-4 lg:mx-0 lg:px-0 gap-4 snap-x snap-mandatory scroll-smooth hide-scrollbar w-full max-w-full">
+                class="flex overflow-x-auto pb-6 sm:pb-8 -mx-4 px-4 lg:mx-0 lg:px-0 gap-3 sm:gap-4 snap-x snap-mandatory scroll-smooth hide-scrollbar w-full max-w-full">
+                @foreach ($challenges as $challenge)
+                    <a href="{{ route('challenges.show', $challenge->custom_link) }}" wire:navigate
+                        x-data="{ expired: false }"
+                        x-init="const expiresAt = new Date('{{ $challenge->end_at->toIso8601String() }}').getTime(); const hideWhenExpired = () => { const remaining = expiresAt - Date.now(); if (remaining <= 0) expired = true; else setTimeout(hideWhenExpired, Math.min(remaining, 2147483647)); }; hideWhenExpired()"
+                        x-show="!expired"
+                        class="relative flex-none w-[min(76vw,200px)] sm:w-[260px] aspect-[4/3] rounded-2xl sm:rounded-3xl overflow-hidden snap-center group shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-300 ring-1 ring-white/10 bg-gradient-to-br from-purple-950 via-zinc-900 to-zinc-950">
+                        @if ($challenge->banner_url)
+                            <img loading="lazy" src="{{ asset('storage/' . $challenge->banner_url) }}" alt=""
+                                class="absolute inset-0 size-full object-cover opacity-50 transition-transform duration-700 group-hover:scale-105">
+                        @endif
+                        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/10"></div>
+                        <div class="absolute inset-0 z-10 flex flex-col justify-between p-3 sm:p-5">
+                            <div class="flex items-start justify-between gap-1.5">
+                                <span class="rounded-full bg-white/15 px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur">
+                                    {{ $challenge->is_admin_challenge ? __('Official') : __('Challenge') }}
+                                </span>
+                                <span class="flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[10px] font-semibold text-white/80 whitespace-nowrap">
+                                    <flux:icon name="clock" class="size-2.5 sm:size-3" />
+                                    {{ $challenge->end_at->diffForHumans() }}
+                                </span>
+                            </div>
+                            <div>
+                                <p class="mb-0.5 sm:mb-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wide sm:tracking-widest text-purple-200 truncate">#{{ $challenge->hashtag }}</p>
+                                <h4 class="line-clamp-2 text-sm sm:text-lg font-bold leading-tight text-white">{{ $challenge->title }}</h4>
+                                <div class="mt-2 sm:mt-3 flex items-center justify-between gap-1.5">
+                                    <span class="text-[9px] sm:text-[11px] text-white/80">
+                                        {{ number_format($challenge->participants_count) }} {{ __('participants') }}
+                                    </span>
+                                    <span class="rounded-full bg-white px-2 sm:px-3 py-1 sm:py-1.5 text-[9px] sm:text-[11px] font-bold text-zinc-900 whitespace-nowrap group-hover:bg-purple-100">
+                                        {{ __('Join challenge') }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                @endforeach
+
                 @forelse ($artisans as $pro)
                     @php
                         $gradients = [
@@ -242,7 +293,9 @@ new class extends Component {
                         </div>
                     </a>
                 @empty
-                    <p class="text-center text-xs text-zinc-500 font-bold">it's seems you are not close to any artisan. Spread the word!</p>
+                    @if ($challenges->isEmpty())
+                        <p class="text-center text-xs text-zinc-500 font-bold">{{ __("It seems there aren't any nearby artisans or active challenges yet.") }}</p>
+                    @endif
                 @endforelse
             </div>
 

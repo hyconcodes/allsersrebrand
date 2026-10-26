@@ -62,38 +62,38 @@ new class extends Component
 <div
     class="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden {{ $post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists() ? 'ring-2 ring-[var(--color-brand-purple)] ring-offset-4 dark:ring-offset-zinc-950' : '' }}">
     <!-- Post Body -->
-    <div class="flex gap-3 p-6">
+    <div class="flex gap-2.5 sm:gap-3 p-3 sm:p-6">
         <div class="flex flex-col items-center shrink-0 self-stretch">
             <a href="{{ route('artisan.profile', $post->user) }}"
-                class="size-12 rounded-full overflow-hidden bg-zinc-100 hover:opacity-80 transition-opacity"
+                class="size-9 sm:size-12 rounded-full overflow-hidden bg-zinc-100 hover:opacity-80 transition-opacity"
                 style="box-shadow: 0 0 0 2px {{ $post->user->accentColor() }}">
                 @if ($post->user->profile_picture_url)
                     <img src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
                 @endif
             </a>
             <div class="w-0.5 flex-1 min-h-[16px]" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
-            <span class="size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
+            <span class="size-4 sm:size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
                 style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true">
                 <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-full object-cover">
             </span>
         </div>
         <div class="flex-1 min-w-0">
-        <div class="flex items-start justify-between mb-4">
+        <div class="flex items-start justify-between gap-2 mb-3 sm:mb-4">
             <div>
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <h3 class="font-bold text-zinc-900 dark:text-white capitalize">{{ $post->user->username }}</h3>
+                    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        <h3 class="text-sm sm:text-base font-bold text-zinc-900 dark:text-white capitalize break-all">{{ $post->user->username }}</h3>
                         @if ($post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists())
                             <div
-                                class="px-2 py-0.5 rounded-full bg-[var(--color-brand-purple)] text-xs font-bold text-white uppercase tracking-normal">
+                                class="px-1.5 sm:px-2 py-0.5 rounded-full bg-[var(--color-brand-purple)] text-[9px] sm:text-xs font-bold text-white uppercase tracking-normal">
                                 {{ __('JUDGE') }}</div>
                         @else
                             <div
-                                class="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-normal">
+                                class="px-1.5 sm:px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[9px] sm:text-xs font-bold text-zinc-500 uppercase tracking-normal">
                                 {{ __('PARTICIPANT') }}</div>
                         @endif
                         @if ($post->user->work && !$post->repost_of_id)
                             <span title="{{ $post->user->work }}"
-                                class="max-w-[160px] sm:max-w-[220px] truncate rounded-full px-2 py-0.5 text-xs font-medium"
+                                class="max-w-[130px] sm:max-w-[220px] truncate rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-medium"
                                 style="color: {{ $post->user->accentColor() }}; border: 1.5px dotted {{ $post->user->accentColor() }}; background-color: {{ $post->user->accentColor() }}1a; display: inline-block;">
                                 {{ $post->user->work }}
                             </span>
@@ -116,7 +116,7 @@ new class extends Component
             @endif
         </div>
 
-        <div class="text-zinc-700 dark:text-zinc-300 text-sm mb-6 leading-relaxed">
+        <div class="text-zinc-700 dark:text-zinc-300 text-xs sm:text-sm mb-4 sm:mb-6 leading-relaxed">
             {!! $post->formatted_content !!}
         </div>
 
@@ -127,7 +127,7 @@ new class extends Component
                 $imgUrls = array_map(fn($i) => asset('storage/' . $i), $imgs);
             @endphp
             <div
-                class="grid {{ count($imgs) > 1 ? 'grid-cols-2' : 'grid-cols-1' }} gap-2 rounded-2xl overflow-hidden mb-6">
+                class="grid {{ count($imgs) > 1 ? 'grid-cols-2' : 'grid-cols-1' }} gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl overflow-hidden mb-4 sm:mb-6">
                 @foreach ($imgUrls as $index => $imgUrl)
                     <div class="cursor-pointer overflow-hidden rounded-2xl"
                         @click="$dispatch('open-lightbox', { images: {{ Js::from($imgUrls) }}, index: {{ $index }} })">
@@ -137,7 +137,7 @@ new class extends Component
                 @endforeach
             </div>
         @elseif($post->video)
-            <div x-data="{ muted: true }" class="relative rounded-2xl overflow-hidden mb-6 bg-black aspect-video flex items-center justify-center">
+            <div x-data="{ muted: true }" class="relative rounded-xl sm:rounded-2xl overflow-hidden mb-4 sm:mb-6 bg-black aspect-video flex items-center justify-center">
                 <video x-ref="video" data-autoplay muted src="{{ asset('storage/' . $post->video) }}" class="w-full h-full" controls playsinline preload="metadata"></video>
                 <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
                     class="absolute top-2 right-2 z-10 flex items-center justify-center size-8 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
@@ -149,8 +149,8 @@ new class extends Component
         @endif
 
         <!-- Interaction Bar -->
-        <div class="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800">
-            <div class="flex items-center gap-6">
+        <div class="flex items-center justify-between gap-2 pt-3 sm:pt-4 border-t border-zinc-100 dark:border-zinc-800">
+            <div class="flex items-center gap-4 sm:gap-6">
                 <!-- Like -->
                 <button wire:click="toggleLike"
                     x-data="{
@@ -165,7 +165,7 @@ new class extends Component
                         }
                     }"
                     @click="const willLike = !liked; liked = willLike; count += willLike ? 1 : -1; if (willLike) burst()"
-                    class="relative flex items-center gap-2 group"
+                    class="relative flex items-center gap-1.5 sm:gap-2 group"
                     :class="liked ? 'text-red-500' : 'text-zinc-400 hover:text-red-500'">
                     <span class="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
                         <template x-for="h in hearts" :key="h.id">
@@ -175,27 +175,27 @@ new class extends Component
                         </template>
                     </span>
                     <flux:icon name="heart" variant="solid"
-                        class="relative size-5 transition-transform group-hover:scale-110" />
+                        class="relative size-4 sm:size-5 transition-transform group-hover:scale-110" />
                     <span class="text-xs font-bold text-zinc-500" x-text="count">{{ number_format($post->likes_count) }}</span>
                 </button>
 
                 <!-- Comment (Direct link to post detail or local state) -->
                 <button onclick="Livewire.dispatch('open-post-detail', { postId: {{ $post->id }} })"
-                    class="flex items-center gap-2 group">
+                    class="flex items-center gap-1.5 sm:gap-2 group">
                     <flux:icon name="chat-bubble-left"
-                        class="size-5 text-zinc-400 group-hover:scale-110 transition-transform" />
+                        class="size-4 sm:size-5 text-zinc-400 group-hover:scale-110 transition-transform" />
                     <span
                         class="text-xs font-bold text-zinc-500">{{ number_format($post->all_comments_count ?? $post->allComments()->count()) }}</span>
                 </button>
             </div>
 
             <!-- Star Ratings (Judge functionality) -->
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-0.5 sm:gap-1">
                 @for ($i = 1; $i <= 5; $i++)
                     <button wire:click="setRating({{ $i }})" {{ !$isJudge ? 'disabled' : '' }}
                         class="{{ $isJudge ? 'hover:scale-125 transition-transform' : 'cursor-default' }}">
                         <flux:icon name="star"
-                            class="size-5 {{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'text-yellow-400' : 'text-zinc-200 dark:text-zinc-800' }}"
+                            class="size-4 sm:size-5 {{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'text-yellow-400' : 'text-zinc-200 dark:text-zinc-800' }}"
                             variant="{{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'solid' : 'outline' }}" />
                     </button>
                 @endfor

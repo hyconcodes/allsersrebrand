@@ -68,6 +68,7 @@
                     $desktopNav = [
                         ['icon' => 'home', 'route' => 'dashboard', 'label' => 'Home', 'active' => request()->routeIs('dashboard'), 'badge' => null],
                         ['icon' => 'magnifying-glass', 'route' => 'finder', 'label' => 'Search', 'active' => request()->routeIs('finder'), 'badge' => null],
+                        ['icon' => 'trophy', 'route' => 'challenges.index', 'label' => 'Challenges', 'active' => request()->routeIs('challenges.*'), 'badge' => null],
                         ['icon' => 'sparkles', 'route' => 'lila', 'label' => 'Lila AI', 'active' => request()->routeIs('lila'), 'badge' => null],
                         ['icon' => 'bell', 'route' => 'notifications', 'label' => 'Notifications', 'active' => request()->routeIs('notifications'), 'badge' => auth()->user()->unreadNotifications->count() ?: null],
                         ['icon' => 'chat-bubble-left-right', 'route' => 'chat', 'label' => 'Messages', 'active' => request()->routeIs('chat*'), 'badge' => auth()->user()->unreadMessagesCount() ?: null],
@@ -210,7 +211,7 @@
     @endauth
 
     @auth
-        <!-- Mobile Bottom Nav (5 items, X-style) -->
+        <!-- Mobile Bottom Nav -->
         <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-[500] bg-white/95 dark:bg-zinc-950/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 pb-[env(safe-area-inset-bottom,0.5rem)] pt-1">
             <div class="flex items-center justify-around max-w-lg mx-auto pb-1">
                 <a href="{{ route('dashboard') }}" wire:navigate

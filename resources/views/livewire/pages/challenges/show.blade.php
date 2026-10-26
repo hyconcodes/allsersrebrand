@@ -138,15 +138,15 @@ new class extends Component {
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto px-4 py-8">
-    <div class="flex flex-col lg:flex-row gap-8">
+<div class="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+    <div class="flex flex-col lg:flex-row gap-5 sm:gap-8">
         <!-- Main Content (Left) -->
         <div class="flex-1 space-y-8">
             <!-- Header Card (Design matching the image) -->
             <div
                 class="relative rounded-3xl overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
                 <!-- Banner Image / Background -->
-                <div class="h-64 relative bg-zinc-100 dark:bg-zinc-800">
+                <div class="h-72 sm:h-64 relative bg-zinc-100 dark:bg-zinc-800">
                     @if ($challenge->banner_url)
                         <img src="{{ asset('storage/' . $challenge->banner_url) }}"
                             class="size-full object-cover opacity-60">
@@ -155,8 +155,8 @@ new class extends Component {
 
                     <!-- Back Button -->
                     <a href="{{ route('challenges.index') }}"
-                        class="absolute top-6 left-6 p-2 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/40 transition-colors">
-                        <flux:icon name="arrow-left" class="size-5" />
+                        class="absolute top-3 left-3 sm:top-6 sm:left-6 p-1.5 sm:p-2 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/40 transition-colors">
+                        <flux:icon name="arrow-left" class="size-4 sm:size-5" />
                     </a>
 
                     <!-- Share Button -->
@@ -166,34 +166,34 @@ new class extends Component {
                             $dispatch('toast', { type: 'success', title: 'Link Copied!', message: 'Challenge link copied to clipboard.' });
                         }
                     }" @click="copy"
-                        class="absolute top-6 right-6 px-4 py-2 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-lg hover:bg-zinc-100 transition-colors">
+                        class="absolute top-3 right-3 sm:top-6 sm:right-6 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white text-zinc-900 font-bold text-xs sm:text-sm shadow-lg hover:bg-zinc-100 transition-colors">
                         {{ __('Share') }}
                     </button>
 
                     <!-- Title Overlay -->
-                    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 text-center text-white w-full px-4">
-                        <h1 class="text-3xl font-extrabold tracking-tight">#{{ $challenge->hashtag }}</h1>
-                        <p class="mt-2 text-zinc-200 font-medium">
+                    <div class="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 text-center text-white w-full px-3 sm:px-4">
+                        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight break-words">#{{ $challenge->hashtag }}</h1>
+                        <p class="mt-1 sm:mt-2 text-xs sm:text-sm text-zinc-200 font-medium">
                             {{ __('Checkout the guidelines for what to create!') }}</p>
 
                         <!-- Stats Pill -->
-                        <div class="mt-6 flex items-center justify-center gap-4">
+                        <div class="mt-3 sm:mt-6 flex items-stretch justify-center gap-2 sm:gap-4">
                             <div
-                                class="px-6 py-2 rounded-2xl bg-white/20 backdrop-blur-lg border border-white/30 text-center min-w-[120px]">
-                                <p class="text-[10px] uppercase font-bold tracking-widest text-zinc-300">
+                                class="px-3 sm:px-6 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-lg border border-white/30 text-center min-w-0 w-1/2 max-w-[200px]">
+                                <p class="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-zinc-300">
                                     {{ __('Prizes') }}</p>
-                                <p class="text-lg font-black">{{ $challenge->prizes }}</p>
+                                <p class="text-xs sm:text-lg font-black line-clamp-2 break-words">{{ $challenge->prizes }}</p>
                             </div>
                             <div
-                                class="px-6 py-2 rounded-2xl bg-white/20 backdrop-blur-lg border border-white/30 text-center min-w-[120px]">
+                                class="px-3 sm:px-6 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-lg border border-white/30 text-center min-w-0 w-1/2 max-w-[200px]">
                                 @if ($challenge->hasEnded())
-                                    <p class="text-[10px] uppercase font-bold tracking-widest text-red-400">
+                                    <p class="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-red-400">
                                         {{ __('Status') }}</p>
-                                    <p class="text-lg font-black">{{ __('Ended') }}</p>
+                                    <p class="text-xs sm:text-lg font-black">{{ __('Ended') }}</p>
                                 @else
-                                    <p class="text-[10px] uppercase font-bold tracking-widest text-zinc-300">
+                                    <p class="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-zinc-300">
                                         {{ __('Time Left') }}</p>
-                                    <p class="text-lg font-black">{{ $timeLeft }}</p>
+                                    <p class="text-xs sm:text-lg font-black">{{ $timeLeft }}</p>
                                 @endif
                             </div>
                         </div>
@@ -201,11 +201,11 @@ new class extends Component {
                 </div>
 
                 <!-- Footer / Action Area -->
-                <div class="p-8 text-center bg-white dark:bg-zinc-900">
-                    <div class="flex items-center justify-center -space-x-3 mb-4">
+                <div class="p-4 sm:p-8 text-center bg-white dark:bg-zinc-900">
+                    <div class="flex items-center justify-center -space-x-3 mb-3 sm:mb-4">
                         @foreach ($challenge->participants->take(5) as $p)
                             <div
-                                class="size-10 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-100 overflow-hidden shadow-sm">
+                                class="size-8 sm:size-10 rounded-full border-2 sm:border-4 border-white dark:border-zinc-900 bg-zinc-100 overflow-hidden shadow-sm">
                                 @if ($p->profile_picture_url)
                                     <img src="{{ $p->profile_picture_url }}" class="size-full object-cover">
                                 @else
@@ -217,7 +217,7 @@ new class extends Component {
                     </div>
 
                     @if ($challenge->participants->count() > 0)
-                        <p class="text-zinc-600 dark:text-zinc-400 text-sm font-medium mb-6">
+                        <p class="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-medium mb-4 sm:mb-6">
                             {{ __('Join') }} <span
                                 class="font-bold text-zinc-900 dark:text-zinc-100">{{ number_format($challenge->participants->count()) }}</span>
                             {{ __('challenge participants') }}
@@ -226,10 +226,10 @@ new class extends Component {
 
                     @if ($pendingInvitation)
                         <div
-                            class="bg-purple-50 dark:bg-purple-900/20 rounded-3xl p-6 border border-purple-200 dark:border-purple-800 mb-6">
-                            <p class="text-sm font-bold text-purple-700 dark:text-purple-300 mb-4">
+                            class="bg-purple-50 dark:bg-purple-900/20 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-purple-200 dark:border-purple-800 mb-4 sm:mb-6">
+                            <p class="text-xs sm:text-sm font-bold text-purple-700 dark:text-purple-300 mb-4">
                                 {{ __('You have been invited to judge this challenge!') }}</p>
-                            <div class="flex items-center justify-center gap-4">
+                            <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
                                 <flux:button wire:click="acceptInvitation" variant="primary" size="sm">
                                     {{ __('Accept Invitation') }}</flux:button>
                                 <flux:button wire:click="declineInvitation" variant="ghost" size="sm">
@@ -241,18 +241,18 @@ new class extends Component {
 
                     @if (!$isParticipant && !$isJudge && !$pendingInvitation && !$challenge->hasEnded())
                         <button wire:click="join"
-                            class="px-8 py-3 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black hover:scale-105 active:scale-95 transition-all shadow-xl">
+                            class="px-5 sm:px-8 py-2.5 sm:py-3 rounded-full bg-zinc-900 dark:bg-white text-sm sm:text-base text-white dark:text-zinc-900 font-black hover:scale-105 active:scale-95 transition-all shadow-xl">
                             {{ __('Join challenge') }}
                         </button>
                     @elseif($isParticipant && !$challenge->hasEnded())
                         <button
                             onclick="Livewire.dispatch('open-challenge-post-modal', { challengeId: {{ $challenge->id }}, hashtag: '{{ $challenge->hashtag }}' })"
-                            class="px-8 py-3 rounded-full bg-[var(--color-brand-purple)] text-white font-black hover:scale-105 active:scale-95 transition-all shadow-xl">
+                            class="px-5 sm:px-8 py-2.5 sm:py-3 rounded-full bg-[var(--color-brand-purple)] text-sm sm:text-base text-white font-black hover:scale-105 active:scale-95 transition-all shadow-xl">
                             {{ __('Post Submission') }}
                         </button>
                     @elseif($isJudge && !$challenge->hasEnded())
                         <div
-                            class="px-8 py-3 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-bold inline-block">
+                            class="px-5 sm:px-8 py-2.5 sm:py-3 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm sm:text-base text-zinc-500 font-bold inline-block">
                             {{ __('You are a Judge') }}
                         </div>
                     @endif
@@ -267,25 +267,25 @@ new class extends Component {
             </div>
 
             <!-- Tabs & Feed -->
-            <div class="space-y-6">
+            <div class="space-y-4 sm:space-y-6">
                 <!-- Navigation -->
                 <div class="flex items-center justify-center border-b border-zinc-200 dark:border-zinc-800">
                     <button wire:click="$set('activeTab', 'trending')"
-                        class="px-8 py-4 text-sm font-bold transition-all relative {{ $activeTab === 'trending' ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600' }}">
+                        class="flex-1 px-2 sm:px-8 py-3 sm:py-4 text-xs sm:text-sm font-bold transition-all relative {{ $activeTab === 'trending' ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600' }}">
                         {{ __('Trending') }}
                         @if ($activeTab === 'trending')
                             <div class="absolute bottom-0 left-0 w-full h-1 bg-zinc-900 dark:bg-white"></div>
                         @endif
                     </button>
                     <button wire:click="$set('activeTab', 'recent')"
-                        class="px-8 py-4 text-sm font-bold transition-all relative {{ $activeTab === 'recent' ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600' }}">
+                        class="flex-1 px-2 sm:px-8 py-3 sm:py-4 text-xs sm:text-sm font-bold transition-all relative {{ $activeTab === 'recent' ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600' }}">
                         {{ __('Recent') }}
                         @if ($activeTab === 'recent')
                             <div class="absolute bottom-0 left-0 w-full h-1 bg-zinc-900 dark:bg-white"></div>
                         @endif
                     </button>
                     <button wire:click="$set('activeTab', 'guidelines')"
-                        class="px-8 py-4 text-sm font-bold transition-all relative {{ $activeTab === 'guidelines' ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600' }}">
+                        class="flex-1 px-2 sm:px-8 py-3 sm:py-4 text-xs sm:text-sm font-bold transition-all relative {{ $activeTab === 'guidelines' ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600' }}">
                         {{ __('Guidelines') }}
                         @if ($activeTab === 'guidelines')
                             <div class="absolute bottom-0 left-0 w-full h-1 bg-zinc-900 dark:bg-white"></div>
@@ -297,8 +297,8 @@ new class extends Component {
                 <div class="min-h-[400px]">
                     @if ($activeTab === 'guidelines')
                         <div
-                            class="bg-white dark:bg-zinc-900 rounded-3xl p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-                            <h2 class="text-xl font-bold mb-4 text-zinc-900 dark:text-white">
+                            class="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl p-4 sm:p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm leading-relaxed text-sm sm:text-base text-zinc-700 dark:text-zinc-300">
+                            <h2 class="text-lg sm:text-xl font-bold mb-4 text-zinc-900 dark:text-white">
                                 {{ __('Challenge Guidelines') }}</h2>
                             <div class="prose dark:prose-invert max-w-none">
                                 {!! nl2br(e($challenge->guidelines)) !!}
@@ -356,16 +356,16 @@ new class extends Component {
         </div>
 
         <!-- Sidebar (Right) -->
-        <div class="w-full lg:w-80 space-y-8">
+        <div class="w-full lg:w-80 space-y-4 sm:space-y-8">
             <!-- Judges Widget -->
             <div
-                class="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <h3 class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-6">{{ __('The Judges') }}
+                class="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <h3 class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-4 sm:mb-6">{{ __('The Judges') }}
                 </h3>
-                <div class="space-y-6">
+                <div class="space-y-4 sm:space-y-6">
                     @forelse($challenge->judges as $judge)
                         <div class="flex items-center gap-3">
-                            <div class="size-11 rounded-full overflow-hidden bg-zinc-100 shadow-sm">
+                            <div class="size-9 sm:size-11 rounded-full overflow-hidden bg-zinc-100 shadow-sm shrink-0">
                                 @if ($judge->profile_picture_url)
                                     <img src="{{ $judge->profile_picture_url }}" class="size-full object-cover">
                                 @else
@@ -391,8 +391,8 @@ new class extends Component {
 
             <!-- Sponsor Widget (Placeholder matching design) -->
             <div
-                class="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <h3 class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-6">
+                class="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <h3 class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-4 sm:mb-6">
                     {{ __('Sponsored By') }}
                 </h3>
                 <div
@@ -407,18 +407,18 @@ new class extends Component {
             </div>
 
             @if ($challenge->winner)
-                <div class="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-3xl p-6 text-white shadow-xl">
+                <div class="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-xl">
                     <h3 class="text-[10px] uppercase font-black tracking-widest text-white/80 mb-4">
                         {{ __('WINNER REVEALED') }}</h3>
-                    <div class="flex items-center gap-4">
-                        <div class="size-14 rounded-full border-4 border-white/30 overflow-hidden shadow-2xl">
+                    <div class="flex items-center gap-3 sm:gap-4">
+                        <div class="size-11 sm:size-14 rounded-full border-4 border-white/30 overflow-hidden shadow-2xl shrink-0">
                             @if ($challenge->winner->profile_picture_url)
                                 <img src="{{ $challenge->winner->profile_picture_url }}"
                                     class="size-full object-cover">
                             @endif
                         </div>
                         <div>
-                            <p class="font-black text-lg">{{ $challenge->winner->name }}</p>
+                            <p class="font-black text-base sm:text-lg break-words">{{ $challenge->winner->name }}</p>
                             <p class="text-xs font-medium text-white/90">{{ __('Challenge Champion') }}</p>
                         </div>
                     </div>

@@ -34,11 +34,11 @@ new class extends Component {
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto px-4 py-12 space-y-16">
+<div class="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-12 space-y-10 sm:space-y-16">
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div class="space-y-2">
-            <h1 class="text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
+            <h1 class="text-2xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
                 {{ __('Challenges & Trending') }}</h1>
             <p class="text-zinc-500 max-w-lg">
                 {{ __('Join official community challenges, showcase your skills, and earn unique badges.') }}</p>
@@ -46,52 +46,52 @@ new class extends Component {
 
         @if (auth()->check() && (auth()->user()->isArtisan() || auth()->user()->isAdmin()))
             <a href="{{ route('challenges.create') }}"
-                class="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-brand-purple)] text-white font-bold rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-purple-500/20">
-                <flux:icon name="plus" class="size-5" />
+                class="inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-[var(--color-brand-purple)] text-white font-bold rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-purple-500/20">
+                <flux:icon name="plus" class="size-4 sm:size-5" />
                 {{ __('Launch New Challenge') }}
             </a>
         @endif
     </div>
 
     <!-- Active Challenges Section -->
-    <section class="space-y-8">
-        <h2 class="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-3">
-            <div class="size-8 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                <flux:icon name="fire" class="size-5 text-orange-500" />
+    <section class="space-y-5 sm:space-y-8">
+        <h2 class="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-2 sm:gap-3">
+            <div class="size-7 sm:size-8 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
+                <flux:icon name="fire" class="size-4 sm:size-5 text-orange-500" />
             </div>
             {{ __('Ongoing Challenges') }}
         </h2>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
             @forelse($ongoingChallenges as $challenge)
                 <div
                     class="group relative bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col">
                     <!-- Ribbon for Admin Challenges -->
                     @if ($challenge->is_admin_challenge)
                         <div
-                            class="absolute top-4 right-4 z-10 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                            class="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                             <flux:icon name="shield-check" class="size-3" />
                             {{ __('Official') }}
                         </div>
                     @endif
 
                     <!-- Banner -->
-                    <div class="h-48 relative overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                    <div class="h-40 sm:h-48 relative overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                         @if ($challenge->banner_url)
                             <img src="{{ asset('storage/' . $challenge->banner_url) }}"
                                 class="size-full object-cover group-hover:scale-110 transition-transform duration-700">
                         @endif
                         <div class="absolute inset-0 bg-gradient-to-t from-zinc-900/80 to-transparent"></div>
-                        <div class="absolute bottom-4 left-6">
+                        <div class="absolute bottom-4 left-4 sm:left-6 right-4">
                             <p class="text-[10px] font-black uppercase tracking-widest text-zinc-300">
                                 #{{ $challenge->hashtag }}</p>
-                            <h3 class="text-xl font-black text-white mt-1">{{ $challenge->title }}</h3>
+                            <h3 class="text-lg sm:text-xl font-black text-white mt-1 break-words">{{ $challenge->title }}</h3>
                         </div>
                     </div>
 
                     <!-- Content -->
-                    <div class="p-6 flex-1 flex flex-col justify-between space-y-6">
-                        <div class="flex items-center justify-between text-xs font-bold text-zinc-500">
+                    <div class="p-4 sm:p-6 flex-1 flex flex-col justify-between space-y-4 sm:space-y-6">
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-zinc-500">
                             <div class="flex items-center gap-2">
                                 <flux:icon name="users" class="size-4" />
                                 {{ number_format($challenge->participants->count()) }} {{ __('participants') }}
@@ -106,28 +106,28 @@ new class extends Component {
                             {{ $challenge->guidelines }}
                         </p>
 
-                        <div class="flex items-center justify-between pt-4">
-                            <div class="flex items-center gap-2">
-                                <div class="size-8 rounded-full bg-zinc-100 overflow-hidden">
+                        <div class="flex flex-wrap items-center justify-between gap-3 pt-4">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <div class="size-8 rounded-full bg-zinc-100 overflow-hidden shrink-0">
                                     @if ($challenge->creator->profile_picture_url)
                                         <img src="{{ $challenge->creator->profile_picture_url }}"
                                             class="size-full object-cover">
                                     @endif
                                 </div>
                                 <span
-                                    class="text-xs font-bold text-zinc-900 dark:text-white">{{ $challenge->creator->name }}</span>
+                                    class="text-xs font-bold text-zinc-900 dark:text-white truncate">{{ $challenge->creator->name }}</span>
                             </div>
                             <a href="{{ route('challenges.show', $challenge->custom_link) }}"
-                                class="px-5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-black text-xs hover:bg-[var(--color-brand-purple)] hover:text-white transition-all">
+                                class="px-4 sm:px-5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-black text-xs hover:bg-[var(--color-brand-purple)] hover:text-white transition-all shrink-0">
                                 {{ __('View') }}
                             </a>
                         </div>
                     </div>
                 </div>
             @empty
-                <div class="col-span-full py-20 text-center">
-                    <flux:icon name="inbox" class="size-16 text-zinc-200 mx-auto mb-4" />
-                    <h3 class="text-xl font-bold text-zinc-900 dark:text-white">{{ __('No active challenges') }}</h3>
+                <div class="col-span-full py-12 sm:py-20 text-center">
+                    <flux:icon name="inbox" class="size-12 sm:size-16 text-zinc-200 mx-auto mb-4" />
+                    <h3 class="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">{{ __('No active challenges') }}</h3>
                     <p class="text-zinc-500">{{ __('Check back soon for new opportunities!') }}</p>
                 </div>
             @endforelse
@@ -136,25 +136,25 @@ new class extends Component {
 
     <!-- Past Challenges -->
     @if ($pastChallenges->count() > 0)
-        <section class="space-y-8">
-            <h2 class="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-3">
-                <div class="size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                    <flux:icon name="archive-box" class="size-5 text-zinc-500" />
+        <section class="space-y-5 sm:space-y-8">
+            <h2 class="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-2 sm:gap-3">
+                <div class="size-7 sm:size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+                    <flux:icon name="archive-box" class="size-4 sm:size-5 text-zinc-500" />
                 </div>
                 {{ __('Past Challenges') }}
             </h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 @foreach ($pastChallenges as $challenge)
                     <a href="{{ route('challenges.show', $challenge->custom_link) }}"
-                        class="group bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 hover:shadow-xl transition-all block">
+                        class="group bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 hover:shadow-xl transition-all block">
                         <div class="flex items-center justify-between mb-4">
                             <span
                                 class="text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-purple)]">#{{ $challenge->hashtag }}</span>
                             <flux:icon name="chevron-right"
                                 class="size-4 text-zinc-300 group-hover:translate-x-1 transition-transform" />
                         </div>
-                        <h4 class="font-bold text-zinc-900 dark:text-white mb-4">{{ $challenge->title }}</h4>
+                        <h4 class="text-sm sm:text-base font-bold text-zinc-900 dark:text-white mb-4 break-words">{{ $challenge->title }}</h4>
 
                         @if ($challenge->winner)
                             <div class="flex items-center gap-2 pt-4 border-t border-zinc-50 dark:border-zinc-800">

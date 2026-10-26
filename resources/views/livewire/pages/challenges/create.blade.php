@@ -95,18 +95,18 @@ new #[Layout('components.layouts.app')] class extends Component {
     }
 }; ?>
 
-<div class="max-w-3xl mx-auto py-8 px-4">
+<div class="max-w-3xl mx-auto py-5 sm:py-8 px-3 sm:px-4">
     <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
         <!-- Header -->
-        <div class="p-6 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
-            <h1 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{{ __('Create New Challenge') }}</h1>
+        <div class="p-4 sm:p-6 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
+            <h1 class="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-100">{{ __('Create New Challenge') }}</h1>
             <p class="text-zinc-500 text-sm mt-1">
                 {{ __('Spark creativity and reward the best artisans in the community.') }}</p>
         </div>
 
-        <form wire:submit.prevent="create" class="p-8 space-y-8">
+        <form wire:submit.prevent="create" class="p-4 sm:p-8 space-y-6 sm:space-y-8">
             <!-- Basic Info -->
-            <div class="space-y-6">
+            <div class="space-y-4 sm:space-y-6">
                 <div>
                     <flux:label>{{ __('Challenge Title') }}</flux:label>
                     <flux:input wire:model="title" placeholder="e.g. Modern Kitchen Design 2024" />
@@ -122,7 +122,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                     <flux:label>{{ __('Start Date') }}</flux:label>
                     <flux:input type="datetime-local" wire:model="start_at" />
@@ -137,7 +137,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             <div>
                 <flux:label>{{ __('Banner Image (Optional)') }}</flux:label>
-                <div class="mt-2 flex items-center gap-4">
+                <div class="mt-2 flex flex-wrap items-center gap-3 sm:gap-4">
                     @if ($banner)
                         <div class="size-20 rounded-lg overflow-hidden border border-zinc-200">
                             <img src="{{ $banner->temporaryUrl() }}" class="size-full object-cover">
@@ -162,7 +162,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             </div>
 
             <!-- Judges -->
-            <div class="space-y-4">
+            <div class="space-y-3 sm:space-y-4">
                 <flux:label>{{ __('Invite Judges') }}</flux:label>
                 <div class="relative">
                     <flux:input wire:model.live.debounce.300ms="searchQuery" icon="magnifying-glass"
@@ -174,7 +174,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                             @foreach ($users as $user)
                                 <button type="button" wire:click="addJudge({{ $user->id }})"
                                     class="w-full flex items-center gap-3 p-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-lg transition-colors">
-                                    <div class="size-8 rounded-full overflow-hidden bg-zinc-100">
+                                    <div class="size-8 rounded-full overflow-hidden bg-zinc-100 shrink-0">
                                         @if ($user->profile_picture_url)
                                             <img src="{{ $user->profile_picture_url }}" class="size-full object-cover">
                                         @else
@@ -200,7 +200,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         @foreach ($selectedJudges as $judgeId)
                             @php $judgeUser = \App\Models\User::find($judgeId); @endphp
                             <div
-                                class="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 pl-1 pr-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-700">
+                                class="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 pl-1 pr-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 max-w-full">
                                 <div class="size-6 rounded-full overflow-hidden bg-zinc-200">
                                     @if ($judgeUser->profile_picture_url)
                                         <img src="{{ $judgeUser->profile_picture_url }}"
@@ -223,7 +223,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             </div>
 
             <div class="pt-6">
-                <flux:button type="submit" variant="primary" class="w-full h-12 text-lg">
+                <flux:button type="submit" variant="primary" class="w-full h-11 sm:h-12 text-sm sm:text-base">
                     {{ __('Launch Challenge') }}
                 </flux:button>
             </div>
