@@ -74,7 +74,7 @@ new class extends Component
             <div class="w-0.5 flex-1 min-h-[16px]" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
             <span class="size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
                 style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true">
-                <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-3 object-contain">
+                <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-full object-cover">
             </span>
         </div>
         <div class="flex-1 min-w-0">
@@ -94,7 +94,7 @@ new class extends Component
                         @if ($post->user->work && !$post->repost_of_id)
                             <span title="{{ $post->user->work }}"
                                 class="max-w-[160px] sm:max-w-[220px] truncate rounded-full px-2 py-0.5 text-xs font-medium"
-                                style="color: {{ $post->user->accentColor() }}; border: 1px dotted {{ $post->user->accentColor() }}; background-color: {{ $post->user->accentColor() }}1a; display: inline-block;">
+                                style="color: {{ $post->user->accentColor() }}; border: 1.5px dotted {{ $post->user->accentColor() }}; background-color: {{ $post->user->accentColor() }}1a; display: inline-block;">
                                 {{ $post->user->work }}
                             </span>
                         @endif

@@ -300,7 +300,7 @@ new class extends Component
                                 wire:navigate @endif
                                     @click.stop
                                     class="size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-sm overflow-hidden @if (auth()->id() !== $post->user_id) cursor-pointer transition-all @endif"
-                                    style="box-shadow: 0 0 0 2px {{ $post->user->accentColor() }}">
+                                    style="border: 2px solid {{ $post->user->accentColor() }}">
                                     @if ($post->user->profile_picture_url)
                                         <img src="{{ $post->user->profile_picture_url }}"
                                             class="size-full object-cover">
@@ -311,7 +311,7 @@ new class extends Component
                                 <div class="w-0.5 flex-1 min-h-[16px]" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
                                 <span class="size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
                                     style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true">
-                                    <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-3 object-contain">
+                                    <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-full object-cover">
                                 </span>
                             </div>
                             <div class="flex-1 min-w-0 space-y-4">
@@ -331,7 +331,7 @@ new class extends Component
                                         @if ($post->user->work && !$post->repost_of_id)
                                             <span title="{{ $post->user->work }}"
                                                 class="max-w-[160px] sm:max-w-[220px] truncate rounded-full px-2 py-0.5 text-xs font-medium"
-                                                style="color: {{ $post->user->accentColor() }}; border: 1px dotted {{ $post->user->accentColor() }}; background-color: {{ $post->user->accentColor() }}1a; display: inline-block;">
+                                                style="color: {{ $post->user->accentColor() }}; border: 1.5px dotted {{ $post->user->accentColor() }}; background-color: {{ $post->user->accentColor() }}1a; display: inline-block;">
                                                 {{ $post->user->work }}
                                             </span>
                                         @endif
@@ -544,7 +544,7 @@ new class extends Component
                                     <div class="flex flex-col items-center shrink-0">
                                         <div
                                             class="size-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 font-bold text-xs shrink-0 overflow-hidden"
-                                            style="box-shadow: 0 0 0 2px {{ $comment->user->accentColor() }}">
+                                            style="border: 2px solid {{ $comment->user->accentColor() }}">
                                             @if ($comment->user->profile_picture_url)
                                                 <img src="{{ $comment->user->profile_picture_url }}"
                                                     class="size-full object-cover">

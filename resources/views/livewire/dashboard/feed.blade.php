@@ -371,7 +371,8 @@ new class extends Component {
             <div class="px-4 py-3 border-b border-zinc-200/50 dark:border-zinc-800/50">
                 <form wire:submit="createPost">
                     <div class="flex items-start gap-3">
-                        <div class="shrink-0 size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-sm overflow-hidden">
+                        <div class="shrink-0 size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-sm overflow-hidden"
+                            style="border: 2px solid {{ auth()->user()->accentColor() }}">
                             @if (auth()->user()->profile_picture_url)
                                 <img loading="lazy" src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
                             @else

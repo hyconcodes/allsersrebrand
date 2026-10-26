@@ -140,7 +140,8 @@ new class extends Component
     <flux:modal wire:model="showModal" class="w-full sm:max-w-xl">
         <div class="space-y-4">
             <div class="flex items-center gap-3">
-                <div class="shrink-0 size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-sm overflow-hidden">
+                <div class="shrink-0 size-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-sm overflow-hidden"
+                    style="border: 2px solid {{ auth()->user()->accentColor() }}">
                     @if (auth()->user()->profile_picture_url)
                         <img loading="lazy" src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
                     @else

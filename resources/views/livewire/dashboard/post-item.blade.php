@@ -226,8 +226,8 @@ new class extends Component
         <div class="flex flex-col items-center shrink-0 self-stretch">
             <a @if (auth()->id() !== $post->user_id) href="{{ route('artisan.profile', $post->user) }}" wire:navigate @endif
                 @click.stop
-                class="shrink-0 size-10 sm:size-11 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-sm overflow-hidden ring-1 ring-black/5 dark:ring-white/10 hover:opacity-90 transition-opacity"
-                style="box-shadow: 0 0 0 2px {{ $post->user->accentColor() }}">
+                class="shrink-0 size-10 sm:size-11 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-sm overflow-hidden hover:opacity-90 transition-opacity"
+                style="border: 2px solid {{ $post->user->accentColor() }}">
                 @if ($post->user->profile_picture_url)
                     <img loading="lazy" src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
                 @else
@@ -237,7 +237,7 @@ new class extends Component
             <div class="w-0.5 flex-1" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
             <span class="size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
                 style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true">
-                <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-3 object-contain">
+                <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-full object-cover">
             </span>
         </div>
 
@@ -252,7 +252,7 @@ new class extends Component
                 <span title="{{ $post->user->work }}"
                     class="text-xs font-medium truncate"
                     style="color: {{ $post->user->accentColor() }};
-                           border: 1px dotted {{ $post->user->accentColor() }};
+                           border: 1.5px dotted {{ $post->user->accentColor() }};
                            background-color: {{ $post->user->accentColor() }}1a;
                            padding: 0.25rem 0.5rem;
                            border-radius: 9999px;
@@ -631,27 +631,34 @@ new class extends Component
 
             <!-- Inline Comments -->
             @php
-                $inlineComments = $showAllComments
+                $inlineComments = ($showAllComments
                     ? $post->comments()->latest()->with('user')->get()
                     : ($post->relationLoaded('comments')
                         ? $post->comments->take(3)
-                        : $post->comments()->latest()->with('user')->take(3)->get());
+                        : $post->comments()->latest()->with('user')->take(3)->get()))->reverse()->values();
                 $commentsTotal = $post->all_comments_count ?? $post->allComments()->count();
             @endphp
             @if ($inlineComments->isNotEmpty())
                 <div class="mt-3 relative">
-                    <div class="absolute -left-[33px] top-0 w-[48px] h-4 border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none sm:-left-[37px] sm:w-[52px]" style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
                     @foreach ($inlineComments as $comment)
+                        @php
+                            $previousComment = $inlineComments->get($loop->index - 1);
+                            $nextComment = $inlineComments->get($loop->index + 1);
+                            $startsNewThread = !$previousComment || $previousComment->user_id !== $comment->user_id;
+                        @endphp
                         <div class="flex items-start gap-2.5 relative" @click.stop>
+                            @if ($startsNewThread)
+                                <div class="absolute -left-[33px] top-0 w-[33px] h-4 border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none sm:-left-[37px] sm:w-[37px]" style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
+                            @endif
                             <div class="flex flex-col items-center shrink-0 self-stretch">
-                                <div class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-xs shrink-0 overflow-hidden ring-1 ring-black/5 dark:ring-white/10" style="box-shadow: 0 0 0 2px {{ $comment->user->accentColor() }}">
+                                <div class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-xs shrink-0 overflow-hidden" style="border: 2px solid {{ $comment->user->accentColor() }}">
                                     @if ($comment->user->profile_picture_url)
                                         <img loading="lazy" src="{{ $comment->user->profile_picture_url }}" class="size-full object-cover">
                                     @else
                                         <span class="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">{{ $comment->user->initials() }}</span>
                                     @endif
                                 </div>
-                                @if (!$loop->last)
+                                @if ($nextComment && $nextComment->user_id === $comment->user_id)
                                     <div class="w-0.5 flex-1" style="background-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
                                 @endif
                             </div>
