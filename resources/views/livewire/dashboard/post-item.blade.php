@@ -27,6 +27,10 @@ new class extends Component
 
     public string $adminDeleteCommentReason = '';
 
+    public ?int $replyToId = null;
+
+    public string $replyToName = '';
+
     public function toggleLike()
     {
         $user = auth()->user();
@@ -84,16 +88,42 @@ new class extends Component
         $comment = Comment::create([
             'user_id' => $user->id,
             'post_id' => $this->post->id,
-            'parent_id' => null,
+            'parent_id' => $this->replyToId,
             'content' => trim($this->commentContent),
         ]);
 
-        if ($this->post->user_id !== $user->id) {
+        if ($this->replyToId) {
+            $parentComment = Comment::with('user')->find($this->replyToId);
+            if ($parentComment && $parentComment->user_id !== $user->id) {
+                $parentComment->user->notify(new \App\Notifications\NewReply($parentComment, $user, $comment));
+            }
+        } elseif ($this->post->user_id !== $user->id) {
             $this->post->user->notify(new \App\Notifications\CommentAdded($this->post, $user, $comment));
         }
 
         $this->commentContent = '';
+        $this->replyToId = null;
+        $this->replyToName = '';
+        $this->post->setRelation('comments', $this->post->comments()->latest()->with(['user', 'replies.user'])->limit(3)->get());
+        $this->post->loadCount(['allComments']);
         $this->dispatch('comment-added');
+    }
+
+    public function setReplyTo($commentId)
+    {
+        $comment = Comment::with('user')->find($commentId);
+        if (! $comment || $comment->post_id !== $this->post->id) {
+            return;
+        }
+
+        $this->replyToId = $comment->id;
+        $this->replyToName = $comment->user->name;
+    }
+
+    public function cancelReply()
+    {
+        $this->replyToId = null;
+        $this->replyToName = '';
     }
 
     public function expandComments()
@@ -632,10 +662,10 @@ new class extends Component
             <!-- Inline Comments -->
             @php
                 $inlineComments = ($showAllComments
-                    ? $post->comments()->latest()->with('user')->get()
+                    ? $post->comments()->latest()->with(['user', 'replies.user'])->get()
                     : ($post->relationLoaded('comments')
                         ? $post->comments->take(3)
-                        : $post->comments()->latest()->with('user')->take(3)->get()))->reverse()->values();
+                        : $post->comments()->latest()->with(['user', 'replies.user'])->take(3)->get()))->reverse()->values();
                 $commentsTotal = $post->all_comments_count ?? $post->allComments()->count();
             @endphp
             @if ($inlineComments->isNotEmpty())
@@ -668,17 +698,60 @@ new class extends Component
                                     <span class="text-[11px] text-zinc-500 shrink-0">{{ $comment->created_at->diffForHumans(null, true) }}</span>
                                 </div>
                                 <p class="text-xs text-zinc-700 dark:text-zinc-400 leading-relaxed break-words whitespace-pre-wrap line-clamp-3">{{ $comment->content }}</p>
-                                @if(auth()->check() && auth()->user()->isAdmin())
-                                    <div class="flex items-center gap-2 mt-1">
-                                        <button wire:click="openAdminDeleteCommentModal({{ $comment->id }})" @click.stop class="text-[11px] font-medium text-red-500 hover:underline flex items-center gap-1">
-                                            <flux:icon name="trash" class="size-3" /> {{ __('Delete') }}
+                                @if (auth()->check())
+                                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                                        <button wire:click="setReplyTo({{ $comment->id }})" @click.stop
+                                            class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors">
+                                            {{ __('Reply') }}
                                         </button>
-                                        @if($comment->user_id !== auth()->id())
+                                        @if (auth()->user()->isAdmin())
                                             <span class="text-zinc-300 text-[11px]">·</span>
-                                            <button x-data @click.stop="$dispatch('open-ban-modal', {userId: {{ $comment->user_id }}, userName: '{{ addslashes($comment->user->name) }}'})" class="text-[11px] font-medium text-amber-600 hover:underline flex items-center gap-1">
-                                                <flux:icon name="no-symbol" class="size-3" /> {{ $comment->user->isBanned() ? __('Extend Ban') : __('Ban') }}
+                                            <button wire:click="openAdminDeleteCommentModal({{ $comment->id }})" @click.stop class="text-[11px] font-medium text-red-500 hover:underline flex items-center gap-1">
+                                                <flux:icon name="trash" class="size-3" /> {{ __('Delete') }}
                                             </button>
+                                            @if($comment->user_id !== auth()->id())
+                                                <span class="text-zinc-300 text-[11px]">·</span>
+                                                <button x-data @click.stop="$dispatch('open-ban-modal', {userId: {{ $comment->user_id }}, userName: '{{ addslashes($comment->user->name) }}'})" class="text-[11px] font-medium text-amber-600 hover:underline flex items-center gap-1">
+                                                    <flux:icon name="no-symbol" class="size-3" /> {{ $comment->user->isBanned() ? __('Extend Ban') : __('Ban') }}
+                                                </button>
+                                            @endif
                                         @endif
+                                    </div>
+                                @endif
+                                @if ($comment->replies->count() > 0)
+                                    <div class="mt-2.5 space-y-2.5 relative">
+                                        @foreach ($comment->replies as $reply)
+                                            <div class="flex items-start gap-2 relative" @click.stop>
+                                                <div class="absolute -left-[24px] -top-[10px] w-[24px] h-[13px] border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none" style="border-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
+                                                <div class="size-6 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0 overflow-hidden" style="border: 2px solid {{ $reply->user->accentColor() }}">
+                                                    @if ($reply->user->profile_picture_url)
+                                                        <img loading="lazy" src="{{ $reply->user->profile_picture_url }}" class="size-full object-cover">
+                                                    @else
+                                                        <span class="text-[9px] font-bold text-zinc-600 dark:text-zinc-300">{{ $reply->user->initials() }}</span>
+                                                    @endif
+                                                </div>
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-center gap-1.5">
+                                                        <span class="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">{{ $reply->user->name }}</span>
+                                                        <span class="text-[11px] text-zinc-500 shrink-0">{{ $reply->created_at->diffForHumans(null, true) }}</span>
+                                                    </div>
+                                                    <p class="text-xs text-zinc-700 dark:text-zinc-400 leading-relaxed break-words whitespace-pre-wrap line-clamp-3">{{ $reply->content }}</p>
+                                                    @if (auth()->user()?->isAdmin())
+                                                        <div class="flex items-center gap-2 mt-1">
+                                                            <button wire:click="openAdminDeleteCommentModal({{ $reply->id }})" @click.stop class="text-[11px] font-medium text-red-500 hover:underline flex items-center gap-1">
+                                                                <flux:icon name="trash" class="size-3" /> {{ __('Delete') }}
+                                                            </button>
+                                                            @if ($reply->user_id !== auth()->id())
+                                                                <span class="text-zinc-300 text-[11px]">·</span>
+                                                                <button x-data @click.stop="$dispatch('open-ban-modal', {userId: {{ $reply->user_id }}, userName: '{{ addslashes($reply->user->name) }}'})" class="text-[11px] font-medium text-amber-600 hover:underline flex items-center gap-1">
+                                                                    <flux:icon name="no-symbol" class="size-3" /> {{ $reply->user->isBanned() ? __('Extend Ban') : __('Ban') }}
+                                                                </button>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
                                     </div>
                                 @endif
                             </div>
@@ -696,6 +769,16 @@ new class extends Component
                         </button>
                     </div>
                 @endif
+                @if ($replyToId)
+                    <div class="mt-2.5 flex items-center justify-between px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg" @click.stop>
+                        <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ __('Replying to') }} <span class="font-bold text-zinc-700 dark:text-zinc-300">{{ $replyToName }}</span>
+                        </span>
+                        <button wire:click="cancelReply" class="text-zinc-500 hover:text-red-500">
+                            <flux:icon name="x-mark" class="size-4" />
+                        </button>
+                    </div>
+                @endif
                 <div class="mt-2.5 flex items-center gap-2.5" @click.stop>
                     <div class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 text-xs font-bold shrink-0 overflow-hidden ring-1 ring-black/5 dark:ring-white/10" style="box-shadow: 0 0 0 2px {{ auth()->user()->accentColor() }}">
                         @if (auth()->user()->profile_picture_url)
@@ -706,7 +789,7 @@ new class extends Component
                     </div>
                     <div class="flex-1 flex items-center bg-zinc-100 dark:bg-zinc-800/60 rounded-full px-3 py-1.5 border border-transparent focus-within:border-purple-500/50 transition-colors">
                         <input wire:model="commentContent" type="text"
-                            placeholder="{{ __('Post a comment...') }}"
+                            placeholder="{{ $replyToId ? __('Reply to :name...', ['name' => $replyToName]) : __('Post a comment...') }}"
                             class="flex-1 bg-transparent border-0 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 focus:ring-0 outline-none"
                             wire:keydown.enter="addComment">
                         <button wire:click="addComment"

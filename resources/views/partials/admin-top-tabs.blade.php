@@ -3,6 +3,7 @@
         ['label' => __('Control Center'), 'route' => 'admin.dashboard'],
         ['label' => __('Pings'), 'route' => 'admin.pings'],
         ['label' => __('Reports'), 'route' => 'admin.reports'],
+        ['label' => __('Messages'), 'route' => 'admin.messages'],
         ['label' => __('Settings'), 'route' => 'admin.settings'],
     ];
 @endphp

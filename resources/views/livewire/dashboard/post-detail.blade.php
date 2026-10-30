@@ -567,12 +567,12 @@ new class extends Component
                                             {{ htmlspecialchars_decode($comment->content, ENT_QUOTES) }}
                                         </p>
                                         <div class="flex items-center gap-3 flex-wrap">
-                                            @if (!$post->challenge_id)
-                                                <button wire:click="setReplyTo({{ $comment->id }})"
-                                                    class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
-                                                    {{ __('Reply') }}
-                                                </button>
-                                            @endif
+                                        @if (auth()->check())
+                                            <button wire:click="setReplyTo({{ $comment->id }})"
+                                                class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
+                                                {{ __('Reply') }}
+                                            </button>
+                                        @endif
                                             @if(auth()->check() && auth()->user()->isAdmin())
                                                 <button wire:click="openAdminDeleteCommentModal({{ $comment->id }})" class="text-xs text-red-500 hover:underline flex items-center gap-1"><flux:icon name="trash" class="size-3" /> {{ __('Delete') }}</button>
                                                 @if($comment->user_id !== auth()->id())
@@ -584,10 +584,9 @@ new class extends Component
                                         <!-- Replies -->
                                         @if ($comment->replies->count() > 0)
                                             <div class="mt-4 space-y-4 pl-4 relative">
-                                                <div class="absolute -left-[29px] top-0 w-[31px] h-4 border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none" style="border-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
-                                                <div class="absolute left-0 top-4 bottom-0 w-0.5 pointer-events-none" style="background-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
                                                 @foreach ($comment->replies as $reply)
-                                                    <div class="flex gap-2">
+                                                    <div class="flex gap-2 relative">
+                                                    <div class="absolute -left-[29px] -top-[16px] w-[31px] h-5 border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none" style="border-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
                                                     <div
                                                         class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 font-bold text-xs shrink-0 overflow-hidden"
                                                         style="box-shadow: 0 0 0 2px {{ $reply->user->accentColor() }}">
@@ -658,7 +657,7 @@ new class extends Component
                         </div>
                         <div class="flex-1 flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2 border border-zinc-200 dark:border-zinc-800 focus-within:border-purple-500 transition-colors">
                             <input wire:model="commentContent" type="text"
-                                placeholder="{{ __('Write a comment...') }}"
+                                placeholder="{{ $replyToId ? __('Reply to :name...', ['name' => $replyToName]) : __('Write a comment...') }}"
                                 class="flex-1 bg-transparent border-0 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-0 outline-none"
                                 wire:keydown.enter="addComment">
                             <button wire:click="addComment"

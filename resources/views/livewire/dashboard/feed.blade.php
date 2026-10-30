@@ -72,7 +72,7 @@ new class extends Component {
                 'user',
                 'repostOf.user',
                 'comments' => function ($q) {
-                    $q->latest()->limit(3)->with('user');
+                    $q->latest()->limit(3)->with(['user', 'replies.user']);
                 },
                 'likes' => function ($query) {
                     $query->where('user_id', auth()->id());

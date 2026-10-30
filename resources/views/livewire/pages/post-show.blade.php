@@ -640,18 +640,16 @@ new class extends Component
                         <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5">{{ $comment->content }}</p>
                         @if(auth()->check())
                             <div class="flex items-center gap-4 mt-2 flex-wrap">
-                                @if (!$post->challenge_id)
-                                    <button wire:click="setReplyTo({{ $comment->id }})"
-                                        class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
-                                        {{ __('Reply') }}
+                                <button wire:click="setReplyTo({{ $comment->id }})"
+                                    class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
+                                    {{ __('Reply') }}
+                                </button>
+                                @if (! $post->challenge_id && auth()->id() === $comment->user_id)
+                                    <button wire:click="deleteComment({{ $comment->id }})"
+                                        wire:confirm="{{ __('Delete comment?') }}"
+                                        class="text-xs text-red-500 hover:underline">
+                                        {{ __('Delete') }}
                                     </button>
-                                    @if (auth()->id() === $comment->user_id)
-                                        <button wire:click="deleteComment({{ $comment->id }})"
-                                            wire:confirm="{{ __('Delete comment?') }}"
-                                            class="text-xs text-red-500 hover:underline">
-                                            {{ __('Delete') }}
-                                        </button>
-                                    @endif
                                 @endif
                                 @if(auth()->user()->isAdmin() && auth()->id() !== $comment->user_id)
                                     <button wire:click="openAdminDeleteCommentModal({{ $comment->id }})" class="text-xs text-red-500 hover:underline flex items-center gap-1"><flux:icon name="trash" class="size-3" /> {{ __('Admin Delete') }}</button>
@@ -664,10 +662,9 @@ new class extends Component
 
                         @if ($comment->replies->count() > 0)
                             <div class="mt-3 space-y-3 pl-4 relative">
-                                <div class="absolute -left-[33px] top-0 w-[35px] h-4 border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none" style="border-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
-                                <div class="absolute left-0 top-4 bottom-0 w-0.5 pointer-events-none" style="background-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
                                 @foreach ($comment->replies as $reply)
-                                    <div class="flex gap-2">
+                                    <div class="flex gap-2 relative">
+                                        <div class="absolute -left-[33px] -top-[12px] w-[35px] h-5 border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none" style="border-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
                                         <div
                                             class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 font-bold text-xs shrink-0 overflow-hidden"
                                             style="box-shadow: 0 0 0 2px {{ $reply->user->accentColor() }}">
