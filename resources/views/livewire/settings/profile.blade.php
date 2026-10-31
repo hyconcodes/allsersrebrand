@@ -178,6 +178,19 @@ new class extends Component
                     </div>
                 @endif
 
+                {{-- Spinner shown inside the ring while the selected photo uploads --}}
+                <div wire:loading.flex wire:target="photo"
+                    class="absolute inset-0 z-10 items-center justify-center" wire:key="photo-upload-spinner">
+                    <div class="absolute inset-0 rounded-full bg-white/80 dark:bg-zinc-950/80"></div>
+                    <svg class="relative size-8 text-[var(--color-brand-purple)] animate-spin shrink-0"
+                        viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor"
+                            stroke-width="3"></circle>
+                        <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3"
+                            stroke-linecap="round"></path>
+                    </svg>
+                </div>
+
                 <label for="photo-upload"
                     class="absolute bottom-0 right-0 p-1.5 bg-white dark:bg-zinc-800 rounded-full shadow-md cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700">
                     <flux:icon name="camera" class="size-4 text-zinc-500" />
