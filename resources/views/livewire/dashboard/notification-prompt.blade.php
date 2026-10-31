@@ -148,7 +148,8 @@ x-transition:leave="transition ease-in duration-300"
 x-transition:leave-start="opacity-100 translate-y-0"
 x-transition:leave-end="opacity-0 -translate-y-8"
 x-cloak
-class="fixed top-4 left-1/2 -translate-x-1/2 z-[600] w-[calc(100%-2rem)] max-w-[420px]">
+@click.outside="dismiss()"
+class="fixed top-[calc(1rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 z-[600] w-[calc(100%-2rem)] max-w-[420px]">
     <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden relative">
         <button @click="dismiss()" class="absolute top-2 right-2 size-6 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" aria-label="Dismiss">
             <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>

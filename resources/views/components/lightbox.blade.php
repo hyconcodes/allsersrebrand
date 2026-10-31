@@ -5,12 +5,11 @@
     role="dialog"
     aria-modal="true"
     aria-label="Image viewer"
+    @click="close()"
     class="fixed inset-0 z-[9999] flex items-center justify-center bg-zinc-950/90 dark:bg-black/90 select-none"
     x-cloak>
-    <div class="absolute inset-0" @click.self="close()"></div>
-
-    <button type="button" @click="close()"
-        class="absolute top-4 right-4 z-10 size-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all active:scale-90">
+    <button type="button" @click.stop="close()"
+        class="absolute top-[calc(1rem+env(safe-area-inset-top,0px))] right-4 z-10 size-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all active:scale-90">
         <svg class="size-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
             <path d="M6 18 18 6M6 6l12 12"/>
         </svg>
@@ -43,7 +42,7 @@
     </div>
 
     <template x-if="images.length > 1">
-        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3">
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3" @click.stop>
             <div class="flex items-center gap-1.5">
                 <template x-for="(_, i) in images" :key="i">
                     <button type="button" @click="currentIndex = i"
@@ -56,7 +55,7 @@
     </template>
 
     <template x-if="images.length > 1 && currentIndex > 0">
-        <button type="button" @click="prev()"
+        <button type="button" @click.stop="prev()"
             class="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 size-10 sm:size-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all active:scale-90 backdrop-blur-sm">
             <svg class="size-5 sm:size-6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
                 <path d="m15 18-6-6 6-6"/>
@@ -65,7 +64,7 @@
     </template>
 
     <template x-if="images.length > 1 && currentIndex < images.length - 1">
-        <button type="button" @click="next()"
+        <button type="button" @click.stop="next()"
             class="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 size-10 sm:size-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all active:scale-90 backdrop-blur-sm">
             <svg class="size-5 sm:size-6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
                 <path d="m9 18 6-6-6-6"/>
