@@ -3,6 +3,7 @@
 use App\Models\ChallengeRating;
 use App\Models\Post;
 use Livewire\Volt\Component;
+use Illuminate\Support\Str;
 
 new class extends Component
 {
@@ -36,7 +37,7 @@ new class extends Component
         $this->userRating = $stars;
         $this->dispatch('toast', type: 'success', title: 'Submitted', message: 'Your star rating has been recorded!');
 
-        // Refresh post to update average (if we displayed it)
+        // Refresh post to update average
         $this->post->load('ratings');
     }
 
@@ -46,161 +47,348 @@ new class extends Component
             return redirect()->route('login');
         }
 
-        if ($this->post->isLikedBy(auth()->user())) {
+        $user = auth()->user();
+
+        $existingLike = $this->post->likes()->where('user_id', $user->id)->first();
+
+        if ($existingLike) {
+            $existingLike->delete();
+        } else {
             $this->post
                 ->likes()
-                ->where('user_id', auth()->id())
+                ->where('user_id', $user->id)
                 ->delete();
-        } else {
-            $this->post->likes()->create(['user_id' => auth()->id()]);
+            $this->post->likes()->create(['user_id' => $user->id]);
         }
 
+        $this->post->refresh();
         $this->post->loadCount('likes');
+    }
+
+    public function toggleBookmark()
+    {
+        if (! auth()->check()) {
+            return redirect()->route('login');
+        }
+
+        $user = auth()->user();
+        $existingBookmark = $this->post->bookmarks()->where('user_id', $user->id)->first();
+
+        if ($existingBookmark) {
+            $existingBookmark->delete();
+        } else {
+            try {
+                $this->post->bookmarks()->create(['user_id' => $user->id]);
+            } catch (\Illuminate\Database\QueryException $e) {
+                if ($e->getCode() !== '23000') {
+                    throw $e;
+                }
+            }
+        }
+
+        $this->post->refresh();
     }
 }; ?>
 
 <div
-    class="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden {{ $post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists() ? 'ring-2 ring-[var(--color-brand-purple)] ring-offset-4 dark:ring-offset-zinc-950' : '' }}">
-    <!-- Post Body -->
-    <div class="flex gap-2.5 sm:gap-3 p-3 sm:p-6">
+    class="relative overflow-hidden group/card {{ $post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists() ? 'ring-2 ring-[var(--color-brand-purple)] ring-offset-4 dark:ring-offset-zinc-950' : '' }}">
+
+    <div class="flex items-start gap-3 sm:gap-3.5 relative z-10 bg-white dark:bg-zinc-900 px-4 sm:px-5 py-4 transition-colors hover:bg-zinc-50/60 dark:hover:bg-zinc-900/60">
+        <!-- User Avatar + accent thread line (same as feed posts) -->
         <div class="flex flex-col items-center shrink-0 self-stretch">
-            <a href="{{ route('artisan.profile', $post->user) }}"
-                class="size-9 sm:size-12 rounded-full overflow-hidden bg-zinc-100 hover:opacity-80 transition-opacity"
-                style="box-shadow: 0 0 0 2px {{ $post->user->accentColor() }}">
+            <a @if (auth()->id() !== $post->user_id) href="{{ route('artisan.profile', $post->user) }}" wire:navigate @endif
+                @click.stop
+                class="shrink-0 size-10 sm:size-11 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-sm overflow-hidden hover:opacity-90 transition-opacity"
+                style="border: 2px solid {{ $post->user->accentColor() }}">
                 @if ($post->user->profile_picture_url)
-                    <img src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
+                    <img loading="lazy" src="{{ $post->user->profile_picture_url }}" class="size-full object-cover">
+                @else
+                    <span class="text-xs font-bold text-zinc-600 dark:text-zinc-300">{{ $post->user->initials() }}</span>
                 @endif
             </a>
-            <div class="w-0.5 flex-1 min-h-[16px]" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
-            <span class="size-4 sm:size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
+            <div class="w-0.5 flex-1" style="background-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
+            <span class="size-5 shrink-0 rounded-full border-2 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden"
                 style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true">
                 <img src="{{ asset('assets/allsers.png') }}" alt="" class="size-full object-cover">
             </span>
         </div>
+
+        <!-- Main Content Area -->
         <div class="flex-1 min-w-0">
-        <div class="flex items-start justify-between gap-2 mb-3 sm:mb-4">
-            <div>
-                    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                        <h3 class="text-sm sm:text-base font-bold text-zinc-900 dark:text-white capitalize break-all">{{ $post->user->username }}</h3>
-                        @if ($post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists())
-                            <div
-                                class="px-1.5 sm:px-2 py-0.5 rounded-full bg-[var(--color-brand-purple)] text-[9px] sm:text-xs font-bold text-white uppercase tracking-normal">
-                                {{ __('JUDGE') }}</div>
-                        @else
-                            <div
-                                class="px-1.5 sm:px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[9px] sm:text-xs font-bold text-zinc-500 uppercase tracking-normal">
-                                {{ __('PARTICIPANT') }}</div>
-                        @endif
-                        @if ($post->user->work && !$post->repost_of_id)
-                            <span title="{{ $post->user->work }}"
-                                class="max-w-[130px] sm:max-w-[220px] truncate rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-medium"
-                                style="color: {{ $post->user->accentColor() }}; border: 1.5px dotted {{ $post->user->accentColor() }}; background-color: {{ $post->user->accentColor() }}1a; display: inline-block;">
-                                {{ $post->user->work }}
-                            </span>
-                        @endif
-                    </div>
-                    <p class="text-xs text-zinc-500">{{ $post->created_at->diffForHumans() }}</p>
+            <!-- Header (Username, work, timestamp, judge badge, pin) -->
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <div class="flex items-center gap-1.5 text-sm min-w-0 flex-wrap leading-none">
+                    <span class="font-bold text-zinc-900 dark:text-zinc-100 hover:underline truncate">{{ '@' . $post->user->username }}</span>
+
+                    @if ($post->user->work)
+                        <span title="{{ $post->user->work }}"
+                            class="text-xs font-medium truncate"
+                            style="color: {{ $post->user->accentColor() }};
+                                   border: 1.5px dotted {{ $post->user->accentColor() }};
+                                   background-color: {{ $post->user->accentColor() }}1a;
+                                   padding: 0.25rem 0.5rem;
+                                   border-radius: 9999px;
+                                   display: inline-block;">
+                            {{ $post->user->work }}
+                        </span>
+                    @endif
+
+                    <span class="text-xs text-zinc-500">· {{ $post->created_at->diffForHumans(null, true) }}</span>
+
+                    @if ($post->user->judgingChallenges()->where('challenges.id', $post->challenge_id)->where('challenge_judges.status', 'accepted')->exists())
+                        <span
+                            class="px-1.5 py-0.5 rounded-full bg-[var(--color-brand-purple)] text-[9px] font-bold text-white uppercase tracking-normal shrink-0">
+                            {{ __('JUDGE') }}</span>
+                    @endif
                 </div>
 
-            <!-- Pin Button (Only for Creator) -->
-            @if (auth()->id() === $post->challenge->creator_id)
-                <button wire:click="$parent.pinPost({{ $post->id }})"
-                    class="p-2 text-zinc-400 hover:text-zinc-600 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        fill="{{ $post->is_challenge_pinned ? 'currentColor' : 'none' }}" viewBox="0 0 24 24"
-                        stroke-width="1.5" stroke="currentColor" class="size-4">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
-                    </svg>
-                </button>
-            @endif
-        </div>
-
-        <div class="text-zinc-700 dark:text-zinc-300 text-xs sm:text-sm mb-4 sm:mb-6 leading-relaxed">
-            {!! $post->formatted_content !!}
-        </div>
-
-        <!-- Media Display (Up to 4 images or 1 video) -->
-        @if ($post->images)
-            @php
-                $imgs = is_array($post->images) ? $post->images : array_filter(explode(',', (string)$post->images));
-                $imgUrls = array_map(fn($i) => asset('storage/' . $i), $imgs);
-            @endphp
-            <div
-                class="grid {{ count($imgs) > 1 ? 'grid-cols-2' : 'grid-cols-1' }} gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl overflow-hidden mb-4 sm:mb-6">
-                @foreach ($imgUrls as $index => $imgUrl)
-                    <div class="cursor-pointer overflow-hidden rounded-2xl"
-                        @click="$dispatch('open-lightbox', { images: {{ Js::from($imgUrls) }}, index: {{ $index }} })">
-                        <img src="{{ $imgUrl }}"
-                            class="w-full h-auto max-h-[400px] object-cover hover:scale-[1.02] transition-transform duration-500">
-                    </div>
-                @endforeach
-            </div>
-        @elseif($post->video)
-            <div x-data="{ muted: true }" class="relative rounded-xl sm:rounded-2xl overflow-hidden mb-4 sm:mb-6 bg-black aspect-video flex items-center justify-center">
-                <video x-ref="video" data-autoplay muted src="{{ asset('storage/' . $post->video) }}" class="w-full h-full" controls playsinline preload="metadata"></video>
-                <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
-                    class="absolute top-2 right-2 z-10 flex items-center justify-center size-8 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
-                    :aria-label="muted ? 'Unmute video' : 'Mute video'">
-                    <flux:icon x-show="muted" name="speaker-x-mark" class="size-4" />
-                    <flux:icon x-show="!muted" name="speaker-wave" class="size-4" style="display: none;" />
-                </button>
-            </div>
-        @endif
-
-        <!-- Interaction Bar -->
-        <div class="flex items-center justify-between gap-2 pt-3 sm:pt-4 border-t border-zinc-100 dark:border-zinc-800">
-            <div class="flex items-center gap-4 sm:gap-6">
-                <!-- Like -->
-                <button wire:click="toggleLike"
-                    x-data="{
-                        liked: {{ $post->isLikedBy(auth()->user()) ? 'true' : 'false' }},
-                        count: {{ $post->likes_count ?? 0 }},
-                        hearts: [],
-                        burst() {
-                            const colors = ['text-rose-500','text-pink-400','text-amber-400','text-purple-500','text-sky-400','text-emerald-400','text-orange-400'];
-                            const pts = [[-16,-12],[16,-10],[-11,-19],[12,-17],[0,-22],[-7,-15],[9,-14]];
-                            this.hearts = pts.map(([x,y], i) => ({ id: Date.now()+i+Math.random(), x, y, color: colors[i % colors.length], delay: i*38 }));
-                            setTimeout(() => this.hearts = [], 760);
-                        }
-                    }"
-                    @click="const willLike = !liked; liked = willLike; count += willLike ? 1 : -1; if (willLike) burst()"
-                    class="relative flex items-center gap-1.5 sm:gap-2 group"
-                    :class="liked ? 'text-red-500' : 'text-zinc-400 hover:text-red-500'">
-                    <span class="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
-                        <template x-for="h in hearts" :key="h.id">
-                            <span class="heart-burst absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" :style="`--tx:${h.x}px; --ty:${h.y}px; animation-delay:${h.delay}ms`">
-                                <span :class="h.color"><flux:icon name="heart" variant="solid" class="size-2.5 drop-shadow-sm" /></span>
-                            </span>
-                        </template>
-                    </span>
-                    <flux:icon name="heart" variant="solid"
-                        class="relative size-4 sm:size-5 transition-transform group-hover:scale-110" />
-                    <span class="text-xs font-bold text-zinc-500" x-text="count">{{ number_format($post->likes_count) }}</span>
-                </button>
-
-                <!-- Comment (Direct link to post detail or local state) -->
-                <button onclick="Livewire.dispatch('open-post-detail', { postId: {{ $post->id }} })"
-                    class="flex items-center gap-1.5 sm:gap-2 group">
-                    <flux:icon name="chat-bubble-left"
-                        class="size-4 sm:size-5 text-zinc-400 group-hover:scale-110 transition-transform" />
-                    <span
-                        class="text-xs font-bold text-zinc-500">{{ number_format($post->all_comments_count ?? $post->allComments()->count()) }}</span>
-                </button>
-            </div>
-
-            <!-- Star Ratings (Judge functionality) -->
-            <div class="flex items-center gap-0.5 sm:gap-1">
-                @for ($i = 1; $i <= 5; $i++)
-                    <button wire:click="setRating({{ $i }})" {{ !$isJudge ? 'disabled' : '' }}
-                        class="{{ $isJudge ? 'hover:scale-125 transition-transform' : 'cursor-default' }}">
-                        <flux:icon name="star"
-                            class="size-4 sm:size-5 {{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'text-yellow-400' : 'text-zinc-200 dark:text-zinc-800' }}"
-                            variant="{{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'solid' : 'outline' }}" />
+                <!-- Pin Button (Only for Creator) -->
+                @if (auth()->id() === $post->challenge->creator_id)
+                    <button wire:click.stop="$parent.pinPost({{ $post->id }})"
+                        class="shrink-0 p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                        aria-label="{{ __('Pin to challenge') }}">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            fill="{{ $post->is_challenge_pinned ? 'currentColor' : 'none' }}" viewBox="0 0 24 24"
+                            stroke-width="1.5" stroke="currentColor" class="size-4">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                        </svg>
                     </button>
-                @endfor
+                @endif
             </div>
-        </div>
+
+            <!-- Post Text Content -->
+            @if ($post->content)
+                @if (Str::length($post->content) > 300)
+                    <div x-data="{ expanded: false }" class="mb-3" @click.stop>
+                        <p x-show="!expanded" class="text-zinc-800 dark:text-zinc-200 text-sm leading-relaxed whitespace-pre-line break-words">
+                            {!! $post->formatted_content_summary !!}
+                        </p>
+                        <p x-show="expanded" class="text-zinc-800 dark:text-zinc-200 text-sm leading-relaxed whitespace-pre-line break-words">
+                            {!! $post->formatted_content !!}
+                        </p>
+                        <button x-show="!expanded" @click="expanded = true"
+                            class="text-xs font-semibold text-purple-400 hover:underline mt-1">{{ __('See More') }}</button>
+                    </div>
+                @else
+                    <div class="mb-3">
+                        <p class="text-zinc-800 dark:text-zinc-200 text-sm leading-relaxed whitespace-pre-line break-words">
+                            {!! $post->formatted_content !!}
+                        </p>
+                    </div>
+                @endif
+            @endif
+
+            <!-- Media (images and/or video) — same display logic as feed posts -->
+            @php
+                $imageArray = $post->images
+                    ? (is_array($post->images) ? $post->images : array_filter(explode(',', (string) $post->images)))
+                    : [];
+                $imageUrls = array_map(fn($img) => route('images.show', ['path' => trim($img)]), $imageArray);
+                $imageCount = count($imageArray);
+                $hasVideo = filled($post->video);
+            @endphp
+
+            @if ($imageCount > 0 && $hasVideo)
+                <div class="mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 shadow-sm" @click.stop>
+                    @if ($imageCount === 1)
+                        <div class="grid grid-cols-2 gap-0.5">
+                            <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                @click.stop="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
+                                <img loading="lazy" src="{{ route('images.show', ['path' => trim($imageArray[0])]) }}" alt="Post image"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                            </div>
+                            <div x-data="{ muted: true }" @click.stop class="relative overflow-hidden bg-black">
+                                <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->video]) }}"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px]"
+                                    controls controlsList="nodownload" playsinline preload="metadata"></video>
+                                <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                                    class="absolute top-2 right-2 z-10 flex items-center justify-center size-7 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                                    :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                                    <flux:icon x-show="muted" name="speaker-x-mark" class="size-3.5" />
+                                    <flux:icon x-show="!muted" name="speaker-wave" class="size-3.5" style="display: none;" />
+                                </button>
+                            </div>
+                        </div>
+                    @else
+                        @php
+                            $displayImages = array_slice($imageArray, 0, 2);
+                            $remaining = $imageCount - 2;
+                        @endphp
+                        <div class="grid grid-cols-2 gap-0.5">
+                            <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                @click.stop="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
+                                <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[0])]) }}" alt="Post image"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                            </div>
+                            @if ($remaining > 0)
+                                <div class="relative overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                    @click.stop="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 1 })"
+                                    aria-label="{{ __('Show :count more images', ['count' => $remaining]) }}">
+                                    <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[1])]) }}" alt="Post image"
+                                        class="w-full h-full object-cover min-h-[160px] max-h-[260px]">
+                                    <div class="absolute inset-0 bg-black/55 flex items-center justify-center">
+                                        <span class="text-white text-xl sm:text-2xl font-extrabold tracking-tight">+{{ $remaining }}</span>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                    @click.stop="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 1 })">
+                                    <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[1])]) }}" alt="Post image"
+                                        class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                                </div>
+                            @endif
+                        </div>
+                        <div x-data="{ muted: true }" @click.stop class="relative bg-black">
+                            <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->video]) }}"
+                                class="w-full h-auto max-h-[260px] object-cover"
+                                controls controlsList="nodownload" playsinline preload="metadata"></video>
+                            <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                                class="absolute top-2 right-2 z-10 flex items-center justify-center size-7 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                                :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                                <flux:icon x-show="muted" name="speaker-x-mark" class="size-3.5" />
+                                <flux:icon x-show="!muted" name="speaker-wave" class="size-3.5" style="display: none;" />
+                            </button>
+                        </div>
+                    @endif
+                </div>
+            @elseif ($imageCount > 0)
+                <div class="mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 shadow-sm" @click.stop>
+                    @if ($imageCount === 1)
+                        <div class="max-h-[400px] overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                            @click.stop="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
+                            <img loading="lazy" src="{{ route('images.show', ['path' => trim($imageArray[0])]) }}" alt="Post image"
+                                class="w-full h-auto max-h-[400px] object-cover hover:scale-[1.01] transition-transform duration-300">
+                        </div>
+                    @elseif($imageCount === 2)
+                        <div class="grid grid-cols-2 gap-0.5">
+                            @foreach ($imageArray as $index => $image)
+                                <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                    @click.stop="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: {{ $index }} })">
+                                    <img loading="lazy" src="{{ route('images.show', ['path' => trim($image)]) }}" alt="Post image"
+                                        class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        @php
+                            $displayImages = array_slice($imageArray, 0, 2);
+                            $remaining = $imageCount - 2;
+                        @endphp
+                        <div class="grid grid-cols-2 gap-0.5">
+                            <div class="overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                @click.stop="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 0 })">
+                                <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[0])]) }}" alt="Post image"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px] hover:scale-105 transition-transform duration-300">
+                            </div>
+                            <div class="relative overflow-hidden bg-black/5 dark:bg-black/40 cursor-pointer"
+                                @click.stop="$dispatch('open-lightbox', { images: {{ Js::from($imageUrls) }}, index: 1 })"
+                                aria-label="{{ __('Show :count more images', ['count' => $remaining]) }}">
+                                <img loading="lazy" src="{{ route('images.show', ['path' => trim($displayImages[1])]) }}" alt="Post image"
+                                    class="w-full h-full object-cover min-h-[160px] max-h-[260px]">
+                                <div class="absolute inset-0 bg-black/55 flex items-center justify-center">
+                                    <span class="text-white text-xl sm:text-2xl font-extrabold tracking-tight">+{{ $remaining }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @elseif ($hasVideo)
+                <div x-data="{ muted: true }" @click.stop class="relative mb-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800/80 max-h-[400px] bg-black shadow-sm">
+                    <video x-ref="video" data-autoplay muted src="{{ route('videos.show', ['path' => $post->video]) }}" class="w-full h-auto max-h-[400px] object-cover"
+                        controls controlsList="nodownload" playsinline preload="metadata"></video>
+                    <button type="button" @click.stop="muted = !muted; $refs.video.muted = muted"
+                        class="absolute top-2 right-2 z-10 flex items-center justify-center size-8 rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
+                        :aria-label="muted ? 'Unmute video' : 'Mute video'">
+                        <flux:icon x-show="muted" name="speaker-x-mark" class="size-4" />
+                        <flux:icon x-show="!muted" name="speaker-wave" class="size-4" style="display: none;" />
+                    </button>
+                </div>
+            @endif
+
+            <!-- Action Bar (Twitter/X Style — same as feed posts) + Judge Star Ratings -->
+            <div class="flex items-center justify-between gap-2 pt-2 mt-1 text-zinc-500">
+                <div class="flex items-center justify-between max-w-md flex-1">
+                    <!-- Comment Button -->
+                    <button onclick="Livewire.dispatch('open-post-detail', { postId: {{ $post->id }} })"
+                        @click.stop
+                        class="flex items-center gap-2 group text-xs hover:text-sky-500 transition-colors">
+                        <div class="p-2 rounded-full group-hover:bg-sky-500/10 transition-colors">
+                            <flux:icon name="chat-bubble-left" class="size-4" />
+                        </div>
+                        <span class="font-medium tabular-nums">{{ $post->all_comments_count ?? 0 }}</span>
+                    </button>
+
+                    <!-- Like Button -->
+                    <button wire:click.stop="toggleLike"
+                        x-data="{
+                            liked: {{ $post->isLikedBy(auth()->user()) ? 'true' : 'false' }},
+                            count: {{ $post->likes_count ?? 0 }},
+                            hearts: [],
+                            burst() {
+                                const colors = ['text-rose-500','text-pink-400','text-amber-400','text-purple-500','text-sky-400','text-emerald-400','text-orange-400'];
+                                const pts = [[-18,-14],[18,-12],[-12,-22],[14,-20],[0,-26],[-8,-18],[10,-16]];
+                                this.hearts = pts.map(([x,y], i) => ({ id: Date.now()+i+Math.random(), x, y, color: colors[i % colors.length], delay: i*38 }));
+                                setTimeout(() => this.hearts = [], 760);
+                            }
+                        }"
+                        @click="const willLike = !liked; liked = willLike; count += willLike ? 1 : -1; if (willLike) burst()"
+                        class="relative flex items-center gap-2 group text-xs transition-colors"
+                        :class="liked ? 'text-rose-500' : 'text-zinc-400 dark:text-zinc-500 hover:text-rose-500'">
+                        <span class="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
+                            <template x-for="h in hearts" :key="h.id">
+                                <span class="heart-burst absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" :style="`--tx:${h.x}px; --ty:${h.y}px; animation-delay:${h.delay}ms`">
+                                    <span :class="h.color"><flux:icon name="heart" variant="solid" class="size-2.5 drop-shadow-sm" /></span>
+                                </span>
+                            </template>
+                        </span>
+                        <span class="relative p-2 rounded-full group-hover:bg-rose-500/10 transition-colors">
+                            <flux:icon name="heart" variant="solid" class="size-4 group-hover:scale-110 transition-transform" />
+                        </span>
+                        <span class="font-medium tabular-nums" x-text="count">0</span>
+                    </button>
+
+                    <!-- Share Button -->
+                    <button x-data="{ copied: false }" @click.stop="
+                        const url = '{{ route('posts.show', $post) }}';
+                        if (navigator.share) { navigator.share({ url }).catch(() => {}); }
+                        else { navigator.clipboard.writeText(url).then(() => { copied = true; setTimeout(() => copied = false, 2000); }); }
+                    " class="flex items-center gap-2 group text-xs hover:text-purple-500 transition-colors relative">
+                        <div class="p-2 rounded-full group-hover:bg-purple-500/10 transition-colors">
+                            <flux:icon name="share" class="size-4" />
+                        </div>
+                        <span x-show="copied" x-transition
+                            class="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[11px] font-medium px-2 py-1 rounded-md shadow-lg whitespace-nowrap z-50">
+                            {{ __('Copied!') }}
+                        </span>
+                    </button>
+
+                    <!-- Bookmark Button -->
+                    <button wire:click.stop="toggleBookmark"
+                        x-data="{ bookmarked: {{ $post->isBookmarkedBy(auth()->user()) ? 'true' : 'false' }} }"
+                        @click="bookmarked = !bookmarked"
+                        class="flex items-center gap-2 group text-xs transition-colors"
+                        :class="bookmarked ? 'text-amber-500' : 'hover:text-amber-500'">
+                        <div class="p-2 rounded-full group-hover:bg-amber-500/10 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" :fill="bookmarked ? 'currentColor' : 'none'" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="bookmarked ? '0' : '1.5'" class="size-4" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                            </svg>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Star Ratings (Retained from challenge cards — judges can rate) -->
+                <div class="flex items-center gap-0.5 sm:gap-1 shrink-0" @click.stop>
+                    @for ($i = 1; $i <= 5; $i++)
+                        <button wire:click.stop="setRating({{ $i }})" {{ !$isJudge ? 'disabled' : '' }}
+                            class="{{ $isJudge ? 'hover:scale-125 transition-transform' : 'cursor-default' }}">
+                            <flux:icon name="star"
+                                class="size-4 sm:size-5 {{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'text-yellow-400' : 'text-zinc-200 dark:text-zinc-800' }}"
+                                variant="{{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'solid' : 'outline' }}" />
+                        </button>
+                    @endfor
+                </div>
+            </div>
         </div>
     </div>
 </div>

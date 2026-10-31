@@ -68,8 +68,11 @@ new class extends Component
         $validated = $this->validate([
             'content' => 'nullable|string|max:1000',
             'images' => 'nullable|array|max:4',
-            'images.*' => 'image|max:35840',
-            'video' => 'nullable|file|mimes:mp4,mov,avi,wmv|max:35840',
+            'images.*' => ['image', 'max:30720'],
+            'video' => ['nullable', 'file', 'mimes:mp4,mov,avi,wmv', 'max:30720'],
+        ], [
+            'images.*.max' => __('Each image must be 30 MB or less.'),
+            'video.max' => __('The video must be 30 MB or less.'),
         ]);
 
         $content = trim($validated['content'] ?? '');
@@ -165,13 +168,13 @@ new class extends Component
                             <flux:icon name="photo" class="size-4" />
                             {{ __('Photos') }}
                             <input type="file" wire:model="images" multiple accept="image/*" class="hidden"
-                                :disabled="video != null" x-on:change="guardFileSize($el, 35840)">
+                                :disabled="video != null" x-on:change="guardFileSize($el, 30720)">
                         </label>
                         <label class="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-[var(--color-brand-purple)]">
                             <flux:icon name="video-camera" class="size-4" />
                             {{ __('Video') }}
                             <input type="file" wire:model="video" accept="video/*" class="hidden"
-                                :disabled="images.length > 0" x-on:change="guardFileSize($el, 35840)">
+                                :disabled="images.length > 0" x-on:change="guardFileSize($el, 30720)">
                         </label>
                     </div>
                     <button type="submit"

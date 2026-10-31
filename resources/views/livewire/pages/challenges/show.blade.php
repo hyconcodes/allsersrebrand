@@ -145,8 +145,14 @@ new class extends Component {
             <!-- Header Card (Design matching the image) -->
             <div
                 class="relative rounded-3xl overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <!-- Banner Image / Background -->
-                <div class="h-72 sm:h-64 relative bg-zinc-100 dark:bg-zinc-800">
+                <!-- Banner Image / Background (falls back to accent-color gradient from the challenge creator's thread color) -->
+                @php
+                    $creatorAccent = $challenge->creator?->accentColor() ?: '#6a11cb';
+                @endphp
+                <div class="h-72 sm:h-64 relative bg-zinc-100 dark:bg-zinc-800"
+                    @unless ($challenge->banner_url)
+                        style="background: linear-gradient(135deg, {{ $creatorAccent }} 0%, {{ $creatorAccent }}8c 35%, #000 100%);"
+                    @endunless>
                     @if ($challenge->banner_url)
                         <img src="{{ route('images.show', ['path' => $challenge->banner_url]) }}"
                             class="size-full object-cover opacity-60">
