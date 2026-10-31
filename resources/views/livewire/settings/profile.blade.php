@@ -5,6 +5,7 @@ use App\Rules\Username;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
@@ -75,7 +76,7 @@ new class extends Component
         $rules = [
             'name' => ['required', 'string', 'max:255'],
             'username' => ['nullable', 'string', 'max:255', new Username, Rule::unique(User::class)->ignore($user->id)],
-            'photo' => ['nullable', 'image', 'max:1024'], // 1MB Max
+            'photo' => ['nullable', 'image', 'max:10240'], // 10MB Max
             'country_code' => ['required', 'string', 'size:2'],
             'accent_color' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
@@ -92,7 +93,17 @@ new class extends Component
             ];
         }
 
-        $validated = $this->validate($rules);
+        try {
+            $validated = $this->validate($rules, [
+                'photo.max' => __('The profile picture must not be greater than 10 MB.'),
+            ]);
+        } catch (ValidationException $e) {
+            if ($e->validator->errors()->has('photo')) {
+                $this->dispatch('photo-rejected', message: $e->validator->errors()->first('photo'));
+            }
+
+            throw $e;
+        }
 
         if ($this->photo) {
             $user->profile_picture = $this->photo->store('profilePics', 'public');
@@ -144,7 +155,8 @@ new class extends Component
 
 <x-settings.layout :active="'profile'">
     @php($isArtisan = auth()->user()->isArtisan())
-    <form wire:submit="updateProfileInformation" class="space-y-8">
+    <form wire:submit="updateProfileInformation" class="space-y-8"
+        @photo-rejected.window="window.Flux && Flux.toast({ variant: 'warning', heading: 'Upload rejected', text: $event.detail.message || 'The profile picture must not be greater than 10 MB.' })">
 
         <!-- Profile Picture -->
         <div class="flex items-center gap-5">
@@ -175,7 +187,7 @@ new class extends Component
 
             <div class="flex flex-col">
                 <h3 class="font-bold text-zinc-900 dark:text-zinc-100">{{ __('Profile Photo') }}</h3>
-                <p class="text-sm text-zinc-500">{{ __('Update your profile picture.') }}</p>
+                <p class="text-sm text-zinc-500">{{ __('Update your profile picture (up to 10 MB).') }}</p>
             </div>
         </div>
 

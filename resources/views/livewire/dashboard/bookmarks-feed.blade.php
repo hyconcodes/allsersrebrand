@@ -5,17 +5,21 @@ use App\Models\User;
 use App\Notifications\UserTagged;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
-use Livewire\Attributes\Validate;
 
-new class extends Component {
+new class extends Component
+{
     use WithFileUploads;
 
     public $posts = [];
 
     public $repostingPostId = null;
+
     public $repostContent = '';
+
     public $repostImage = null;
+
     public $repostVideo = null;
+
     public $showRepostModal = false;
 
     public function mount()
@@ -63,8 +67,9 @@ new class extends Component {
 
     public function openRepostModal($postId)
     {
-        if (!auth()->user()->isArtisan()) {
+        if (! auth()->user()->isArtisan()) {
             $this->dispatch('toast', type: 'error', title: 'Permission Denied', message: 'Only artisans can repost.');
+
             return;
         }
         $this->repostingPostId = $postId;

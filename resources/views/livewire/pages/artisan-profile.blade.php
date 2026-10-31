@@ -1,21 +1,26 @@
 <?php
 
-use App\Models\User;
-use App\Models\Post;
 use App\Models\Conversation;
-use Livewire\Volt\Component;
+use App\Models\Post;
+use App\Models\User;
+use App\Traits\HandlesPostActions;
 use Livewire\Attributes\On;
+use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
-use App\Traits\HandlesPostActions;
+
 use function Livewire\Volt\layout;
 
 layout('components.layouts.app');
 
-new class extends Component {
-    use WithPagination, WithFileUploads, HandlesPostActions;
+new class extends Component
+{
+    use HandlesPostActions, WithFileUploads, WithPagination;
+
     public User $user;
+
     public $showcases = [];
+
     public string $activeTab = 'posts';
 
     public function setTab(string $tab): void
@@ -25,8 +30,8 @@ new class extends Component {
 
     public function rendering($view)
     {
-        $title = $this->user->name . ' (@' . ($this->user->username ?? 'artisan') . ') | ' . ($this->user->work ?? 'Professional Artisan') . ' on Allsers';
-        $description = $this->user->bio ?: 'Explore the professional portfolio and verified services of ' . $this->user->name . ' on Allsers. Hire trusted artisans with confidence.';
+        $title = $this->user->name.' (@'.($this->user->username ?? 'artisan').') | '.($this->user->work ?? 'Professional Artisan').' on Allsers';
+        $description = $this->user->bio ?: 'Explore the professional portfolio and verified services of '.$this->user->name.' on Allsers. Hire trusted artisans with confidence.';
         $image = $this->user->profile_picture_url ?: asset('assets/allsers.png');
 
         $view->title($title);
@@ -82,7 +87,7 @@ new class extends Component {
 
     public function startConversation()
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return $this->redirect(route('login'));
         }
 
@@ -104,6 +109,7 @@ new class extends Component {
 
             $conversation = Conversation::create();
             $conversation->users()->attach([$authId, $userId]);
+
             return $conversation;
         });
 

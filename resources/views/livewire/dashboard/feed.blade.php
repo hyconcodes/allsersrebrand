@@ -2,14 +2,14 @@
 
 use App\Models\Post;
 use App\Models\User;
-use App\Notifications\UserTagged;
+use App\Traits\HandlesPostActions;
+use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
-use Livewire\Attributes\Validate;
-use App\Traits\HandlesPostActions;
 
-new class extends Component {
-    use WithFileUploads, HandlesPostActions;
+new class extends Component
+{
+    use HandlesPostActions, WithFileUploads;
 
     #[Validate('nullable|string|max:1000')]
     public $content = '';
@@ -32,10 +32,15 @@ new class extends Component {
     public $tab = 'for-you';
 
     public $page = 1;
+
     public $perPage = 10;
+
     public $hasMore = true;
+
     public $loadingMore = false;
+
     public $latestPostId = null;
+
     public $newPostsCount = 0;
 
     public function mount()
@@ -55,7 +60,7 @@ new class extends Component {
 
     public function loadMore()
     {
-        if ($this->loadingMore || !$this->hasMore) {
+        if ($this->loadingMore || ! $this->hasMore) {
             return;
         }
 
@@ -192,11 +197,12 @@ new class extends Component {
             $existingCount = Post::whereIn('id', $currentIds)->count();
             if ($existingCount < count($this->posts)) {
                 $this->loadPosts(true);
+
                 return;
             }
         }
 
-        if (!$this->latestPostId) {
+        if (! $this->latestPostId) {
             return;
         }
 
@@ -217,14 +223,16 @@ new class extends Component {
     public function createPost()
     {
         // Check if user is an artisan
-        if (!auth()->user()->isArtisan()) {
+        if (! auth()->user()->isArtisan()) {
             $this->addError('permission', 'Only artisans can create posts.');
+
             return;
         }
 
         // Validate that at least one field is filled
         if (empty($this->content) && empty($this->images) && empty($this->video)) {
             $this->addError('content', 'Please add content, images, or a video.');
+
             return;
         }
 
@@ -255,7 +263,7 @@ new class extends Component {
         ]);
 
         // Handle images - store as comma-separated string
-        if (!empty($this->images)) {
+        if (! empty($this->images)) {
             $imagePaths = [];
             foreach ($this->images as $image) {
                 $imagePaths[] = $image->store('posts/images', 'public');

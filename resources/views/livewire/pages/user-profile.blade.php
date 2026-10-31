@@ -1,23 +1,26 @@
 <?php
 
-use App\Models\User;
-use App\Models\Post;
 use App\Models\Conversation;
+use App\Models\Post;
+use App\Models\User;
+use App\Traits\HandlesPostActions;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
-use App\Traits\HandlesPostActions;
+
 use function Livewire\Volt\layout;
 
 layout('components.layouts.app');
 
-new class extends Component {
-    use WithPagination, WithFileUploads, HandlesPostActions;
+new class extends Component
+{
+    use HandlesPostActions, WithFileUploads, WithPagination;
+
     public User $user;
 
     public function rendering($view)
     {
-        $view->title($this->user->name . ' - ' . ($this->user->work ?? 'Artisan'));
+        $view->title($this->user->name.' - '.($this->user->work ?? 'Artisan'));
 
         $view->with([
             'posts' => $this->getPosts(),
@@ -65,6 +68,7 @@ new class extends Component {
 
             $conversation = Conversation::create();
             $conversation->users()->attach([$authId, $userId]);
+
             return $conversation;
         });
 
