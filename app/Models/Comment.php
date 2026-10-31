@@ -14,7 +14,24 @@ class Comment extends Model
         'post_id',
         'parent_id',
         'content',
+        'images',
+        'video',
     ];
+
+    /**
+     * Comment images as an array (stored comma-separated like posts).
+     */
+    public function imageArray(): array
+    {
+        if (empty($this->images)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            fn ($img) => trim((string) $img),
+            is_array($this->images) ? $this->images : explode(',', (string) $this->images)
+        )));
+    }
 
     public function user()
     {

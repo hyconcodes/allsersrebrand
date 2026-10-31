@@ -36,8 +36,8 @@ new class extends Component
             return;
         }
 
-        if ($challenge->hasEnded()) {
-            $this->dispatch('toast', type: 'error', title: 'Challenge Unavailable', message: 'Submissions are only available while the challenge is active.');
+        if ($challenge->hasEnded() && ! $challenge->joinedBeforeEnd(auth()->user())) {
+            $this->dispatch('toast', type: 'error', title: 'Challenge Unavailable', message: 'Only members who joined before the challenge ended can still post.');
 
             return;
         }
@@ -53,9 +53,7 @@ new class extends Component
         $challenge = Challenge::findOrFail($this->challengeId);
 
         abort_unless(
-            auth()->check()
-                && $challenge->isParticipant(auth()->user())
-                && ! $challenge->hasEnded(),
+            auth()->check() && $challenge->canPost(auth()->user()),
             403,
         );
 
@@ -65,15 +63,21 @@ new class extends Component
             return;
         }
 
-        $validated = $this->validate([
-            'content' => 'nullable|string|max:1000',
-            'images' => 'nullable|array|max:4',
-            'images.*' => ['image', 'max:30720'],
-            'video' => ['nullable', 'file', 'mimes:mp4,mov,avi,wmv', 'max:30720'],
-        ], [
-            'images.*.max' => __('Each image must be 30 MB or less.'),
-            'video.max' => __('The video must be 30 MB or less.'),
-        ]);
+        try {
+            $validated = $this->validate([
+                'content' => 'nullable|string|max:1000',
+                'images' => 'nullable|array|max:4',
+                'images.*' => ['image', 'max:30720'],
+                'video' => ['nullable', 'file', 'mimes:mp4,mov,avi,wmv', 'max:30720'],
+            ], [
+                'images.*.max' => __('Each image must be 30 MB or less.'),
+                'video.max' => __('The video must be 30 MB or less.'),
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->toastSubmissionOversize($e);
+
+            throw $e;
+        }
 
         $content = trim($validated['content'] ?? '');
         $hashtagPattern = '/(^|\s)#' . preg_quote($challenge->hashtag, '/') . '(?=\s|$)/i';
@@ -108,6 +112,20 @@ new class extends Component
         $this->showModal = false;
         $this->dispatch('post-created');
         $this->dispatch('toast', type: 'success', title: 'Submission Posted', message: 'Your work has been submitted to the challenge.');
+    }
+
+    /**
+     * Warn with a toast when a submission attachment exceeds the 30MB cap.
+     */
+    protected function toastSubmissionOversize(\Illuminate\Validation\ValidationException $e): void
+    {
+        foreach ($e->validator->failed() as $field => $rules) {
+            if ((str_starts_with($field, 'images') || $field === 'video') && isset($rules['Max'])) {
+                $this->dispatch('toast', type: 'warning', title: 'File Too Large', message: 'Challenge images and videos must be 30MB or less.');
+
+                return;
+            }
+        }
     }
 
     public function removeImage(int $index): void
@@ -168,13 +186,13 @@ new class extends Component
                             <flux:icon name="photo" class="size-4" />
                             {{ __('Photos') }}
                             <input type="file" wire:model="images" multiple accept="image/*" class="hidden"
-                                :disabled="video != null" x-on:change="guardFileSize($el, 30720)">
+                                @disabled(! empty($video)) x-on:change="guardFileSize($el, 30720)">
                         </label>
                         <label class="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-[var(--color-brand-purple)]">
                             <flux:icon name="video-camera" class="size-4" />
                             {{ __('Video') }}
                             <input type="file" wire:model="video" accept="video/*" class="hidden"
-                                :disabled="images.length > 0" x-on:change="guardFileSize($el, 30720)">
+                                @disabled(! empty($images)) x-on:change="guardFileSize($el, 30720)">
                         </label>
                     </div>
                     <button type="submit"

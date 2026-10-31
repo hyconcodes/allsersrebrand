@@ -53,6 +53,8 @@ new class extends Component {
                 ->get(),
             'isParticipant' => auth()->check() && $this->challenge->isParticipant(auth()->user()),
             'isJudge' => auth()->check() && $this->challenge->isJudge(auth()->user()),
+            'canPost' => auth()->check() && $this->challenge->canPost(auth()->user()),
+            'isCreator' => auth()->check() && $this->challenge->isCreator(auth()->user()),
             'pendingInvitation' =>
                 auth()->check() &&
                 $this->challenge
@@ -68,6 +70,12 @@ new class extends Component {
     {
         if (!auth()->check()) {
             return redirect()->route('login');
+        }
+
+        if ($this->challenge->hasEnded()) {
+            $this->dispatch('toast', type: 'error', title: 'Challenge Ended', message: 'This challenge has already ended.');
+
+            return;
         }
 
         if (!$this->challenge->isParticipant(auth()->user())) {
@@ -135,6 +143,21 @@ new class extends Component {
     public function handlePostCreated()
     {
         // Refresh
+    }
+
+    public function deleteChallenge()
+    {
+        if (! auth()->check() || (! $this->challenge->isCreator(auth()->user()) && ! auth()->user()->isAdmin())) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Only the challenge author can delete this challenge.');
+
+            return;
+        }
+
+        $this->challenge->delete();
+
+        $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Challenge deleted.');
+
+        return redirect()->route('challenges.index');
     }
 }; ?>
 
@@ -250,24 +273,42 @@ new class extends Component {
                             class="px-5 sm:px-8 py-2.5 sm:py-3 rounded-full bg-zinc-900 dark:bg-white text-sm sm:text-base text-white dark:text-zinc-900 font-black hover:scale-105 active:scale-95 transition-all shadow-xl">
                             {{ __('Join challenge') }}
                         </button>
-                    @elseif($isParticipant && !$challenge->hasEnded())
+                    @elseif($canPost)
                         <button
                             onclick="Livewire.dispatch('open-challenge-post-modal', { challengeId: {{ $challenge->id }}, hashtag: '{{ $challenge->hashtag }}' })"
                             class="px-5 sm:px-8 py-2.5 sm:py-3 rounded-full bg-[var(--color-brand-purple)] text-sm sm:text-base text-white font-black hover:scale-105 active:scale-95 transition-all shadow-xl">
                             {{ __('Post Submission') }}
                         </button>
+                        @if ($challenge->hasEnded())
+                            <p class="mt-3 text-[11px] font-medium text-zinc-500">
+                                {{ __('The challenge has ended, but you joined in time — you can still submit.') }}
+                            </p>
+                        @endif
                     @elseif($isJudge && !$challenge->hasEnded())
                         <div
                             class="px-5 sm:px-8 py-2.5 sm:py-3 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm sm:text-base text-zinc-500 font-bold inline-block">
                             {{ __('You are a Judge') }}
                         </div>
+                    @elseif($challenge->hasEnded())
+                        <div
+                            class="px-5 sm:px-8 py-2.5 sm:py-3 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm sm:text-base text-zinc-500 font-bold inline-block">
+                            {{ __('Challenge Ended') }}
+                        </div>
                     @endif
 
-                    @if ($challenge->creator_id === auth()->id())
-                        <a href="{{ route('challenges.manage', $challenge->custom_link) }}"
-                            class="mt-4 block text-xs font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
-                            {{ __('Manage Challenge') }}
-                        </a>
+                    @if ($isCreator)
+                        <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
+                            <a href="{{ route('challenges.manage', $challenge->custom_link) }}"
+                                class="text-xs font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
+                                {{ __('Edit Challenge') }}
+                            </a>
+                            <span class="text-zinc-300 dark:text-zinc-700">·</span>
+                            <button wire:click="deleteChallenge"
+                                wire:confirm="{{ __('Delete this challenge? Submissions will be kept but detached from it.') }}"
+                                class="text-xs font-bold text-red-400 hover:text-red-600">
+                                {{ __('Delete Challenge') }}
+                            </button>
+                        </div>
                     @endif
                 </div>
             </div>
@@ -395,21 +436,81 @@ new class extends Component {
                 </div>
             </div>
 
-            <!-- Sponsor Widget (Placeholder matching design) -->
+            <!-- Sponsor Widget -->
             <div
                 class="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm">
                 <h3 class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-4 sm:mb-6">
                     {{ __('Sponsored By') }}
                 </h3>
-                <div
-                    class="grid grid-cols-2 gap-4 items-center justify-items-center opacity-60 grayscale hover:grayscale-0 transition-all">
-                    <!-- Just placeholders as per image style -->
-                    <div class="font-black italic text-zinc-900 dark:text-white tracking-widest">{{ __('REPLIT') }}
+
+                <div class="flex items-center gap-3">
+                    <div
+                        class="size-11 shrink-0 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
+                        A
                     </div>
-                    <div class="font-black text-zinc-900 dark:text-white tracking-tighter">{{ __('SUNO') }}</div>
-                    <div class="font-black text-zinc-900 dark:text-white">{{ __('TOLSTOY') }}</div>
-                    <div class="font-black text-zinc-900 dark:text-white tracking-widest">{{ __('KNACK') }}</div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-black text-zinc-900 dark:text-white truncate">{{ __('Allsers') }}</p>
+                        <p class="text-[11px] text-zinc-500 truncate">{{ __('Creative challenges, judged by makers.') }}</p>
+                    </div>
                 </div>
+
+                @if ($challenge->judges->isNotEmpty())
+                    <div class="mt-5">
+                        <p class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-2">
+                            {{ __('Judges') }}
+                        </p>
+                        <div class="flex items-center -space-x-2">
+                            @foreach ($challenge->judges->take(6) as $judge)
+                                <div class="size-8 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-900 shadow-sm"
+                                    style="box-shadow: 0 0 0 2px {{ $judge->accentColor() }}"
+                                    title="{{ $judge->name }}">
+                                    @if ($judge->profile_picture_url)
+                                        <img loading="lazy" src="{{ $judge->profile_picture_url }}" alt="{{ $judge->name }}"
+                                            class="size-full object-cover">
+                                    @else
+                                        <div class="size-full flex items-center justify-center text-[10px] font-bold text-zinc-500">
+                                            {{ $judge->initials() }}
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
+                            @if ($challenge->judges->count() > 6)
+                                <div
+                                    class="size-8 rounded-full bg-zinc-200 dark:bg-zinc-800 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold text-zinc-600 dark:text-zinc-300">
+                                    +{{ $challenge->judges->count() - 6 }}
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endif
+
+                @if ($challenge->creator)
+                    <div class="mt-5">
+                        <p class="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-2">
+                            {{ __('Hosted by') }}
+                        </p>
+                        <a @if (auth()->id() !== $challenge->creator_id) href="{{ route('artisan.profile', $challenge->creator) }}" wire:navigate @endif
+                            class="flex items-center gap-2.5 rounded-2xl p-1 -m-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors">
+                            <div class="size-9 shrink-0 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800"
+                                style="box-shadow: 0 0 0 2px {{ $challenge->creator->accentColor() }}">
+                                @if ($challenge->creator->profile_picture_url)
+                                    <img loading="lazy" src="{{ $challenge->creator->profile_picture_url }}"
+                                        alt="{{ $challenge->creator->name }}" class="size-full object-cover">
+                                @else
+                                    <div class="size-full flex items-center justify-center text-xs font-bold text-zinc-500">
+                                        {{ $challenge->creator->initials() }}
+                                    </div>
+                                @endif
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-zinc-900 dark:text-white truncate">{{ $challenge->creator->name }}</p>
+                                @if ($challenge->creator->username)
+                                    <p class="text-[11px] text-zinc-500 truncate">{{ '@' . $challenge->creator->username }}</p>
+                                @endif
+                            </div>
+                        </a>
+                    </div>
+                @endif
             </div>
 
             @if ($challenge->winner)
@@ -435,4 +536,7 @@ new class extends Component {
 
     <!-- Submission Modal -->
     <livewire:challenge.post-submission-modal />
+
+    <!-- Comment drawer for challenge posts (same drawer as the feed) -->
+    <livewire:dashboard.post-detail />
 </div>

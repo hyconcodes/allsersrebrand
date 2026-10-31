@@ -1,17 +1,42 @@
 <?php
 
 use App\Models\ChallengeRating;
+use App\Models\Comment;
 use App\Models\Post;
-use Livewire\Volt\Component;
+use App\Models\Report;
+use App\Traits\HandlesComments;
 use Illuminate\Support\Str;
+use Livewire\Volt\Component;
 
 new class extends Component
 {
+    use HandlesComments;
+
     public Post $post;
 
     public $isJudge = false;
 
     public $userRating = 0;
+
+    public bool $showAllComments = false;
+
+    public bool $editingPost = false;
+
+    public string $editingPostContent = '';
+
+    public $showReportModal = false;
+
+    public $reportReason = '';
+
+    public bool $showAdminDeletePostModal = false;
+
+    public string $adminDeletePostReason = '';
+
+    public bool $showAdminDeleteCommentModal = false;
+
+    public ?int $adminDeleteCommentId = null;
+
+    public string $adminDeleteCommentReason = '';
 
     public function mount($post, $isJudge = false)
     {
@@ -88,6 +113,203 @@ new class extends Component
 
         $this->post->refresh();
     }
+
+    protected function refreshComments(): void
+    {
+        $this->post->setRelation('comments', $this->post->comments()->latest()->with(['user', 'replies.user'])->get());
+        $this->post->loadCount(['allComments']);
+    }
+
+    public function toggleComments()
+    {
+        $this->showAllComments = ! $this->showAllComments;
+
+        if ($this->showAllComments) {
+            $this->refreshComments();
+        }
+    }
+
+    public function expandComments()
+    {
+        $this->showAllComments = true;
+        $this->refreshComments();
+    }
+
+    public function addComment()
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return redirect()->route('login');
+        }
+
+        if (empty(trim($this->commentContent)) && empty($this->commentImages) && ! $this->commentVideo) {
+            return;
+        }
+
+        if ($this->replyToId) {
+            $parent = Comment::find($this->replyToId);
+            if (! $parent || $parent->post_id !== $this->post->id) {
+                $this->replyToId = null;
+                $this->replyToName = '';
+            }
+        }
+
+        try {
+            $validated = $this->validateCommentInput();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->toastCommentOversize($e);
+
+            throw $e;
+        }
+
+        $media = $this->storeCommentMedia($validated);
+
+        $comment = Comment::create([
+            'user_id' => $user->id,
+            'post_id' => $this->post->id,
+            'parent_id' => $this->replyToId,
+            'content' => trim($this->commentContent),
+            'images' => $media['images'],
+            'video' => $media['video'],
+        ]);
+
+        $this->notifyForComment($comment, $this->post, $user);
+
+        $this->resetCommentComposer();
+        $this->showAllComments = true;
+        $this->refreshComments();
+        $this->dispatch('comment-added');
+    }
+
+    public function updateComment()
+    {
+        $comment = Comment::find($this->editingCommentId);
+
+        if (! $comment || $comment->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own comments.');
+
+            return;
+        }
+
+        $this->validate([
+            'editingCommentContent' => 'nullable|string|max:1000',
+        ]);
+
+        if (empty(trim((string) $this->editingCommentContent)) && empty($comment->images) && empty($comment->video)) {
+            $this->addError('editingCommentContent', __('Add text or keep an attachment.'));
+
+            return;
+        }
+
+        $comment->update(['content' => trim((string) $this->editingCommentContent)]);
+        $this->cancelCommentEdit();
+        $this->refreshComments();
+        $this->dispatch('toast', type: 'success', title: 'Updated', message: 'Comment updated.');
+    }
+
+    public function deleteOwnComment($commentId)
+    {
+        $comment = Comment::find($commentId);
+
+        if (! $comment || $comment->post_id !== $this->post->id || $comment->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only delete your own comments.');
+
+            return;
+        }
+
+        $comment->delete();
+        $this->refreshComments();
+        $this->dispatch('comment-added');
+        $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Comment deleted.');
+    }
+
+    public function startPostEdit()
+    {
+        if (! auth()->check() || $this->post->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own posts.');
+
+            return;
+        }
+
+        $this->editingPost = true;
+        $this->editingPostContent = $this->post->content;
+    }
+
+    public function cancelPostEdit()
+    {
+        $this->editingPost = false;
+        $this->editingPostContent = '';
+    }
+
+    public function updatePost()
+    {
+        if (! auth()->check() || $this->post->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own posts.');
+
+            return;
+        }
+
+        $this->validate([
+            'editingPostContent' => 'nullable|string|max:1000',
+        ]);
+
+        if (empty(trim((string) $this->editingPostContent)) && empty($this->post->images) && empty($this->post->video)) {
+            $this->addError('editingPostContent', __('Add text or keep an attachment.'));
+
+            return;
+        }
+
+        $this->post->update(['content' => trim((string) $this->editingPostContent)]);
+        $this->cancelPostEdit();
+        $this->post->refresh();
+        $this->dispatch('toast', type: 'success', title: 'Updated', message: 'Post updated.');
+    }
+
+    public function deletePost()
+    {
+        if (! auth()->check() || $this->post->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only delete your own posts.');
+
+            return;
+        }
+
+        $this->post->delete();
+        $this->dispatch('post-deleted');
+        $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Post deleted.');
+    }
+
+    public function openReportModal()
+    {
+        if (! auth()->check()) {
+            return redirect()->route('login');
+        }
+
+        $this->reportReason = '';
+        $this->showReportModal = true;
+    }
+
+    public function submitReport()
+    {
+        if (! auth()->check()) {
+            return redirect()->route('login');
+        }
+
+        $this->validate([
+            'reportReason' => 'required|string|min:10|max:500',
+        ]);
+
+        Report::create([
+            'post_id' => $this->post->id,
+            'user_id' => auth()->id(),
+            'reason' => $this->reportReason,
+        ]);
+
+        $this->showReportModal = false;
+        $this->reportReason = '';
+
+        $this->dispatch('toast', type: 'success', title: 'Report Submitted', message: 'Thank you for reporting. We will review this post.');
+    }
 }; ?>
 
 <div
@@ -142,23 +364,66 @@ new class extends Component
                     @endif
                 </div>
 
-                <!-- Pin Button (Only for Creator) -->
-                @if (auth()->id() === $post->challenge->creator_id)
-                    <button wire:click.stop="$parent.pinPost({{ $post->id }})"
-                        class="shrink-0 p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                        aria-label="{{ __('Pin to challenge') }}">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            fill="{{ $post->is_challenge_pinned ? 'currentColor' : 'none' }}" viewBox="0 0 24 24"
-                            stroke-width="1.5" stroke="currentColor" class="size-4">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
-                        </svg>
-                    </button>
-                @endif
+                <!-- Pin Button (Only for Creator) + Author/Admin menu -->
+                <div class="flex items-center gap-1 shrink-0">
+                    @if (auth()->id() === $post->challenge->creator_id)
+                        <button wire:click.stop="$parent.pinPost({{ $post->id }})"
+                            class="shrink-0 p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                            aria-label="{{ __('Pin to challenge') }}">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                fill="{{ $post->is_challenge_pinned ? 'currentColor' : 'none' }}" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                            </svg>
+                        </button>
+                    @endif
+
+                    @if (auth()->check() && (auth()->id() === $post->user_id || auth()->user()->isAdmin()))
+                        <flux:dropdown position="bottom" align="end">
+                            <button type="button" @click.stop
+                                class="shrink-0 p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                                aria-label="{{ __('Post options') }}">
+                                <flux:icon name="ellipsis-horizontal" class="size-4" />
+                            </button>
+                            <flux:menu>
+                                @if (auth()->id() === $post->user_id)
+                                    @unless ($editingPost)
+                                        <flux:menu.item wire:click="startPostEdit" icon="pencil">{{ __('Edit') }}</flux:menu.item>
+                                    @endunless
+                                    <flux:menu.item wire:click="deletePost"
+                                        wire:confirm="{{ __('Are you sure you want to delete this post?') }}"
+                                        icon="trash" variant="danger">{{ __('Delete') }}</flux:menu.item>
+                                @endif
+                                @if (auth()->id() !== $post->user_id)
+                                    <flux:menu.item wire:click="openReportModal" icon="flag">{{ __('Report') }}</flux:menu.item>
+                                @endif
+                            </flux:menu>
+                        </flux:dropdown>
+                    @endif
+                </div>
             </div>
 
-            <!-- Post Text Content -->
-            @if ($post->content)
+            <!-- Post Text Content (with inline edit) -->
+            @if ($editingPost)
+                <div class="mb-3" @click.stop>
+                    <textarea wire:model="editingPostContent" rows="4" maxlength="1000"
+                        class="w-full rounded-xl border border-purple-500/50 bg-transparent px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-purple-500"></textarea>
+                    @error('editingPostContent')
+                        <span class="block text-xs text-red-500 mt-1">{{ $message }}</span>
+                    @enderror
+                    <div class="mt-2 flex items-center gap-2">
+                        <button type="button" wire:click="updatePost"
+                            class="rounded-full bg-[var(--color-brand-purple)] px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90">
+                            {{ __('Save') }}
+                        </button>
+                        <button type="button" wire:click="cancelPostEdit"
+                            class="rounded-full bg-zinc-200 dark:bg-zinc-800 px-4 py-1.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 transition-colors hover:bg-zinc-300 dark:hover:bg-zinc-700">
+                            {{ __('Cancel') }}
+                        </button>
+                    </div>
+                </div>
+            @elseif ($post->content)
                 @if (Str::length($post->content) > 300)
                     <div x-data="{ expanded: false }" class="mb-3" @click.stop>
                         <p x-show="!expanded" class="text-zinc-800 dark:text-zinc-200 text-sm leading-relaxed whitespace-pre-line break-words">
@@ -309,14 +574,14 @@ new class extends Component
             <!-- Action Bar (Twitter/X Style — same as feed posts) + Judge Star Ratings -->
             <div class="flex items-center justify-between gap-2 pt-2 mt-1 text-zinc-500">
                 <div class="flex items-center justify-between max-w-md flex-1">
-                    <!-- Comment Button -->
-                    <button onclick="Livewire.dispatch('open-post-detail', { postId: {{ $post->id }} })"
+                    <!-- Comment Button (toggles inline comments) -->
+                    <button wire:click.stop="toggleComments"
                         @click.stop
-                        class="flex items-center gap-2 group text-xs hover:text-sky-500 transition-colors">
+                        class="flex items-center gap-2 group text-xs transition-colors {{ $showAllComments ? 'text-sky-500' : 'hover:text-sky-500' }}">
                         <div class="p-2 rounded-full group-hover:bg-sky-500/10 transition-colors">
                             <flux:icon name="chat-bubble-left" class="size-4" />
                         </div>
-                        <span class="font-medium tabular-nums">{{ $post->all_comments_count ?? 0 }}</span>
+                        <span class="font-medium tabular-nums">{{ $post->all_comments_count ?? $post->allComments()->count() }}</span>
                     </button>
 
                     <!-- Like Button -->

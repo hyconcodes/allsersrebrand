@@ -65,6 +65,21 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->dispatch('toast', type: 'success', title: 'Updated', message: 'Challenge details have been saved.');
     }
 
+    public function deleteChallenge()
+    {
+        if (auth()->id() !== $this->challenge->creator_id && ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Only the challenge author can delete this challenge.');
+
+            return;
+        }
+
+        $this->challenge->delete();
+
+        $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Challenge deleted.');
+
+        return redirect()->route('challenges.index');
+    }
+
     public function awardWinner()
     {
         $this->validate([
@@ -208,6 +223,23 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </div>
                 </form>
             @endif
+        </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden">
+        <div class="p-4 sm:p-6 border-b border-red-100 dark:border-red-900/40">
+            <h2 class="text-lg sm:text-xl font-bold text-red-600 dark:text-red-400">{{ __('Delete Challenge') }}</h2>
+            <p class="text-xs sm:text-sm text-zinc-500 mt-1">
+                {{ __('This cannot be undone. Submissions are kept but will no longer be linked to this challenge.') }}
+            </p>
+        </div>
+        <div class="p-4 sm:p-6">
+            <button wire:click="deleteChallenge"
+                wire:confirm="{{ __('Delete this challenge permanently?') }}"
+                class="rounded-full bg-red-500 px-5 py-2 text-sm font-bold text-white hover:bg-red-600 transition-colors">
+                {{ __('Delete Challenge') }}
+            </button>
         </div>
     </div>
 </div>

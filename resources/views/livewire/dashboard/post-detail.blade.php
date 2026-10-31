@@ -3,18 +3,19 @@
 use App\Models\Comment;
 use App\Models\Conversation;
 use App\Models\Post;
+use App\Traits\HandlesComments;
 use Livewire\Attributes\On;
 use Livewire\Volt\Component;
 
 new class extends Component
 {
+    use HandlesComments;
+
     public ?Post $post = null;
 
-    public string $commentContent = '';
+    public string $editingPostContent = '';
 
-    public ?int $replyToId = null;
-
-    public string $replyToName = '';
+    public bool $editingPost = false;
 
     #[On('open-post-detail')]
     public function loadPost($postId)
@@ -36,31 +37,41 @@ new class extends Component
 
     public function addComment()
     {
-        if (empty(trim($this->commentContent))) {
+        if (empty(trim($this->commentContent)) && empty($this->commentImages) && ! $this->commentVideo) {
             return;
         }
+
+        if ($this->replyToId) {
+            $parent = Comment::find($this->replyToId);
+            if (! $parent || $parent->post_id !== $this->post->id) {
+                $this->replyToId = null;
+                $this->replyToName = '';
+            }
+        }
+
+        try {
+            $validated = $this->validateCommentInput();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->toastCommentOversize($e);
+            throw $e;
+        }
+
+        $media = $this->storeCommentMedia($validated);
 
         $comment = Comment::create([
             'user_id' => auth()->id(),
             'post_id' => $this->post->id,
             'parent_id' => $this->replyToId,
-            'content' => $this->commentContent,
+            'content' => trim($this->commentContent),
+            'images' => $media['images'],
+            'video' => $media['video'],
         ]);
 
         // Notify
         $user = auth()->user();
-        if ($this->replyToId) {
-            $parentComment = Comment::find($this->replyToId);
-            if ($parentComment && $parentComment->user_id !== $user->id) {
-                $parentComment->user->notify(new \App\Notifications\NewReply($parentComment, $user, $comment));
-            }
-        } elseif ($this->post->user_id !== $user->id) {
-            $this->post->user->notify(new \App\Notifications\CommentAdded($this->post, $user, $comment));
-        }
+        $this->notifyForComment($comment, $this->post, $user);
 
-        $this->commentContent = '';
-        $this->replyToId = null;
-        $this->replyToName = '';
+        $this->resetCommentComposer();
 
         // Refresh post data
         $this->loadPost($this->post->id);
@@ -71,15 +82,98 @@ new class extends Component
 
     public function setReplyTo($commentId)
     {
-        $this->replyToId = $commentId;
+        $this->cancelCommentEdit();
         $comment = Comment::with('user')->find($commentId);
+        $this->replyToId = $comment?->id;
         $this->replyToName = $comment ? $comment->user->name : '';
     }
 
-    public function cancelReply()
+    public function startPostEdit()
     {
-        $this->replyToId = null;
-        $this->replyToName = '';
+        if (! $this->post || $this->post->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own posts.');
+
+            return;
+        }
+
+        $this->editingPost = true;
+        $this->editingPostContent = $this->post->content;
+    }
+
+    public function cancelPostEdit()
+    {
+        $this->editingPost = false;
+        $this->editingPostContent = '';
+    }
+
+    public function updatePost()
+    {
+        if (! $this->post || $this->post->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own posts.');
+
+            return;
+        }
+
+        $this->validate([
+            'editingPostContent' => 'nullable|string|max:1000',
+        ]);
+
+        if (empty(trim((string) $this->editingPostContent)) && empty($this->post->images) && empty($this->post->video)) {
+            $this->addError('editingPostContent', __('Add text or keep an attachment.'));
+
+            return;
+        }
+
+        $this->post->update(['content' => trim((string) $this->editingPostContent)]);
+        $this->cancelPostEdit();
+        $this->loadPost($this->post->id);
+        $this->dispatch('comment-added');
+        $this->dispatch('toast', type: 'success', title: 'Updated', message: 'Post updated.');
+    }
+
+    public function updateComment()
+    {
+        $comment = Comment::find($this->editingCommentId);
+
+        if (! $comment || $comment->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own comments.');
+
+            return;
+        }
+
+        $this->validate([
+            'editingCommentContent' => 'nullable|string|max:1000',
+        ]);
+
+        if (empty(trim((string) $this->editingCommentContent)) && empty($comment->images) && empty($comment->video)) {
+            $this->addError('editingCommentContent', __('Add text or keep an attachment.'));
+
+            return;
+        }
+
+        $comment->update(['content' => trim((string) $this->editingCommentContent)]);
+        $this->cancelCommentEdit();
+
+        $this->loadPost($this->post->id);
+
+        $this->dispatch('comment-added');
+        $this->dispatch('toast', type: 'success', title: 'Updated', message: 'Comment updated.');
+    }
+
+    public function deleteOwnComment($commentId)
+    {
+        $comment = Comment::find($commentId);
+
+        if (! $comment || $comment->post_id !== $this->post?->id || $comment->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only delete your own comments.');
+
+            return;
+        }
+
+        $comment->delete();
+        $this->loadPost($this->post->id);
+        $this->dispatch('comment-added');
+        $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Comment deleted.');
     }
 
     public function toggleBookmark()
@@ -345,6 +439,8 @@ new class extends Component
                                 </button>
                                 <flux:menu>
                                     @if ($post->user_id === auth()->id())
+                                        <flux:menu.item wire:click="startPostEdit"
+                                            icon="pencil">{{ __('Edit') }}</flux:menu.item>
                                         <flux:menu.item wire:click="deletePost"
                                             wire:confirm="{{ __('Are you sure you want to delete this post?') }}"
                                             icon="trash" variant="danger">{{ __('Delete') }}</flux:menu.item>
@@ -380,9 +476,29 @@ new class extends Component
                             </div>
                         @endif
 
-                        <p class="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed whitespace-pre-line break-words">
-                            {!! $post->formatted_content !!}
-                        </p>
+                        @if ($editingPost)
+                            <div @click.stop>
+                                <textarea wire:model="editingPostContent" rows="4" maxlength="1000"
+                                    class="w-full rounded-xl border border-purple-500/50 bg-transparent px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-purple-500"></textarea>
+                                @error('editingPostContent')
+                                    <span class="block text-xs text-red-500 mt-1">{{ $message }}</span>
+                                @enderror
+                                <div class="mt-2 flex items-center gap-2">
+                                    <button type="button" wire:click="updatePost"
+                                        class="rounded-full bg-[var(--color-brand-purple)] px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90">
+                                        {{ __('Save') }}
+                                    </button>
+                                    <button type="button" wire:click="cancelPostEdit"
+                                        class="rounded-full bg-zinc-200 dark:bg-zinc-800 px-4 py-1.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 transition-colors hover:bg-zinc-300 dark:hover:bg-zinc-700">
+                                        {{ __('Cancel') }}
+                                    </button>
+                                </div>
+                            </div>
+                        @else
+                            <p class="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed whitespace-pre-line break-words">
+                                {!! $post->formatted_content !!}
+                            </p>
+                        @endif
 
                         <!-- Images -->
                         @if ($post->images)
@@ -566,12 +682,27 @@ new class extends Component
                                         <p class="text-sm text-zinc-600 dark:text-zinc-400">
                                             {{ htmlspecialchars_decode($comment->content, ENT_QUOTES) }}
                                         </p>
+                                        @include('livewire.partials.comment-media', ['comment' => $comment])
+                                        @if ($editingCommentId === $comment->id)
+                                            @include('livewire.partials.comment-edit-box')
+                                        @endif
                                         <div class="flex items-center gap-3 flex-wrap">
                                         @if (auth()->check())
                                             <button wire:click="setReplyTo({{ $comment->id }})"
                                                 class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
                                                 {{ __('Reply') }}
                                             </button>
+                                            @if (auth()->id() === $comment->user_id && $editingCommentId !== $comment->id)
+                                                <button wire:click="startCommentEdit({{ $comment->id }})"
+                                                    class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
+                                                    {{ __('Edit') }}
+                                                </button>
+                                                <button wire:click="deleteOwnComment({{ $comment->id }})"
+                                                    wire:confirm="{{ __('Delete this comment?') }}"
+                                                    class="text-xs text-red-500 hover:underline">
+                                                    {{ __('Delete') }}
+                                                </button>
+                                            @endif
                                         @endif
                                             @if(auth()->check() && auth()->user()->isAdmin())
                                                 <button wire:click="openAdminDeleteCommentModal({{ $comment->id }})" class="text-xs text-red-500 hover:underline flex items-center gap-1"><flux:icon name="trash" class="size-3" /> {{ __('Delete') }}</button>
@@ -607,6 +738,23 @@ new class extends Component
                                                         <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
                                                             {{ htmlspecialchars_decode($reply->content, ENT_QUOTES) }}
                                                         </p>
+                                                        @include('livewire.partials.comment-media', ['comment' => $reply])
+                                                        @if ($editingCommentId === $reply->id)
+                                                            @include('livewire.partials.comment-edit-box')
+                                                        @endif
+                                                        @if (auth()->check() && auth()->id() === $reply->user_id && $editingCommentId !== $reply->id)
+                                                            <div class="flex items-center gap-2 mt-1">
+                                                                <button wire:click="startCommentEdit({{ $reply->id }})"
+                                                                    class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
+                                                                    {{ __('Edit') }}
+                                                                </button>
+                                                                <button wire:click="deleteOwnComment({{ $reply->id }})"
+                                                                    wire:confirm="{{ __('Delete this reply?') }}"
+                                                                    class="text-xs text-red-500 hover:underline">
+                                                                    {{ __('Delete') }}
+                                                                </button>
+                                                            </div>
+                                                        @endif
                                                         @if(auth()->check() && auth()->user()->isAdmin())
                                                             <div class="flex items-center gap-2 mt-1">
                                                                 <button wire:click="openAdminDeleteCommentModal({{ $reply->id }})" class="text-xs text-red-500 hover:underline flex items-center gap-1"><flux:icon name="trash" class="size-3" /> {{ __('Delete') }}</button>
@@ -635,6 +783,7 @@ new class extends Component
 
                 <!-- Footer (Comment Input) -->
                 <div class="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30">
+                    @include('livewire.partials.comment-attachment-previews')
                     @if ($replyToId)
                         <div class="flex items-center justify-between mb-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg">
                             <span class="text-xs text-zinc-500 dark:text-zinc-400">
@@ -655,10 +804,11 @@ new class extends Component
                                 {{ auth()->user()->initials() }}
                             @endif
                         </div>
-                        <div class="flex-1 flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2 border border-zinc-200 dark:border-zinc-800 focus-within:border-purple-500 transition-colors">
+                        <div class="flex-1 flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-full pl-2 pr-3 py-2 border border-zinc-200 dark:border-zinc-800 focus-within:border-purple-500 transition-colors">
+                            @include('livewire.partials.comment-attachments', ['suffix' => 'drawer-' . ($post->id ?? 'post')])
                             <input wire:model="commentContent" type="text"
                                 placeholder="{{ $replyToId ? __('Reply to :name...', ['name' => $replyToName]) : __('Write a comment...') }}"
-                                class="flex-1 bg-transparent border-0 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-0 outline-none"
+                                class="flex-1 bg-transparent border-0 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-0 outline-none min-w-0"
                                 wire:keydown.enter="addComment">
                             <button wire:click="addComment"
                                 class="text-purple-500 hover:text-purple-400 transition-colors p-1 shrink-0">

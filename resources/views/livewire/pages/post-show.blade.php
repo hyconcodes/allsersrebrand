@@ -2,18 +2,15 @@
 
 use App\Models\Comment;
 use App\Models\Post;
+use App\Traits\HandlesComments;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Volt\Component;
 
 new class extends Component
 {
+    use HandlesComments;
+
     public Post $post;
-
-    public string $commentContent = '';
-
-    public ?int $replyToId = null;
-
-    public string $replyToName = '';
 
     public $showReportModal = false;
 
@@ -48,40 +45,80 @@ new class extends Component
             return redirect()->route('login');
         }
 
-        if (empty(trim($this->commentContent))) {
+        if (empty(trim($this->commentContent)) && empty($this->commentImages) && ! $this->commentVideo) {
             return;
         }
+
+        if ($this->replyToId) {
+            $parent = Comment::find($this->replyToId);
+            if (! $parent || $parent->post_id !== $this->post->id) {
+                $this->replyToId = null;
+                $this->replyToName = '';
+            }
+        }
+
+        try {
+            $validated = $this->validateCommentInput();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->toastCommentOversize($e);
+            throw $e;
+        }
+
+        $media = $this->storeCommentMedia($validated);
 
         $comment = Comment::create([
             'user_id' => auth()->id(),
             'post_id' => $this->post->id,
             'parent_id' => $this->replyToId,
-            'content' => $this->commentContent,
+            'content' => trim($this->commentContent),
+            'images' => $media['images'],
+            'video' => $media['video'],
         ]);
 
         // Notify
         $user = auth()->user();
-        if ($this->replyToId) {
-            $parentComment = Comment::find($this->replyToId);
-            if ($parentComment && $parentComment->user_id !== $user->id) {
-                $parentComment->user->notify(new \App\Notifications\NewReply($parentComment, $user, $comment));
-            }
-        } elseif ($this->post->user_id !== $user->id) {
-            $this->post->user->notify(new \App\Notifications\CommentAdded($this->post, $user, $comment));
-        }
+        $this->notifyForComment($comment, $this->post, $user);
 
-        $this->commentContent = '';
-        $this->replyToId = null;
-        $this->replyToName = '';
+        $this->resetCommentComposer();
 
         // Refresh post data
         $this->mount($this->post);
     }
 
+    public function updateComment()
+    {
+        $comment = Comment::find($this->editingCommentId);
+
+        if (! $comment || $comment->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own comments.');
+
+            return;
+        }
+
+        $this->validate([
+            'editingCommentContent' => 'nullable|string|max:1000',
+        ]);
+
+        if (empty(trim((string) $this->editingCommentContent)) && empty($comment->images) && empty($comment->video)) {
+            $this->addError('editingCommentContent', __('Add text or keep an attachment.'));
+
+            return;
+        }
+
+        $comment->update(['content' => trim((string) $this->editingCommentContent)]);
+        $this->cancelCommentEdit();
+        $this->mount($this->post);
+        $this->dispatch('toast', type: 'success', title: 'Updated', message: 'Comment updated.');
+    }
+
     public function setReplyTo($commentId)
     {
-        $this->replyToId = $commentId;
+        if ($this->editingCommentId) {
+            $this->cancelCommentEdit();
+        }
+
         $comment = Comment::with('user')->find($commentId);
+        $this->replyToId = $comment?->id;
         $this->replyToName = $comment ? $comment->user->name : '';
     }
 
@@ -638,13 +675,21 @@ new class extends Component
                             <span class="text-xs text-zinc-500">{{ $comment->created_at->diffForHumans() }}</span>
                         </div>
                         <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5">{{ $comment->content }}</p>
+                        @include('livewire.partials.comment-media', ['comment' => $comment])
+                        @if ($editingCommentId === $comment->id)
+                            @include('livewire.partials.comment-edit-box')
+                        @endif
                         @if(auth()->check())
                             <div class="flex items-center gap-4 mt-2 flex-wrap">
                                 <button wire:click="setReplyTo({{ $comment->id }})"
                                     class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
                                     {{ __('Reply') }}
                                 </button>
-                                @if (! $post->challenge_id && auth()->id() === $comment->user_id)
+                                @if (auth()->id() === $comment->user_id && $editingCommentId !== $comment->id)
+                                    <button wire:click="startCommentEdit({{ $comment->id }})"
+                                        class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
+                                        {{ __('Edit') }}
+                                    </button>
                                     <button wire:click="deleteComment({{ $comment->id }})"
                                         wire:confirm="{{ __('Delete comment?') }}"
                                         class="text-xs text-red-500 hover:underline">
@@ -681,12 +726,22 @@ new class extends Component
                                                 <span class="text-xs text-zinc-500">{{ $reply->created_at->diffForHumans() }}</span>
                                             </div>
                                             <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">{{ $reply->content }}</p>
-                                            @if (auth()->id() === $reply->user_id)
-                                                <button wire:click="deleteComment({{ $reply->id }})"
-                                                    wire:confirm="{{ __('Delete reply?') }}"
-                                                    class="text-xs text-red-500 hover:underline mt-1">
-                                                    {{ __('Delete') }}
-                                                </button>
+                                            @include('livewire.partials.comment-media', ['comment' => $reply])
+                                            @if ($editingCommentId === $reply->id)
+                                                @include('livewire.partials.comment-edit-box')
+                                            @endif
+                                            @if (auth()->check() && auth()->id() === $reply->user_id && $editingCommentId !== $reply->id)
+                                                <div class="flex items-center gap-3 mt-1">
+                                                    <button wire:click="startCommentEdit({{ $reply->id }})"
+                                                        class="text-xs text-zinc-500 hover:text-purple-500 transition-colors">
+                                                        {{ __('Edit') }}
+                                                    </button>
+                                                    <button wire:click="deleteComment({{ $reply->id }})"
+                                                        wire:confirm="{{ __('Delete reply?') }}"
+                                                        class="text-xs text-red-500 hover:underline">
+                                                        {{ __('Delete') }}
+                                                    </button>
+                                                </div>
                                             @endif
                                             @if(auth()->check() && auth()->user()->isAdmin() && auth()->id() !== $reply->user_id)
                                                 <button wire:click="openAdminDeleteCommentModal({{ $reply->id }})" class="text-xs text-red-500 hover:underline mt-1 flex items-center gap-1"><flux:icon name="trash" class="size-3" /> {{ __('Admin Delete') }}</button>
@@ -713,6 +768,7 @@ new class extends Component
         <!-- Comment Composer -->
         <div class="sticky bottom-0 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-3">
             @auth
+                @include('livewire.partials.comment-attachment-previews')
                 @if ($replyToId)
                     <div class="flex items-center justify-between mb-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg">
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">
@@ -733,9 +789,10 @@ new class extends Component
                             {{ auth()->user()->initials() }}
                         @endif
                     </div>
-                    <div class="flex-1 flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2 border border-zinc-200 dark:border-zinc-800 focus-within:border-purple-500 transition-colors">
+                    <div class="flex-1 flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-full pl-2 pr-3 py-2 border border-zinc-200 dark:border-zinc-800 focus-within:border-purple-500 transition-colors">
+                        @include('livewire.partials.comment-attachments', ['suffix' => 'page-' . $post->id])
                         <textarea wire:model="commentContent" placeholder="{{ __('Post a reply...') }}" rows="1"
-                            class="flex-1 bg-transparent border-0 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-0 resize-none outline-none min-h-[24px] max-h-[120px] scrollbar-hide"
+                            class="flex-1 bg-transparent border-0 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-0 resize-none outline-none min-w-0 min-h-[24px] max-h-[120px] scrollbar-hide"
                             wire:keydown.enter.prevent="addComment"></textarea>
                         <button wire:click="addComment"
                             class="text-purple-500 hover:text-purple-400 transition-colors p-1 shrink-0">

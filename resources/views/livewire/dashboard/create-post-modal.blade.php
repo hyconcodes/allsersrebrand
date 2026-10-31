@@ -193,12 +193,12 @@ new class extends Component
                             <label class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
                                 <flux:icon name="photo" class="size-4" />
                                 <span class="hidden sm:inline">{{ __('Photo') }}</span>
-                                <input type="file" wire:model="images" multiple accept="image/*" class="hidden" :disabled="video != null" x-on:change="guardFileSize($el, 35840)">
+                                <input type="file" wire:model="images" multiple accept="image/*" class="hidden" @disabled(! empty($video)) x-on:change="guardFileSize($el, 35840)">
                             </label>
                             <label class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors cursor-pointer">
                                 <flux:icon name="video-camera" class="size-4" />
                                 <span class="hidden sm:inline">{{ __('Video') }}</span>
-                                <input type="file" wire:model="video" accept="video/*" class="hidden" :disabled="images.length > 0" x-on:change="guardFileSize($el, 35840)">
+                                <input type="file" wire:model="video" accept="video/*" class="hidden" @disabled(! empty($images)) x-on:change="guardFileSize($el, 35840)">
                             </label>
                             <button type="button" @click="showPrice = !showPrice"
                                 class="flex items-center gap-1.5 text-zinc-500 hover:text-[var(--color-brand-purple)] text-xs font-medium transition-colors">

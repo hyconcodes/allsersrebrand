@@ -93,4 +93,43 @@ class Challenge extends Model
     {
         return $this->participants()->where('challenge_participants.user_id', $user->id)->exists();
     }
+
+    public function isCreator(User $user): bool
+    {
+        return $this->creator_id === $user->id;
+    }
+
+    /**
+     * Whether a participant joined while the challenge was still running.
+     * Members who joined before it ended keep their right to submit.
+     */
+    public function joinedBeforeEnd(User $user): bool
+    {
+        $participant = $this->participants()
+            ->where('challenge_participants.user_id', $user->id)
+            ->first();
+
+        if (! $participant) {
+            return false;
+        }
+
+        if (! $this->end_at) {
+            return true;
+        }
+
+        $joinedAt = $participant->pivot->joined_at;
+
+        return $joinedAt === null || \Illuminate\Support\Carbon::parse($joinedAt)->lessThanOrEqualTo($this->end_at);
+    }
+
+    /**
+     * Participants can post while the challenge is live, and afterwards they
+     * can still post if they joined before it ended.
+     */
+    public function canPost(User $user): bool
+    {
+        return $this->hasEnded()
+            ? $this->joinedBeforeEnd($user)
+            : $this->isParticipant($user);
+    }
 }
