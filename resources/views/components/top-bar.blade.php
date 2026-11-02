@@ -2,9 +2,11 @@
 
 @php
     $user = auth()->user();
-    $profileUrl = $user && $user->isArtisan()
-        ? route('artisan.profile', $user)
-        : route('user.profile', $user);
+    $profileUrl = $user
+        ? ($user->isArtisan()
+            ? route('artisan.profile', $user)
+            : route('user.profile', $user))
+        : null;
 @endphp
 
 <div class="flex items-center justify-between mb-1 border-b border-zinc-200/50 dark:border-zinc-800/50 sticky top-0 z-30 bg-white dark:bg-zinc-950 pt-[env(safe-area-inset-top,0px)]">
