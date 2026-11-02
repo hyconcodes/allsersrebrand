@@ -33,11 +33,11 @@ new class extends Component {
 
     public function with()
     {
-        $query = Post::with(['user', 'ratings'])
+        $query = Post::with('user')
             ->where('challenge_id', $this->challenge->id)
             ->withCount('likes');
 
-        if ($this->activeTab === 'trending') {
+        if (in_array($this->activeTab, ['trending', 'popular'], true)) {
             $query->orderByDesc('likes_count')->orderByDesc('created_at');
         } else {
             $query->latest();
@@ -82,18 +82,6 @@ new class extends Component {
             $this->challenge->participants()->attach(auth()->id(), ['joined_at' => now()]);
             $this->dispatch('toast', type: 'success', title: 'Welcome!', message: 'You have joined the challenge!');
         }
-    }
-
-    public function ratePost($postId, $rating)
-    {
-        if (!$this->challenge->isJudge(auth()->user())) {
-            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Only judges can rate posts.');
-            return;
-        }
-
-        \App\Models\ChallengeRating::updateOrCreate(['post_id' => $postId, 'user_id' => auth()->id()], ['rating' => $rating]);
-
-        $this->dispatch('toast', type: 'success', title: 'Rated', message: 'Your rating has been submitted.');
     }
 
     public function acceptInvitation()
@@ -324,10 +312,10 @@ new class extends Component {
                             <div class="absolute bottom-0 left-0 w-full h-1 bg-zinc-900 dark:bg-white"></div>
                         @endif
                     </button>
-                    <button wire:click="$set('activeTab', 'recent')"
-                        class="flex-1 px-2 sm:px-8 py-3 sm:py-4 text-xs sm:text-sm font-bold transition-all relative {{ $activeTab === 'recent' ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600' }}">
-                        {{ __('Recent') }}
-                        @if ($activeTab === 'recent')
+                    <button wire:click="$set('activeTab', 'popular')"
+                        class="flex-1 px-2 sm:px-8 py-3 sm:py-4 text-xs sm:text-sm font-bold transition-all relative {{ $activeTab === 'popular' ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600' }}">
+                        {{ __('Popular') }}
+                        @if ($activeTab === 'popular')
                             <div class="absolute bottom-0 left-0 w-full h-1 bg-zinc-900 dark:bg-white"></div>
                         @endif
                     </button>
@@ -366,7 +354,7 @@ new class extends Component {
                                         {{ __('Pinned Post') }}
                                     </div>
                                     <div class="ring-4 ring-zinc-900/5 dark:ring-white/5 rounded-3xl overflow-hidden">
-                                        <livewire:challenge.post-card :post="$pinnedPost" :isJudge="$isJudge"
+                                        <livewire:challenge.post-card :post="$pinnedPost"
                                             :key="'pinned-' . $pinnedPost->id" />
                                     </div>
                                 </div>
@@ -377,7 +365,7 @@ new class extends Component {
                                 @if ($pinnedPost && $post->id === $pinnedPost->id)
                                     @continue
                                 @endif
-                                <livewire:challenge.post-card :post="$post" :isJudge="$isJudge" :key="'post-' . $post->id" />
+                                <livewire:challenge.post-card :post="$post" :key="'post-' . $post->id" />
                             @empty
                                 <div
                                     class="bg-white dark:bg-zinc-900 rounded-3xl p-12 text-center border border-zinc-200 dark:border-zinc-800 shadow-sm">
@@ -444,10 +432,8 @@ new class extends Component {
                 </h3>
 
                 <div class="flex items-center gap-3">
-                    <div
-                        class="size-11 shrink-0 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
-                        A
-                    </div>
+                    <img src="{{ asset('assets/allsers.png') }}" alt="{{ __('Allsers') }}"
+                        class="size-11 shrink-0 rounded-2xl object-contain shadow-lg">
                     <div class="min-w-0">
                         <p class="text-sm font-black text-zinc-900 dark:text-white truncate">{{ __('Allsers') }}</p>
                         <p class="text-[11px] text-zinc-500 truncate">{{ __('Creative challenges, judged by makers.') }}</p>
@@ -536,7 +522,4 @@ new class extends Component {
 
     <!-- Submission Modal -->
     <livewire:challenge.post-submission-modal />
-
-    <!-- Comment drawer for challenge posts (same drawer as the feed) -->
-    <livewire:dashboard.post-detail />
 </div>

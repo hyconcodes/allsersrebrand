@@ -243,7 +243,9 @@ new #[Layout('components.layouts.app')] class extends Component
                     <p class="mt-1 text-xs text-zinc-500">{{ __('Search by personal info (name, username, email) or artisan work info (work, bio). Banned users are hidden automatically.') }}</p>
                 </div>
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                    <flux:icon name="user" class="size-3.5" />
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-3.5" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 3.75.772 9.37 9.37 0 0 0 3.75-.772M15 19.128v-.003c0-1.31-.53-2.566-1.477-3.493A5.25 5.25 0 0 0 9.75 14.25a5.25 5.25 0 0 0-3.773 1.382A4.875 4.875 0 0 0 4.5 19.125v.003M15 19.128v.003m0-.003a9.375 9.375 0 0 1-6 0m-4.5 0A9.37 9.37 0 0 1 .75 18.36a9.38 9.38 0 0 1 4.5-3.235M9.75 14.25a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Zm9-3.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
                     {{ count($selected) }} {{ __('selected') }}
                 </span>
             </div>
@@ -251,16 +253,32 @@ new #[Layout('components.layouts.app')] class extends Component
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">{{ __('Search') }}</label>
-                    <flux:input wire:model.live.debounce.300ms="searchQuery" icon="magnifying-glass"
-                        placeholder="{{ __('Search name, @username, email, work or bio...') }}" />
+                    <div class="relative">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400 pointer-events-none" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7" />
+                            <path stroke-linecap="round" d="m20 20-4-4" />
+                        </svg>
+                        <input type="search" wire:model.live.debounce.250ms="searchQuery"
+                            placeholder="{{ __('Search name, @username, email, work or bio...') }}"
+                            aria-label="{{ __('Search users by name, username, email, work or bio') }}"
+                            class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 py-2.5 pl-10 pr-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">{{ __('Role') }}</label>
-                    <flux:radio.group wire:model.live="roleFilter" variant="segmented" name="role-filter">
-                        <flux:radio value="all" icon="users">{{ __('All') }}</flux:radio>
-                        <flux:radio value="guest" icon="user">{{ __('Guests') }}</flux:radio>
-                        <flux:radio value="artisan" icon="briefcase">{{ __('Artisans') }}</flux:radio>
-                    </flux:radio.group>
+                    <fieldset>
+                        <legend class="sr-only">{{ __('Filter recipients by role') }}</legend>
+                        <div class="grid grid-cols-3 gap-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 p-1">
+                            @foreach (['all' => __('All'), 'guest' => __('Guests'), 'artisan' => __('Artisans')] as $roleValue => $roleLabel)
+                                <label wire:key="role-filter-{{ $roleValue }}"
+                                    class="cursor-pointer rounded-lg px-2 py-2 text-center text-xs font-bold text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100 has-[:checked]:bg-white has-[:checked]:text-purple-700 has-[:checked]:shadow-sm dark:has-[:checked]:bg-zinc-700 dark:has-[:checked]:text-purple-300">
+                                    <input type="radio" name="role-filter" value="{{ $roleValue }}"
+                                        wire:model.live="roleFilter" class="sr-only">
+                                    {{ $roleLabel }}
+                                </label>
+                            @endforeach
+                        </div>
+                    </fieldset>
                 </div>
             </div>
 
@@ -269,13 +287,16 @@ new #[Layout('components.layouts.app')] class extends Component
                     @php
                         $isSelected = in_array($user->id, $selected);
                     @endphp
-                    <div wire:click="toggleRecipient({{ $user->id }})"
+                    <button type="button" wire:click="toggleRecipient({{ $user->id }})"
                         wire:key="recipient-{{ $user->id }}"
-                        class="cursor-pointer p-4 sm:p-5 rounded-2xl border transition-colors flex items-start gap-3 sm:items-center @if($isSelected) bg-purple-50 dark:bg-purple-500/5 border-purple-300 dark:border-purple-500/40 @else bg-zinc-50 dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-800 hover:border-purple-200 dark:hover:border-purple-500/30 @endif">
+                        aria-pressed="{{ $isSelected ? 'true' : 'false' }}"
+                        class="w-full text-left cursor-pointer p-4 sm:p-5 rounded-2xl border transition-colors flex items-start gap-3 sm:items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 @if($isSelected) bg-purple-50 dark:bg-purple-500/5 border-purple-300 dark:border-purple-500/40 @else bg-zinc-50 dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-800 hover:border-purple-200 dark:hover:border-purple-500/30 @endif">
                         <div class="shrink-0 pt-0.5 sm:pt-0">
                             <div class="size-6 rounded-full border-2 flex items-center justify-center transition-colors {{ $isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-zinc-300 dark:border-zinc-600' }}">
                                 @if ($isSelected)
-                                    <flux:icon name="check" class="size-3" />
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" />
+                                    </svg>
                                 @endif
                             </div>
                         </div>
@@ -301,10 +322,13 @@ new #[Layout('components.layouts.app')] class extends Component
                                 </p>
                             @endif
                         </div>
-                    </div>
+                    </button>
                 @empty
                     <div class="text-center py-12">
-                        <flux:icon name="magnifying-glass" class="size-12 text-zinc-200 dark:text-zinc-800 mx-auto mb-4" />
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-12 text-zinc-200 dark:text-zinc-800 mx-auto mb-4" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7" />
+                            <path stroke-linecap="round" d="m20 20-4-4" />
+                        </svg>
                         @if (filled(trim($searchQuery)))
                             <p class="text-sm text-zinc-400">{{ __('No users found matching') }} "{{ $searchQuery }}"</p>
                         @else
@@ -315,17 +339,19 @@ new #[Layout('components.layouts.app')] class extends Component
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <flux:button wire:click="selectAllOnPage" variant="ghost" size="sm" class="font-bold text-xs uppercase">
+                <button type="button" wire:click="selectAllOnPage" wire:loading.attr="disabled"
+                    class="rounded-lg px-3 py-2 text-xs font-bold uppercase text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-wait disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white">
                     {{ __('Select all on this page') }}
-                </flux:button>
+                </button>
                 @if (count($selected) === 0)
-                    <flux:button variant="ghost" size="sm" disabled class="font-bold text-xs uppercase text-red-600 dark:text-red-400">
+                    <button type="button" disabled class="rounded-lg px-3 py-2 text-xs font-bold uppercase text-red-600 opacity-50 dark:text-red-400">
                         {{ __('Clear selection') }}
-                    </flux:button>
+                    </button>
                 @else
-                    <flux:button wire:click="clearSelection" variant="ghost" size="sm" class="font-bold text-xs uppercase text-red-600 dark:text-red-400">
+                    <button type="button" wire:click="clearSelection" wire:loading.attr="disabled"
+                        class="rounded-lg px-3 py-2 text-xs font-bold uppercase text-red-600 hover:bg-red-50 disabled:cursor-wait disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-500/10">
                         {{ __('Clear selection') }}
-                    </flux:button>
+                    </button>
                 @endif
             </div>
 
@@ -351,8 +377,11 @@ new #[Layout('components.layouts.app')] class extends Component
                             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 text-xs font-semibold text-purple-700 dark:text-purple-300">
                             {{ $selectedUser->name }}
                             <button type="button" wire:click="toggleRecipient({{ $selectedUser->id }})"
-                                class="hover:text-red-500 transition-colors">
-                                <flux:icon name="x-mark" class="size-3" />
+                                aria-label="{{ __('Remove :name', ['name' => $selectedUser->name]) }}"
+                                class="rounded-full p-0.5 hover:text-red-500 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3" aria-hidden="true">
+                                    <path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" />
+                                </svg>
                             </button>
                         </span>
                     @endforeach
@@ -360,14 +389,22 @@ new #[Layout('components.layouts.app')] class extends Component
             @endif
 
             <div>
-                <flux:input wire:model="title" :label="__('Title (email subject)')"
-                    placeholder="{{ __('e.g. Important update about your Allsers account') }}" />
+                <label for="message-title" class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-500">
+                    {{ __('Title (email subject)') }}
+                </label>
+                <input id="message-title" type="text" wire:model="title" maxlength="191"
+                    placeholder="{{ __('e.g. Important update about your Allsers account') }}"
+                    class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20">
                 @error('title') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:textarea wire:model="body" rows="6" :label="__('Message')"
-                    placeholder="{{ __('Write your message... Each recipient will receive it by email.') }}" />
+                <label for="message-body" class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-500">
+                    {{ __('Message') }}
+                </label>
+                <textarea id="message-body" wire:model="body" rows="6" maxlength="5000"
+                    placeholder="{{ __('Write your message... Each recipient will receive it by email.') }}"
+                    class="w-full resize-y rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"></textarea>
                 @error('body') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
 
@@ -376,13 +413,15 @@ new #[Layout('components.layouts.app')] class extends Component
                     {{ __('Ready to send to') }} <span class="font-bold text-zinc-700 dark:text-zinc-300">{{ count($selected) }}</span>
                     {{ __('recipient(s) via') }} {{ $activeMailDriver === 'mailtrap' ? __('Mailtrap API') : __('Server SMTP') }}.
                 </p>
-                <flux:button wire:click="sendMessages" wire:loading.attr="disabled" variant="primary" icon="paper-airplane"
-                    class="justify-center">
+                <button type="button" wire:click="sendMessages" wire:loading.attr="disabled" wire:target="sendMessages"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-purple-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:focus-visible:ring-offset-zinc-900">
                     <span wire:loading.remove wire:target="sendMessages">
                         {{ count($selected) > 0 ? __('Send to :count user(s)', ['count' => count($selected)]) : __('Send') }}
                     </span>
                     <span wire:loading wire:target="sendMessages">{{ __('Sending...') }}</span>
-                </flux:button>
+                    <svg wire:loading.remove wire:target="sendMessages" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m6 12 13-7-4 14-3-6-6-1Zm0 0 6 1" />
+                    </svg>
             </div>
         </div>
     </div>

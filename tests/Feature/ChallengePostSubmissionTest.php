@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Challenge;
+use App\Models\Comment;
 use App\Models\Post;
 use App\Models\User;
 use Livewire\Volt\Volt;
@@ -78,6 +79,69 @@ test('participants can submit before the scheduled start time if the challenge h
         ->where('challenge_id', $challenge->id)
         ->where('content', 'An early craft entry #CommunityCraft')
         ->exists())->toBeTrue();
+});
+
+test('challenge post cards render comments and replies inline with a comment composer', function () {
+    $creator = User::factory()->create();
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $challenge = createActiveChallengeFor($creator);
+    $post = Post::create([
+        'user_id' => $author->id,
+        'challenge_id' => $challenge->id,
+        'content' => 'A challenge entry',
+    ]);
+    $comment = Comment::create([
+        'user_id' => $author->id,
+        'post_id' => $post->id,
+        'content' => 'A comment shown in the card',
+    ]);
+    Comment::create([
+        'user_id' => $viewer->id,
+        'post_id' => $post->id,
+        'parent_id' => $comment->id,
+        'content' => 'A reply shown in the card',
+    ]);
+
+    $this->actingAs($viewer);
+
+    Volt::test('challenge.post-card', ['post' => $post])
+        ->assertSee('A comment shown in the card')
+        ->assertSee('A reply shown in the card')
+        ->assertSee('Post a comment...');
+});
+
+test('popular challenge posts are ordered by like count', function () {
+    $creator = User::factory()->create();
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $challenge = createActiveChallengeFor($creator);
+    $lessPopularPost = Post::create([
+        'user_id' => $author->id,
+        'challenge_id' => $challenge->id,
+        'content' => 'Entry with fewer likes',
+        'created_at' => now()->subMinute(),
+    ]);
+    $morePopularPost = Post::create([
+        'user_id' => $author->id,
+        'challenge_id' => $challenge->id,
+        'content' => 'Entry with more likes',
+        'created_at' => now(),
+    ]);
+
+    $lessPopularPost->likes()->create(['user_id' => $creator->id]);
+    $morePopularPost->likes()->createMany([
+        ['user_id' => $creator->id],
+        ['user_id' => $viewer->id],
+    ]);
+
+    $this->actingAs($viewer);
+
+    $component = Volt::test('pages.challenges.show', ['slug' => $challenge->custom_link])
+        ->set('activeTab', 'popular');
+
+    expect($component->instance()->with()['posts']->getCollection()->modelKeys())
+        ->toBe([$morePopularPost->id, $lessPopularPost->id]);
 });
 
 test('near-you dashboard carousel shows challenges that have not ended and hides expired challenges', function () {

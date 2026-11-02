@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\ChallengeRating;
 use App\Models\Comment;
 use App\Models\Post;
 use App\Models\Report;
@@ -13,10 +12,6 @@ new class extends Component
     use HandlesComments;
 
     public Post $post;
-
-    public $isJudge = false;
-
-    public $userRating = 0;
 
     public bool $showAllComments = false;
 
@@ -38,32 +33,9 @@ new class extends Component
 
     public string $adminDeleteCommentReason = '';
 
-    public function mount($post, $isJudge = false)
+    public function mount($post)
     {
         $this->post = $post;
-        $this->isJudge = $isJudge;
-
-        if (auth()->check()) {
-            $ratingRecord = ChallengeRating::where('post_id', $post->id)
-                ->where('user_id', auth()->id())
-                ->first();
-            $this->userRating = $ratingRecord ? $ratingRecord->rating : 0;
-        }
-    }
-
-    public function setRating($stars)
-    {
-        if (! $this->isJudge) {
-            return;
-        }
-
-        ChallengeRating::updateOrCreate(['post_id' => $this->post->id, 'user_id' => auth()->id()], ['rating' => $stars]);
-
-        $this->userRating = $stars;
-        $this->dispatch('toast', type: 'success', title: 'Submitted', message: 'Your star rating has been recorded!');
-
-        // Refresh post to update average
-        $this->post->load('ratings');
     }
 
     public function toggleLike()
@@ -184,7 +156,7 @@ new class extends Component
 
     public function updateComment()
     {
-        $comment = Comment::find($this->editingCommentId);
+        $comment = Comment::where('post_id', $this->post->id)->find($this->editingCommentId);
 
         if (! $comment || $comment->user_id !== auth()->id()) {
             $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own comments.');
@@ -222,6 +194,36 @@ new class extends Component
         $this->refreshComments();
         $this->dispatch('comment-added');
         $this->dispatch('toast', type: 'success', title: 'Deleted', message: 'Comment deleted.');
+    }
+
+    public function setReplyTo($commentId)
+    {
+        $comment = Comment::with('user')
+            ->where('post_id', $this->post->id)
+            ->find($commentId);
+
+        if (! $comment) {
+            return;
+        }
+
+        $this->cancelCommentEdit();
+        $this->replyToId = $comment->id;
+        $this->replyToName = $comment->user->name;
+    }
+
+    public function startCommentEdit($commentId)
+    {
+        $comment = Comment::where('post_id', $this->post->id)->find($commentId);
+
+        if (! $comment || $comment->user_id !== auth()->id()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'You can only edit your own comments.');
+
+            return;
+        }
+
+        $this->cancelReply();
+        $this->editingCommentId = $comment->id;
+        $this->editingCommentContent = $comment->content;
     }
 
     public function startPostEdit()
@@ -309,6 +311,67 @@ new class extends Component
         $this->reportReason = '';
 
         $this->dispatch('toast', type: 'success', title: 'Report Submitted', message: 'Thank you for reporting. We will review this post.');
+    }
+
+    public function openAdminDeleteCommentModal($commentId)
+    {
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
+
+        if (! Comment::where('post_id', $this->post->id)->whereKey($commentId)->exists()) {
+            $this->dispatch('toast', type: 'error', title: 'Error', message: 'Comment not found.');
+
+            return;
+        }
+
+        $this->adminDeleteCommentId = (int) $commentId;
+        $this->adminDeleteCommentReason = '';
+        $this->showAdminDeleteCommentModal = true;
+    }
+
+    public function adminDeleteComment()
+    {
+        if (! auth()->check() || ! auth()->user()->isAdmin()) {
+            $this->dispatch('toast', type: 'error', title: 'Unauthorized', message: 'Admin only.');
+
+            return;
+        }
+
+        $this->validate(['adminDeleteCommentReason' => 'required|string|min:10|max:500']);
+
+        $comment = Comment::with('user')
+            ->where('post_id', $this->post->id)
+            ->find($this->adminDeleteCommentId);
+
+        if (! $comment) {
+            $this->showAdminDeleteCommentModal = false;
+            $this->dispatch('toast', type: 'error', title: 'Error', message: 'Comment not found.');
+
+            return;
+        }
+
+        $owner = $comment->user;
+        $excerpt = $comment->content;
+        $reason = $this->adminDeleteCommentReason;
+        $comment->delete();
+
+        try {
+            if ($owner && $owner->email) {
+                \Illuminate\Support\Facades\Mail::to($owner->email)->send(new \App\Mail\CommentDeletedMail($owner, $excerpt, $reason));
+            }
+        } catch (\Throwable $e) {
+            \Log::error('CommentDeletedMail failed: '.$e->getMessage());
+        }
+
+        $this->showAdminDeleteCommentModal = false;
+        $this->adminDeleteCommentId = null;
+        $this->adminDeleteCommentReason = '';
+        $this->refreshComments();
+        $this->dispatch('comment-added');
+        $this->dispatch('toast', type: 'success', title: 'Comment Deleted', message: 'Comment removed and owner notified.');
     }
 }; ?>
 
@@ -574,7 +637,7 @@ new class extends Component
             <!-- Action Bar (Twitter/X Style — same as feed posts) + Judge Star Ratings -->
             <div class="flex items-center justify-between gap-2 pt-2 mt-1 text-zinc-500">
                 <div class="flex items-center justify-between max-w-md flex-1">
-                    <!-- Comment Button (toggles inline comments) -->
+                    <!-- Comment Button (expands or collapses inline comments) -->
                     <button wire:click.stop="toggleComments"
                         @click.stop
                         class="flex items-center gap-2 group text-xs transition-colors {{ $showAllComments ? 'text-sky-500' : 'hover:text-sky-500' }}">
@@ -642,18 +705,230 @@ new class extends Component
                     </button>
                 </div>
 
-                <!-- Star Ratings (Retained from challenge cards — judges can rate) -->
-                <div class="flex items-center gap-0.5 sm:gap-1 shrink-0" @click.stop>
-                    @for ($i = 1; $i <= 5; $i++)
-                        <button wire:click.stop="setRating({{ $i }})" {{ !$isJudge ? 'disabled' : '' }}
-                            class="{{ $isJudge ? 'hover:scale-125 transition-transform' : 'cursor-default' }}">
-                            <flux:icon name="star"
-                                class="size-4 sm:size-5 {{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'text-yellow-400' : 'text-zinc-200 dark:text-zinc-800' }}"
-                                variant="{{ $i <= ($isJudge ? $userRating : $post->averageRating()) ? 'solid' : 'outline' }}" />
-                        </button>
-                    @endfor
-                </div>
             </div>
+
+            <!-- Inline Comments -->
+            @php
+                $inlineComments = ($showAllComments
+                    ? $post->comments()->latest()->with(['user', 'replies.user'])->get()
+                    : ($post->relationLoaded('comments')
+                        ? $post->comments->take(3)
+                        : $post->comments()->latest()->with(['user', 'replies.user'])->take(3)->get()))->reverse()->values();
+                $commentsTotal = $post->all_comments_count ?? $post->allComments()->count();
+            @endphp
+            @if ($inlineComments->isNotEmpty())
+                <div class="mt-3 relative">
+                    @foreach ($inlineComments as $comment)
+                        @php
+                            $previousComment = $inlineComments->get($loop->index - 1);
+                            $nextComment = $inlineComments->get($loop->index + 1);
+                            $startsNewThread = ! $previousComment || $previousComment->user_id !== $comment->user_id;
+                        @endphp
+                        <div class="flex items-start gap-2.5 relative" @click.stop>
+                            @if ($startsNewThread)
+                                <div class="absolute -left-[33px] top-0 w-[33px] h-4 border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none sm:-left-[37px] sm:w-[37px]" style="border-color: {{ $post->user->accentColor() }}" aria-hidden="true"></div>
+                            @endif
+                            <div class="flex flex-col items-center shrink-0 self-stretch">
+                                <div class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold text-xs shrink-0 overflow-hidden" style="border: 2px solid {{ $comment->user->accentColor() }}">
+                                    @if ($comment->user->profile_picture_url)
+                                        <img loading="lazy" src="{{ $comment->user->profile_picture_url }}" class="size-full object-cover">
+                                    @else
+                                        <span class="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">{{ $comment->user->initials() }}</span>
+                                    @endif
+                                </div>
+                                @if ($nextComment && $nextComment->user_id === $comment->user_id)
+                                    <div class="w-0.5 flex-1" style="background-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
+                                @endif
+                            </div>
+                            <div class="flex-1 min-w-0 {{ $loop->first ? '' : 'pt-3' }}">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">{{ $comment->user->name }}</span>
+                                    <span class="text-[11px] text-zinc-500 shrink-0">{{ $comment->created_at->diffForHumans(null, true) }}</span>
+                                </div>
+                                <p class="text-xs text-zinc-700 dark:text-zinc-400 leading-relaxed break-words whitespace-pre-wrap line-clamp-3">{{ $comment->content }}</p>
+                                @include('livewire.partials.comment-media', ['comment' => $comment])
+                                @if ($editingCommentId === $comment->id)
+                                    @include('livewire.partials.comment-edit-box')
+                                @endif
+                                @if (auth()->check())
+                                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                                        <button wire:click="setReplyTo({{ $comment->id }})" @click.stop
+                                            class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors">
+                                            {{ __('Reply') }}
+                                        </button>
+                                        @if (auth()->id() === $comment->user_id && $editingCommentId !== $comment->id)
+                                            <span class="text-zinc-300 text-[11px]">·</span>
+                                            <button wire:click="startCommentEdit({{ $comment->id }})" @click.stop class="text-[11px] font-medium text-zinc-500 hover:underline">
+                                                {{ __('Edit') }}
+                                            </button>
+                                            <span class="text-zinc-300 text-[11px]">·</span>
+                                            <button wire:click="deleteOwnComment({{ $comment->id }})" wire:confirm="{{ __('Delete this comment?') }}" @click.stop class="text-[11px] font-medium text-red-500 hover:underline">
+                                                {{ __('Delete') }}
+                                            </button>
+                                        @endif
+                                        @if (auth()->user()->isAdmin())
+                                            <span class="text-zinc-300 text-[11px]">·</span>
+                                            <button wire:click="openAdminDeleteCommentModal({{ $comment->id }})" @click.stop class="text-[11px] font-medium text-red-500 hover:underline flex items-center gap-1">
+                                                <flux:icon name="trash" class="size-3" /> {{ __('Delete') }}
+                                            </button>
+                                            @if ($comment->user_id !== auth()->id())
+                                                <span class="text-zinc-300 text-[11px]">·</span>
+                                                <button x-data @click.stop="$dispatch('open-ban-modal', {userId: {{ $comment->user_id }}, userName: '{{ addslashes($comment->user->name) }}'})" class="text-[11px] font-medium text-amber-600 hover:underline flex items-center gap-1">
+                                                    <flux:icon name="no-symbol" class="size-3" /> {{ $comment->user->isBanned() ? __('Extend Ban') : __('Ban') }}
+                                                </button>
+                                            @endif
+                                        @endif
+                                    </div>
+                                @endif
+                                @if ($comment->replies->count() > 0)
+                                    <div class="mt-2.5 space-y-2.5 relative">
+                                        @foreach ($comment->replies as $reply)
+                                            <div class="flex items-start gap-2 relative" @click.stop>
+                                                <div class="absolute -left-[24px] -top-[10px] w-[24px] h-[13px] border-l-2 border-b-2 rounded-bl-[10px] pointer-events-none" style="border-color: {{ $comment->user->accentColor() }}" aria-hidden="true"></div>
+                                                <div class="size-6 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0 overflow-hidden" style="border: 2px solid {{ $reply->user->accentColor() }}">
+                                                    @if ($reply->user->profile_picture_url)
+                                                        <img loading="lazy" src="{{ $reply->user->profile_picture_url }}" class="size-full object-cover">
+                                                    @else
+                                                        <span class="text-[9px] font-bold text-zinc-600 dark:text-zinc-300">{{ $reply->user->initials() }}</span>
+                                                    @endif
+                                                </div>
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-center gap-1.5">
+                                                        <span class="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">{{ $reply->user->name }}</span>
+                                                        <span class="text-[11px] text-zinc-500 shrink-0">{{ $reply->created_at->diffForHumans(null, true) }}</span>
+                                                    </div>
+                                                    <p class="text-xs text-zinc-700 dark:text-zinc-400 leading-relaxed break-words whitespace-pre-wrap line-clamp-3">{{ $reply->content }}</p>
+                                                    @include('livewire.partials.comment-media', ['comment' => $reply])
+                                                    @if ($editingCommentId === $reply->id)
+                                                        @include('livewire.partials.comment-edit-box')
+                                                    @endif
+                                                    @if (auth()->check())
+                                                        <div class="flex items-center gap-2 mt-1">
+                                                            <button wire:click="setReplyTo({{ $comment->id }})" @click.stop class="text-[11px] font-medium text-zinc-500 hover:text-purple-500 transition-colors">
+                                                                {{ __('Reply') }}
+                                                            </button>
+                                                            @if (auth()->id() === $reply->user_id && $editingCommentId !== $reply->id)
+                                                                <span class="text-zinc-300 text-[11px]">·</span>
+                                                                <button wire:click="startCommentEdit({{ $reply->id }})" @click.stop class="text-[11px] font-medium text-zinc-500 hover:underline">
+                                                                    {{ __('Edit') }}
+                                                                </button>
+                                                                <span class="text-zinc-300 text-[11px]">·</span>
+                                                                <button wire:click="deleteOwnComment({{ $reply->id }})" wire:confirm="{{ __('Delete this reply?') }}" @click.stop class="text-[11px] font-medium text-red-500 hover:underline">
+                                                                    {{ __('Delete') }}
+                                                                </button>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                    @if (auth()->user()?->isAdmin())
+                                                        <div class="flex items-center gap-2 mt-1">
+                                                            <button wire:click="openAdminDeleteCommentModal({{ $reply->id }})" @click.stop class="text-[11px] font-medium text-red-500 hover:underline flex items-center gap-1">
+                                                                <flux:icon name="trash" class="size-3" /> {{ __('Delete') }}
+                                                            </button>
+                                                            @if ($reply->user_id !== auth()->id())
+                                                                <span class="text-zinc-300 text-[11px]">·</span>
+                                                                <button x-data @click.stop="$dispatch('open-ban-modal', {userId: {{ $reply->user_id }}, userName: '{{ addslashes($reply->user->name) }}'})" class="text-[11px] font-medium text-amber-600 hover:underline flex items-center gap-1">
+                                                                    <flux:icon name="no-symbol" class="size-3" /> {{ $reply->user->isBanned() ? __('Extend Ban') : __('Ban') }}
+                                                                </button>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
+            @auth
+                @if (! $showAllComments && $commentsTotal > $inlineComments->count())
+                    <div class="mt-2" @click.stop>
+                        <button type="button" wire:click="expandComments"
+                            class="text-xs font-semibold text-zinc-500 hover:text-purple-500 transition-colors">
+                            {{ __('See all') }} {{ $commentsTotal }} {{ __('comments') }}
+                        </button>
+                    </div>
+                @endif
+                @if ($replyToId)
+                    <div class="mt-2.5 flex items-center justify-between px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg" @click.stop>
+                        <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ __('Replying to') }} <span class="font-bold text-zinc-700 dark:text-zinc-300">{{ $replyToName }}</span>
+                        </span>
+                        <button wire:click="cancelReply" class="text-zinc-500 hover:text-red-500">
+                            <flux:icon name="x-mark" class="size-4" />
+                        </button>
+                    </div>
+                @endif
+                @include('livewire.partials.comment-attachment-previews')
+                <div class="mt-2.5 flex items-center gap-2.5" @click.stop>
+                    <div class="size-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 text-xs font-bold shrink-0 overflow-hidden ring-1 ring-black/5 dark:ring-white/10" style="box-shadow: 0 0 0 2px {{ auth()->user()->accentColor() }}">
+                        @if (auth()->user()->profile_picture_url)
+                            <img loading="lazy" src="{{ auth()->user()->profile_picture_url }}" class="size-full object-cover">
+                        @else
+                            <span class="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">{{ auth()->user()->initials() }}</span>
+                        @endif
+                    </div>
+                    <div class="flex-1 flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800/60 rounded-full px-2.5 py-1.5 border border-transparent focus-within:border-purple-500/50 transition-colors">
+                        @include('livewire.partials.comment-attachments', ['suffix' => 'challenge-' . $post->id])
+                        <input wire:model="commentContent" type="text"
+                            placeholder="{{ $replyToId ? __('Reply to :name...', ['name' => $replyToName]) : __('Post a comment...') }}"
+                            class="flex-1 bg-transparent border-0 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 focus:ring-0 outline-none min-w-0"
+                            wire:keydown.enter="addComment">
+                        <button wire:click="addComment"
+                            class="text-purple-500 hover:text-purple-400 transition-colors p-0.5 shrink-0">
+                            <flux:icon name="paper-airplane" class="size-3.5" />
+                        </button>
+                    </div>
+                </div>
+            @endauth
         </div>
     </div>
+
+    @if (auth()->check())
+        <flux:modal wire:model="showAdminDeleteCommentModal" class="sm:max-w-lg">
+            <div class="space-y-6">
+                <div>
+                    <flux:heading size="lg">{{ __('Delete Comment') }}</flux:heading>
+                    <flux:subheading>{{ __('Remove this comment and notify its author by email.') }}</flux:subheading>
+                </div>
+                <div>
+                    <flux:label>{{ __('Reason') }} *</flux:label>
+                    <flux:textarea wire:model="adminDeleteCommentReason" rows="3" placeholder="{{ __('Reason — author will receive this by email') }}" />
+                    @error('adminDeleteCommentReason') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <flux:modal.close><flux:button variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close>
+                    <flux:button variant="danger" wire:click="adminDeleteComment">{{ __('Delete & Notify') }}</flux:button>
+                </div>
+            </div>
+        </flux:modal>
+
+        <flux:modal wire:model="showReportModal" class="sm:max-w-lg">
+            <div class="space-y-6">
+                <div>
+                    <flux:heading size="lg">{{ __('Report Post') }}</flux:heading>
+                    <flux:subheading>{{ __('Help us understand what is wrong with this post.') }}</flux:subheading>
+                </div>
+                <div class="space-y-4">
+                    <flux:textarea wire:model="reportReason" rows="4"
+                        placeholder="{{ __('Please describe why you are reporting this post (minimum 10 characters)...') }}" />
+                    @error('reportReason')
+                        <p class="text-red-500 text-xs">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <flux:modal.close>
+                        <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                    </flux:modal.close>
+                    <flux:button variant="danger" wire:click="submitReport" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="submitReport">{{ __('Submit Report') }}</span>
+                        <span wire:loading wire:target="submitReport">{{ __('Submitting...') }}</span>
+                    </flux:button>
+                </div>
+            </div>
+        </flux:modal>
+    @endif
 </div>
