@@ -61,4 +61,15 @@ return [
         ],
     ],
 
+    'voicebip' => [
+        'api_key' => env('VOICEBIP_API_KEY'),
+        'agent_id' => env('VOICEBIP_AGENT_ID'),
+        'from_number' => env('VOICEBIP_FROM_NUMBER'),
+        'webhook_secret' => env('VOICEBIP_WEBHOOK_SECRET'),
+        'endpoint' => env('VOICEBIP_ENDPOINT', 'https://api.voicebip.com/v1'),
+        'call_window_start' => (int) env('VOICEBIP_CALL_WINDOW_START', 8),
+        'call_window_end' => (int) env('VOICEBIP_CALL_WINDOW_END', 20),
+        'timezone' => env('VOICEBIP_CALL_TIMEZONE', 'Africa/Lagos'),
+    ],
+
 ];

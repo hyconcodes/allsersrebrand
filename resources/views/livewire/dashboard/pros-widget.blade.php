@@ -1,36 +1,48 @@
 <?php
 
+use App\Mail\ServiceInquiryMail;
+use App\Models\Challenge;
+use App\Models\Conversation;
+use App\Models\Engagement;
+use App\Models\Message;
+use App\Models\User;
+use App\Notifications\ServiceInquiry;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
-use App\Models\Challenge;
-use App\Models\User;
-use App\Models\Conversation;
-use App\Models\Message;
-use App\Models\Engagement;
-use App\Mail\ServiceInquiryMail;
-use App\Notifications\ServiceInquiry;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
-new class extends Component {
+new class extends Component
+{
     use WithFileUploads;
 
     public $artisans = [];
+
     public $latitude;
+
     public $longitude;
+
     public $locationName = '';
+
     public $inFeed = false;
+
     public $limit = 5;
+
     public $isWelcome = false;
+
     public $challenges = [];
 
     // Inquiry Properties
     public $showInquiryForm = false;
+
     public $selectedArtisanRecord = null;
+
     public $inquiryTask = '';
+
     public $inquiryLocation = '';
+
     public $inquiryUrgency = 'medium';
+
     public $inquiryPhotos = [];
 
     public function mount()
@@ -53,7 +65,7 @@ new class extends Component {
             }
         }
 
-        if (!$this->latitude || !$this->longitude) {
+        if (! $this->latitude || ! $this->longitude) {
             $this->latitude = 6.5244;
             $this->longitude = 3.3792;
             $this->locationName = $this->locationName ?: 'Lagos';
@@ -83,7 +95,7 @@ new class extends Component {
             ->get();
 
         $this->artisans = $this->artisans
-            ->filter(fn($artisan) => $artisan->profileCompletion()['is_complete'])
+            ->filter(fn ($artisan) => $artisan->profileCompletion()['is_complete'])
             ->take($this->limit);
     }
 
@@ -96,7 +108,7 @@ new class extends Component {
 
     public function submitStructuredInquiry()
     {
-        if (!$this->selectedArtisanRecord) {
+        if (! $this->selectedArtisanRecord) {
             return;
         }
 
@@ -117,11 +129,11 @@ new class extends Component {
             }
         }
 
-        $conversation = Conversation::whereHas('users', fn($q) => $q->where('users.id', $sender->id))
-            ->whereHas('users', fn($q) => $q->where('users.id', $artisan->id))
+        $conversation = Conversation::whereHas('users', fn ($q) => $q->where('users.id', $sender->id))
+            ->whereHas('users', fn ($q) => $q->where('users.id', $artisan->id))
             ->first();
 
-        if (!$conversation) {
+        if (! $conversation) {
             $conversation = Conversation::create(['last_message_at' => now()]);
             $conversation->users()->attach([$sender->id, $artisan->id]);
         }
@@ -160,8 +172,9 @@ new class extends Component {
         }
 
         \App\Support\PingAlert::send($sender, $artisan, $engagement);
+        \App\Support\VoiceCallAlert::send($sender, $artisan, $engagement);
 
-        $this->dispatch('toast', type: 'success', title: 'Inquiry Sent!', message: 'Taking you to your conversation with ' . $artisan->name);
+        $this->dispatch('toast', type: 'success', title: 'Inquiry Sent!', message: 'Taking you to your conversation with '.$artisan->name);
 
         return $this->redirect(route('chat', $conversation->id), navigate: true);
     }

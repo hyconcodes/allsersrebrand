@@ -1,55 +1,71 @@
 <?php
 
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Enums\Provider;
-use Prism\Prism\ValueObjects\Messages\UserMessage;
-use Prism\Prism\ValueObjects\Messages\AssistantMessage;
-use Prism\Prism\ValueObjects\Messages\SystemMessage;
-use App\Tools\FindArtisansTool;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
-use App\Models\User;
 use App\Mail\ServiceInquiryMail;
-use App\Notifications\ServiceInquiry;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
-use Livewire\Volt\Component;
-use Livewire\Attributes\On;
-use Livewire\WithFileUploads;
 use App\Models\Conversation;
-use App\Models\Message;
 use App\Models\Engagement;
+use App\Models\Message;
+use App\Models\User;
+use App\Notifications\ServiceInquiry;
+use App\Tools\FindArtisansTool;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Attributes\On;
+use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
+use Prism\Prism\Enums\Provider;
+use Prism\Prism\Facades\Prism;
+use Prism\Prism\ValueObjects\Messages\AssistantMessage;
+use Prism\Prism\ValueObjects\Messages\UserMessage;
 
-new class extends Component {
+new class extends Component
+{
     use WithFileUploads;
 
     public $isOpen = false;
+
     public $messages = [];
+
     public $input = '';
+
     public $isThinking = false;
+
     public $hasBeenClosed = false;
+
     public $lat = null;
+
     public $lng = null;
+
     public $address = null;
+
     public $showLocationRequest = false;
+
     public $completion = null;
+
     public $sentPings = [];
+
     public $pingingId = null;
+
     public $fullPage = false;
 
     // Structured Inquiry Properties
     public $selectedArtisanRecord = null;
+
     public $showInquiryForm = false;
+
     public $inquiryTask = '';
+
     public $inquiryLocation = '';
+
     public $inquiryUrgency = 'medium';
+
     public $inquiryPhotos = [];
 
     public function startInquiry($artisanId)
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return $this->redirect(route('login'));
         }
         $this->selectedArtisanRecord = User::find($artisanId);
@@ -59,7 +75,7 @@ new class extends Component {
 
     public function submitStructuredInquiry()
     {
-        if (!$this->selectedArtisanRecord) {
+        if (! $this->selectedArtisanRecord) {
             return;
         }
 
@@ -90,7 +106,7 @@ new class extends Component {
             })
             ->first();
 
-        if (!$conversation) {
+        if (! $conversation) {
             $conversation = Conversation::create(['last_message_at' => now()]);
             $conversation->users()->attach([$sender->id, $artisan->id]);
         }
@@ -132,8 +148,9 @@ new class extends Component {
         }
 
         \App\Support\PingAlert::send($sender, $artisan, $engagement);
+        \App\Support\VoiceCallAlert::send($sender, $artisan, $engagement);
 
-        $this->dispatch('toast', type: 'success', title: 'Inquiry Sent!', message: 'Taking you to your conversation with ' . $artisan->name);
+        $this->dispatch('toast', type: 'success', title: 'Inquiry Sent!', message: 'Taking you to your conversation with '.$artisan->name);
 
         return $this->redirect(route('chat', $conversation->id), navigate: true);
     }
@@ -155,7 +172,7 @@ new class extends Component {
                 $this->showLocationRequest = true;
             }
 
-            if (auth()->user()->role === 'artisan' && !auth()->user()->is_admin) {
+            if (auth()->user()->role === 'artisan' && ! auth()->user()->is_admin) {
                 $this->completion = auth()->user()->profileCompletion();
             }
         }
@@ -184,7 +201,7 @@ new class extends Component {
 
     public function resolveAddress()
     {
-        if (!$this->lat || !$this->lng) {
+        if (! $this->lat || ! $this->lng) {
             return;
         }
 
@@ -204,9 +221,9 @@ new class extends Component {
     #[On('open-lila')]
     public function toggle()
     {
-        $this->isOpen = !$this->isOpen;
+        $this->isOpen = ! $this->isOpen;
         if ($this->isOpen) {
-            if (!$this->lat) {
+            if (! $this->lat) {
                 $this->showLocationRequest = true;
             }
         }
@@ -244,11 +261,11 @@ new class extends Component {
     #[On('generate-ai-response')]
     public function processAI()
     {
-        $throttleKey = 'lila_user_throttle:' . (auth()->id() ?? request()->ip()); // Define throttleKey here for error handling
+        $throttleKey = 'lila_user_throttle:'.(auth()->id() ?? request()->ip()); // Define throttleKey here for error handling
 
         try {
             // 1. Global Daily Quota Check (Hard limit at 1000/day, we cut off at 950)
-            $dayKey = 'lila_global_daily_quota:' . date('Y-m-d');
+            $dayKey = 'lila_global_daily_quota:'.date('Y-m-d');
             $dailyCount = Cache::get($dayKey, 0);
             if ($dailyCount >= 950) {
                 throw new \Exception('GLOBAL_QUOTA_EXCEEDED');
@@ -261,14 +278,15 @@ new class extends Component {
 
             // 3. Response Caching
             // Clear message history hash - if session is long, similar questions should return cached answers
-            $historyHash = md5(json_encode($this->messages) . ($this->address ?? ''));
-            $cacheKey = 'lila_response_cache:' . $historyHash;
+            $historyHash = md5(json_encode($this->messages).($this->address ?? ''));
+            $cacheKey = 'lila_response_cache:'.$historyHash;
 
             if (Cache::has($cacheKey)) {
                 $cachedData = Cache::get($cacheKey);
                 $this->messages[] = $cachedData;
                 $this->isThinking = false;
                 $this->dispatch('scroll-to-bottom');
+
                 return;
             }
 
@@ -282,7 +300,7 @@ new class extends Component {
             }
 
             // Provide current location context to Lila
-            $locationContext = $this->lat ? "\nUser's current location: " . ($this->address ?: 'Detecting...') . "\n(Note: If you need to use find_artisans, use these internal coordinates: Lat {$this->lat}, Lng {$this->lng})" : '';
+            $locationContext = $this->lat ? "\nUser's current location: ".($this->address ?: 'Detecting...')."\n(Note: If you need to use find_artisans, use these internal coordinates: Lat {$this->lat}, Lng {$this->lng})" : '';
 
             $providerName = config('services.ai.provider', 'Groq');
             $provider = Provider::from($providerName);
@@ -290,9 +308,9 @@ new class extends Component {
 
             $response = Prism::text()
                 ->using($provider, $model ?: 'llama-3.1-8b-instant')
-                ->withSystemPrompt(view('prompts.lila-system')->render() . $locationContext)
+                ->withSystemPrompt(view('prompts.lila-system')->render().$locationContext)
                 ->withMessages($prismMessages)
-                ->withTools([new FindArtisansTool()])
+                ->withTools([new FindArtisansTool])
                 ->withMaxSteps(3)
                 ->asText();
 

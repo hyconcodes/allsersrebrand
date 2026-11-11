@@ -95,6 +95,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verification_expires_at',
         'password_reset_code',
         'password_reset_expires_at',
+        'voice_call_language',
+        'voice_call_consent',
+        'voice_call_consent_at',
     ];
 
     /**
@@ -126,6 +129,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'last_activity' => 'datetime',
             'banned_until' => 'datetime',
             'banned_at' => 'datetime',
+            'voice_call_consent_at' => 'datetime',
             'is_admin' => 'boolean',
         ];
     }
@@ -377,6 +381,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isBanned(): bool
     {
         return $this->banned_until && $this->banned_until->isFuture();
+    }
+
+    /**
+     * Whether this user has accepted the voice call notice feature.
+     */
+    public function hasAcceptedVoiceCalls(): bool
+    {
+        return $this->voice_call_consent === 'accepted';
     }
 
     public function bannedByUser()

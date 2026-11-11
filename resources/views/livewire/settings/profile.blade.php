@@ -1,8 +1,11 @@
 <?php
 
+use App\Mail\VoiceNoticeConsentMail;
 use App\Models\User;
 use App\Rules\Username;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -41,6 +44,10 @@ new class extends Component
 
     public string $accent_color = '#6a11cb';
 
+    public string $voiceLanguage = 'en';
+
+    public ?string $voiceConsent = null;
+
     /**
      * Mount the component.
      */
@@ -60,6 +67,8 @@ new class extends Component
         $this->address = $user->address ?? '';
         $this->country_code = $user->country_code ?? 'NG';
         $this->accent_color = $user->accentColor();
+        $this->voiceLanguage = $user->voice_call_language ?: 'en';
+        $this->voiceConsent = $user->voice_call_consent;
     }
 
     /**
@@ -135,6 +144,57 @@ new class extends Component
     }
 
     /**
+     * Save the voice call notice consent + default language (artisans only).
+     *
+     * A transition to "accepted" triggers the confirmation email explaining
+     * future calls; declining saves silently.
+     */
+    public function saveVoiceCallConsent(): void
+    {
+        $user = Auth::user();
+
+        if (! $user || ! $user->isArtisan()) {
+            return;
+        }
+
+        $this->validate([
+            'voiceLanguage' => ['required', 'string', Rule::in(['en'])],
+            'voiceConsent' => ['required', 'string', Rule::in(['accepted', 'declined'])],
+        ], [
+            'voiceConsent.required' => __('Choose Accept or Decline, then save.'),
+            'voiceLanguage.in' => __('Only English is available for now — more languages are coming soon.'),
+        ]);
+
+        $newlyAccepted = $user->voice_call_consent !== 'accepted' && $this->voiceConsent === 'accepted';
+
+        $user->fill([
+            'voice_call_language' => $this->voiceLanguage,
+            'voice_call_consent' => $this->voiceConsent,
+            'voice_call_consent_at' => now(),
+        ])->save();
+
+        if ($newlyAccepted) {
+            try {
+                Mail::to($user->email)->send(new VoiceNoticeConsentMail($user));
+            } catch (\Throwable $e) {
+                Log::error('Voice notice consent email failed.', [
+                    'user_id' => $user->id,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $this->dispatch(
+            'toast',
+            type: 'success',
+            title: __('Voice call notices updated'),
+            message: $this->voiceConsent === 'accepted'
+                ? __('You will be called when someone requests your services on Allsers.')
+                : __('You will not receive voice call notices.'),
+        );
+    }
+
+    /**
      * Send an email verification notification to the current user.
      */
     public function resendVerificationNotification(): void
@@ -155,6 +215,34 @@ new class extends Component
 
 <x-settings.layout :active="'profile'">
     @php($isArtisan = auth()->user()->isArtisan())
+
+    @if ($isArtisan && $voiceConsent === null)
+        <!-- First-run prompt: voice call notices decision not made yet -->
+        <div x-data="{ visible: localStorage.getItem('voice-consent-prompt-dismissed') !== '1' }" x-show="visible" x-cloak
+            class="relative mb-6 rounded-2xl border border-purple-200 bg-purple-50/60 dark:border-purple-500/30 dark:bg-purple-500/10 p-4 sm:p-5 scroll-mt-4">
+            <button type="button" @click="localStorage.setItem('voice-consent-prompt-dismissed', '1'); visible = false"
+                class="absolute top-3 right-3 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                aria-label="{{ __('Dismiss') }}">
+                <flux:icon name="x-mark" class="size-4" />
+            </button>
+            <div class="flex items-start gap-3 pr-6">
+                <flux:icon name="phone" variant="solid" class="size-5 mt-0.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                <div class="min-w-0">
+                    <p class="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                        {{ __('Finish setting up your profile') }}
+                    </p>
+                    <p class="mt-1 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
+                        {{ __('Choose a default language and agree to voice call notices, so we can call you the moment a customer requests your services. You can change this anytime in settings.') }}
+                    </p>
+                    <a href="#voice-call-notices"
+                        class="mt-2 inline-block text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline">
+                        {{ __('Set it up below') }} &darr;
+                    </a>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <form wire:submit="updateProfileInformation" class="space-y-8"
         @photo-rejected.window="window.Flux && Flux.toast({ variant: 'warning', heading: 'Upload rejected', text: $event.detail.message || 'The profile picture must not be greater than 10 MB.' })">
 
@@ -357,6 +445,77 @@ new class extends Component
             </x-action-message>
         </div>
     </form>
+
+    @if ($isArtisan)
+        <!-- Voice Call Notices -->
+        <div class="border-t border-zinc-100 dark:border-zinc-800 pt-8 mt-8 scroll-mt-4" id="voice-call-notices">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <h3 class="font-bold text-zinc-900 dark:text-zinc-100">{{ __('Voice Call Notices') }}</h3>
+                    <p class="mt-1 text-sm text-zinc-500">
+                        {{ __('When a customer requests your services, we place a short automated call to your phone telling you who asked, for what job, and to log in and accept it — so you never miss work while away from the app.') }}
+                    </p>
+                </div>
+                @if ($voiceConsent === 'accepted')
+                    <span class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">
+                        <flux:icon name="phone" class="size-3" /> {{ __('Active') }}
+                    </span>
+                @elseif ($voiceConsent === 'declined')
+                    <span class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                        <flux:icon name="phone-x-mark" class="size-3" /> {{ __('Off') }}
+                    </span>
+                @else
+                    <span class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                        <flux:icon name="exclamation-triangle" class="size-3" /> {{ __('Not set') }}
+                    </span>
+                @endif
+            </div>
+
+            <div class="mt-5 space-y-5">
+                <!-- Default language -->
+                <div>
+                    <flux:label>{{ __('Default language for calls') }}</flux:label>
+                    <flux:select wire:model="voiceLanguage" class="mt-1">
+                        <option value="en">{{ __('English') }}</option>
+                        <option value="ha" disabled>{{ __('Hausa — coming soon') }}</option>
+                        <option value="yo" disabled>{{ __('Yoruba — coming soon') }}</option>
+                        <option value="ig" disabled>{{ __('Igbo — coming soon') }}</option>
+                        <option value="pcm" disabled>{{ __('Nigerian Pidgin — coming soon') }}</option>
+                    </flux:select>
+                    <p class="mt-1.5 text-xs italic text-zinc-500">{{ __('Other African languages are coming soon.') }}</p>
+                    @error('voiceLanguage')
+                        <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Accept / Decline -->
+                <div>
+                    <flux:label>{{ __('Do you agree to receive voice call notices?') }}</flux:label>
+                    <flux:radio.group wire:model="voiceConsent" variant="segmented" class="mt-1">
+                        <flux:radio value="accepted" icon="phone">{{ __('Accept') }}</flux:radio>
+                        <flux:radio value="declined" icon="phone-x-mark">{{ __('Decline') }}</flux:radio>
+                    </flux:radio.group>
+                    @error('voiceConsent')
+                        <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <flux:button wire:click="saveVoiceCallConsent" wire:loading.attr="disabled" variant="primary"
+                        icon="check" class="w-full sm:w-auto justify-center">
+                        <span wire:loading.remove wire:target="saveVoiceCallConsent">{{ __('Save') }}</span>
+                        <span wire:loading wire:target="saveVoiceCallConsent">{{ __('Saving...') }}</span>
+                    </flux:button>
+                    <p class="text-xs text-zinc-500 sm:mr-auto">
+                        {{ __('Calls are placed 8:00 AM – 8:00 PM (WAT) only. ') }}
+                        @if ($voiceConsent === 'accepted')
+                            {{ __('A confirmation email was sent when you first accepted — you can change your choice here anytime.') }}
+                        @endif
+                    </p>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <!-- Notifications -->
     <div class="border-t border-zinc-100 dark:border-zinc-800 pt-8">

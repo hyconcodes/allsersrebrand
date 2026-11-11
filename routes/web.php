@@ -146,6 +146,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Volt::route('challenge/{slug}/manage', 'pages.challenges.manage')->name('challenges.manage');
 });
 
+// Voicebip webhook (public; HMAC signature verified in the controller)
+Route::post('/webhooks/voicebip', \App\Http\Controllers\VoicebipWebhookController::class)
+    ->name('voicebip.webhook');
+
 // Public post view
 Volt::route('posts/{post:post_id}', 'pages.post-show')->name('posts.show');
 

@@ -1,39 +1,48 @@
 <?php
 
-use Livewire\Volt\Component;
+use App\Mail\ServiceInquiryMail;
+use App\Models\Conversation;
+use App\Models\Engagement;
+use App\Models\Message;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Notifications\ServiceInquiry;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\ServiceInquiryMail;
-use App\Notifications\ServiceInquiry;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
+use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
-use App\Models\Conversation;
-use App\Models\Message;
-use App\Models\Engagement;
 
-new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends Component {
+new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends Component
+{
     use WithFileUploads;
 
     #[Url]
     public $search = '';
 
     public $lat = null;
+
     public $lng = null;
+
     public $address = null;
+
     public $selectedArtisan = null;
+
     public $sentPings = [];
+
     public $pingingId = null;
 
     // Structured Inquiry Properties
     public $showInquiryForm = false;
+
     public $inquiryTask = '';
+
     public $inquiryLocation = '';
+
     public $inquiryUrgency = 'medium';
+
     public $inquiryPhotos = [];
 
     public function mount()
@@ -45,7 +54,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
         }
 
         // Default if not set
-        if (!$this->lat) {
+        if (! $this->lat) {
             $this->lat = 6.5244;
             $this->lng = 3.3792;
         }
@@ -96,7 +105,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
 
     public function submitStructuredInquiry()
     {
-        if (!$this->selectedArtisan) {
+        if (! $this->selectedArtisan) {
             return;
         }
 
@@ -127,7 +136,7 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
             })
             ->first();
 
-        if (!$conversation) {
+        if (! $conversation) {
             $conversation = Conversation::create(['last_message_at' => now()]);
             $conversation->users()->attach([$sender->id, $artisan->id]);
         }
@@ -169,8 +178,9 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
         }
 
         \App\Support\PingAlert::send($sender, $artisan, $engagement);
+        \App\Support\VoiceCallAlert::send($sender, $artisan, $engagement);
 
-        $this->dispatch('toast', type: 'success', title: 'Inquiry Sent!', message: 'Taking you to your conversation with ' . $artisan->name);
+        $this->dispatch('toast', type: 'success', title: 'Inquiry Sent!', message: 'Taking you to your conversation with '.$artisan->name);
 
         return $this->redirect(route('chat', $conversation->id), navigate: true);
     }
@@ -199,10 +209,10 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
 
         $allResults = $query->get();
 
-        $nearby = $allResults->filter(fn($u) => $u->distance <= 10);
+        $nearby = $allResults->filter(fn ($u) => $u->distance <= 10);
 
         // Suggested only if searching
-        $suggested = $this->search ? $allResults->filter(fn($u) => $u->distance > 10) : collect();
+        $suggested = $this->search ? $allResults->filter(fn ($u) => $u->distance > 10) : collect();
 
         return [
             'nearby' => $nearby,

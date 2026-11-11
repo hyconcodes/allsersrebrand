@@ -3,31 +3,40 @@
 use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
-use App\Models\User;
 use App\Models\Post;
 use App\Notifications\NewMessage;
 use Livewire\Volt\Component;
-use function Livewire\Volt\layout;
-use Livewire\Attributes\Url;
 use Livewire\WithFileUploads;
+
+use function Livewire\Volt\layout;
 
 layout('components.layouts.app');
 
-new class extends Component {
+new class extends Component
+{
     use WithFileUploads;
 
     public ?Conversation $activeConversation = null;
+
     public string $messageText = '';
+
     public $photo;
+
     public $document;
+
     public $conversations = [];
+
     public $messages = [];
 
     // Showcase Properties
     public $showShowcaseModal = false;
+
     public $showcaseDescription = '';
+
     public $showcaseBeforePhoto;
+
     public $showcaseAfterPhoto;
+
     public $showcaseToFeed = true;
 
     protected $listeners = [
@@ -89,7 +98,7 @@ new class extends Component {
     // Hiring Workflow Methods
     public function sendInquiry($title)
     {
-        if (!$this->activeConversation || auth()->user()->isArtisan()) {
+        if (! $this->activeConversation || auth()->user()->isArtisan()) {
             return;
         }
 
@@ -118,12 +127,13 @@ new class extends Component {
         }
 
         \App\Support\PingAlert::send(auth()->user(), $artisan, $engagement);
+        \App\Support\VoiceCallAlert::send(auth()->user(), $artisan, $engagement);
     }
 
     public function sendQuote($price, $time)
     {
         $engagement = $this->activeConversation->activeEngagement;
-        if (!$engagement || auth()->id() !== $engagement->artisan_id) {
+        if (! $engagement || auth()->id() !== $engagement->artisan_id) {
             return;
         }
 
@@ -139,7 +149,7 @@ new class extends Component {
     public function declineQuote()
     {
         $engagement = $this->activeConversation->activeEngagement;
-        if (!$engagement || auth()->id() !== $engagement->user_id) {
+        if (! $engagement || auth()->id() !== $engagement->user_id) {
             return;
         }
 
@@ -156,7 +166,7 @@ new class extends Component {
     public function revokeQuote()
     {
         $engagement = $this->activeConversation->activeEngagement;
-        if (!$engagement || auth()->id() !== $engagement->artisan_id) {
+        if (! $engagement || auth()->id() !== $engagement->artisan_id) {
             return;
         }
 
@@ -173,7 +183,7 @@ new class extends Component {
     public function acceptQuote()
     {
         $engagement = $this->activeConversation->activeEngagement;
-        if (!$engagement || auth()->id() !== $engagement->user_id) {
+        if (! $engagement || auth()->id() !== $engagement->user_id) {
             return;
         }
 
@@ -189,7 +199,7 @@ new class extends Component {
     public function completeJob()
     {
         $engagement = $this->activeConversation->activeEngagement;
-        if (!$engagement) {
+        if (! $engagement) {
             return;
         }
 
@@ -205,7 +215,7 @@ new class extends Component {
     public function submitReview($rating, $comment)
     {
         $engagement = $this->activeConversation->engagements()->where('status', 'completed')->whereNull('review_id')->latest()->first();
-        if (!$engagement || auth()->id() !== $engagement->user_id) {
+        if (! $engagement || auth()->id() !== $engagement->user_id) {
             return;
         }
 
@@ -232,7 +242,7 @@ new class extends Component {
     {
         $engagement = $this->activeConversation->activeEngagement ?: $this->activeConversation->engagements()->where('status', 'completed')->latest()->first();
 
-        if (!$engagement || auth()->id() !== $engagement->artisan_id) {
+        if (! $engagement || auth()->id() !== $engagement->artisan_id) {
             return;
         }
 
@@ -270,7 +280,7 @@ new class extends Component {
         if ($this->showcaseToFeed) {
             Post::create([
                 'user_id' => auth()->id(),
-                'content' => '⭐ VERIFIED SUCCESS: ' . $this->showcaseDescription,
+                'content' => '⭐ VERIFIED SUCCESS: '.$this->showcaseDescription,
                 'images' => implode(',', $feedPhotos),
             ]);
         }
@@ -314,10 +324,10 @@ new class extends Component {
 
     public function sendMessage()
     {
-        if (empty(trim($this->messageText)) && !$this->photo && !$this->document) {
+        if (empty(trim($this->messageText)) && ! $this->photo && ! $this->document) {
             return;
         }
-        if (!$this->activeConversation) {
+        if (! $this->activeConversation) {
             return;
         }
 
