@@ -164,8 +164,31 @@ test('a fresh pending announcement debounces repeat dials to the same number', f
     VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
     VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
 
-    Http::assertSentCount(1);
+    Http::assertSentCount(2); // greeting PATCH + calls POST, second dial debounced
     expect(VoiceAnnouncement::count())->toBe(1);
+});
+
+test('the notice is baked into the agent greeting before dialing', function () {
+    voicebipTestSetup();
+    Http::fake(['*' => Http::response(['call_id' => 'call_swap', 'status' => 'initiated'], 201)]);
+
+    $client = User::factory()->create();
+    $artisan = voicebipArtisan();
+    $engagement = voicebipEngagement($client, $artisan);
+
+    VoiceCallAlert::send($client, $artisan, $engagement);
+
+    $recorded = Http::recorded();
+    expect($recorded)->toHaveCount(2);
+
+    $greeting = $recorded[0][0];
+    $dial = $recorded[1][0];
+
+    expect($greeting->method())->toBe('PATCH')
+        ->and($greeting->url())->toContain('/agents/agt_test_123')
+        ->and($greeting['greeting_text'])->toContain('has just requested your services')
+        ->and($dial->method())->toBe('POST')
+        ->and($dial->url())->toContain('/calls');
 });
 
 test('voice call api failures never break the send path', function () {
@@ -298,10 +321,35 @@ test('call.completed fails an announcement that never got spoken', function () {
     voicebipSignedPost([
         'event_type' => 'call.completed',
         'from' => '+2348012345678',
-        'payload' => ['call_id' => 'call_never_spoke', 'status' => 'completed', 'duration_seconds' => 12],
+        'payload' => ['call_id' => 'call_never_spoke', 'status' => 'completed', 'duration_seconds' => 2],
     ])->assertOk();
 
     expect($announcement->refresh()->status)->toBe('failed');
+});
+
+test('call.completed settles a pending announcement as spoken when the duration shows it played', function () {
+    voicebipTestSetup();
+
+    $artisan = voicebipArtisan();
+    $announcement = VoiceAnnouncement::create([
+        'user_id' => $artisan->id,
+        'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
+        'to_number' => '+2348012345678',
+        'message' => 'Notice text.',
+        'status' => 'pending',
+        'call_id' => 'call_did_speak',
+        'expires_at' => now()->addMinutes(30),
+    ]);
+
+    voicebipSignedPost([
+        'event_type' => 'call.completed',
+        'from' => '+2348012345678',
+        'payload' => ['call_id' => 'call_did_speak', 'status' => 'completed', 'duration_seconds' => 14],
+    ])->assertOk();
+
+    $announcement->refresh();
+    expect($announcement->status)->toBe('spoken')
+        ->and($announcement->spoken_at)->not->toBeNull();
 });
 
 test('arbitrary events are acknowledged without side effects', function () {
@@ -422,6 +470,28 @@ test('byom turn with no announcement speaks the generic notice and ends the call
     $response->assertOk();
     expect($response->json('end_call'))->toBeTrue()
         ->and($response->json('text'))->toContain('automated notice from Allsers');
+});
+
+test('byom turn after the greeting already spoke the notice closes politely', function () {
+    voicebipTestSetup();
+
+    $artisan = voicebipArtisan();
+    $announcement = byomAnnouncement($artisan, 'call_spoken_1');
+    $announcement->update(['status' => 'spoken', 'spoken_at' => now()]);
+
+    $response = voicebipSignedPost([
+        'event' => 'turn',
+        'agent_id' => 'agt_test_123',
+        'call_id' => 'call_spoken_1',
+        'from_number' => '+2348147177291',
+        'to_number' => '+2341000001111',
+        'transcription' => 'yes?',
+        'messages' => [],
+    ]);
+
+    $response->assertOk();
+    expect($response->json('text'))->toBe('Thank you. Goodbye.')
+        ->and($response->json('end_call'))->toBeTrue();
 });
 
 test('byom messaging payloads are acknowledged with an empty object', function () {

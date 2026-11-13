@@ -197,6 +197,19 @@ class VoicebipWebhookController extends Controller
             return ['text' => $announcement->message, 'end_call' => true];
         }
 
+        // The notice already went out via the greeting — if the callee
+        // says anything anyway, close politely and hang up (no chit-chat).
+        if (filled($event['call_id'] ?? null)) {
+            $spoken = VoiceAnnouncement::where('call_id', $event['call_id'])
+                ->where('status', VoiceAnnouncement::STATUS_SPOKEN)
+                ->latest('id')
+                ->first();
+
+            if ($spoken) {
+                return ['text' => 'Thank you. Goodbye.', 'end_call' => true];
+            }
+        }
+
         return [
             'text' => 'This is an automated notice from Allsers. Please log in to Allsers to view your latest service requests. Thank you.',
             'end_call' => true,
@@ -255,8 +268,9 @@ class VoicebipWebhookController extends Controller
     }
 
     /**
-     * The call ended. If the tool was never served the notice never got
-     * spoken — record the failure for auditing.
+     * The call ended. If the notice never had time to play (very short
+     * connected duration) record the failure for auditing; a duration of
+     * 6s+ means the greeting/TTS delivered it.
      */
     private function handleCallCompleted(array $event): void
     {
@@ -266,8 +280,20 @@ class VoicebipWebhookController extends Controller
             return;
         }
 
-        VoiceAnnouncement::where('call_id', $callId)
+        $announcement = VoiceAnnouncement::where('call_id', $callId)
             ->where('status', VoiceAnnouncement::STATUS_PENDING)
-            ->update(['status' => VoiceAnnouncement::STATUS_FAILED]);
+            ->first();
+
+        if (! $announcement) {
+            return;
+        }
+
+        $duration = (int) ($event['payload']['duration_seconds'] ?? 0);
+        $spoken = $duration >= 6;
+
+        $announcement->update([
+            'status' => $spoken ? VoiceAnnouncement::STATUS_SPOKEN : VoiceAnnouncement::STATUS_FAILED,
+            'spoken_at' => $spoken ? now() : null,
+        ]);
     }
 }
