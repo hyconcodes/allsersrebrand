@@ -12,15 +12,17 @@ class VoicebipWebhookController extends Controller
     /**
      * Receive Voicebip webhook deliveries (HMAC-SHA256 signed).
      *
-     * Handles the two events Allsers cares about:
-     *  - tool.invocation -> the agent asks what to say to the number being
-     *    called; answer with the pending announcement text (bare JSON, fed
-     *    to the model verbatim, spoken, then hung up).
-     *  - call.completed  -> record whether the announcement actually went
-     *    out (tool never served = failed).
+     * Three request shapes land here (distinguished by body fields):
+     *  - {"event": "call.screening"}  -> pre-greeting hook: speak the
+     *    pending announcement and end the call (dynamic greeting).
+     *  - {"event": "turn"}            -> BYOM conversation turn: speak the
+     *    announcement (or the generic notice) and hang up.
+     *  - {"event_type": ...}          -> lifecycle events (call.initiated,
+     *    tool.invocation, call.completed, ...); tool.invocation is answered
+     *    with the announcement text, call.completed records failures.
      *
-     * Every other event is acknowledged with {"received": true} so
-     * Voicebip's retry queue stays quiet, and no path ever 500s.
+     * SMS/WhatsApp BYOM payloads are acknowledged with {}. Every other
+     * event is acknowledged with {"received": true}, and no path 500s.
      */
     public function __invoke(Request $request): JsonResponse
     {
@@ -38,6 +40,37 @@ class VoicebipWebhookController extends Controller
         }
 
         $event = $request->json()->all();
+
+        // BYOM pre-greeting screening: speak the notice, then hang up.
+        if (($event['event'] ?? null) === 'call.screening') {
+            try {
+                return response()->json($this->handleByomScreening($event));
+            } catch (\Throwable $e) {
+                Log::error('Voicebip screening handler failed.', ['exception' => $e->getMessage()]);
+
+                return response()->json(['end_call' => false]);
+            }
+        }
+
+        // BYOM conversation turn: deliver the notice, then hang up.
+        if (($event['event'] ?? null) === 'turn') {
+            try {
+                return response()->json($this->handleByomTurn($event));
+            } catch (\Throwable $e) {
+                Log::error('Voicebip BYOM turn handler failed.', ['exception' => $e->getMessage()]);
+
+                return response()->json([
+                    'text' => 'This is an automated notice from Allsers.',
+                    'end_call' => true,
+                ]);
+            }
+        }
+
+        // BYOM messaging (SMS/WhatsApp): an empty body is a valid ack.
+        if (isset($event['inbound_message'])) {
+            return response()->json([]);
+        }
+
         $eventType = (string) ($event['event_type'] ?? '');
 
         if ($eventType === 'tool.invocation') {
@@ -127,8 +160,64 @@ class VoicebipWebhookController extends Controller
     }
 
     /**
+     * BYOM screening fires just before the greeting. When a notice is
+     * pending for this call, answer with it as the dynamic greeting and
+     * end the call immediately — no turns needed, no model involved.
+     * With no pending notice, simply allow the call (static greeting).
+     *
+     * @return array<string, mixed>
+     */
+    private function handleByomScreening(array $event): array
+    {
+        $announcement = $this->findPendingAnnouncement($event);
+
+        if (! $announcement) {
+            return ['end_call' => false];
+        }
+
+        $this->markSpoken($announcement, $event);
+
+        return ['end_call' => true, 'text' => $announcement->message];
+    }
+
+    /**
+     * BYOM turn: the callee (or an idle prompt response) produced speech.
+     * Deliver the notice in one shot and hang up; if there is no notice
+     * for this call, speak the generic Allsers notice and hang up.
+     *
+     * @return array<string, mixed>
+     */
+    private function handleByomTurn(array $event): array
+    {
+        $announcement = $this->findPendingAnnouncement($event);
+
+        if ($announcement) {
+            $this->markSpoken($announcement, $event);
+
+            return ['text' => $announcement->message, 'end_call' => true];
+        }
+
+        return [
+            'text' => 'This is an automated notice from Allsers. Please log in to Allsers to view your latest service requests. Thank you.',
+            'end_call' => true,
+        ];
+    }
+
+    /**
+     * Record that the announcement went out for this call.
+     */
+    private function markSpoken(VoiceAnnouncement $announcement, array $event): void
+    {
+        $announcement->update([
+            'status' => VoiceAnnouncement::STATUS_SPOKEN,
+            'spoken_at' => now(),
+            'call_id' => $announcement->call_id ?: ($event['call_id'] ?? null),
+        ]);
+    }
+
+    /**
      * Resolve the announcement for this call: call_id first (exact),
-     * then any number candidates from the envelope/arguments.
+     * then any number candidates from the envelope/arguments/BYOM payload.
      */
     private function findPendingAnnouncement(array $event): ?VoiceAnnouncement
     {
@@ -150,6 +239,9 @@ class VoicebipWebhookController extends Controller
         $candidates = array_values(array_filter([
             // Envelope: remote party number = the artisan we dialed.
             $event['from'] ?? null,
+            // BYOM turn/screening payload fields.
+            $event['from_number'] ?? null,
+            $event['to_number'] ?? null,
             // Tool arguments / payload candidates.
             $event['tool']['arguments']['to_number'] ?? null,
             $event['payload']['to_number'] ?? null,

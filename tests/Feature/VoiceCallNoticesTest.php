@@ -326,6 +326,131 @@ test('without a configured webhook secret deliveries are acknowledged', function
 
 /*
 |--------------------------------------------------------------------------
+| BYOM (Bring Your Own Model) turn contract
+|--------------------------------------------------------------------------
+*/
+
+function byomAnnouncement(User $artisan, ?string $callId, string $to = '+2348147177291'): VoiceAnnouncement
+{
+    return VoiceAnnouncement::create([
+        'user_id' => $artisan->id,
+        'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
+        'to_number' => $to,
+        'message' => 'Kola has just requested your services on Allsers. Log in to Allsers now and accept the job. Thank you.',
+        'status' => 'pending',
+        'call_id' => $callId,
+        'expires_at' => now()->addMinutes(30),
+    ]);
+}
+
+test('byom screening speaks the pending announcement and ends the call', function () {
+    voicebipTestSetup();
+
+    $artisan = voicebipArtisan();
+    $announcement = byomAnnouncement($artisan, 'call_scr_1');
+
+    $response = voicebipSignedPost([
+        'event' => 'call.screening',
+        'agent_id' => 'agt_test_123',
+        'call_id' => 'call_scr_1',
+        'from_number' => '+2348147177291',
+        'to_number' => '+2341000001111',
+        'messages' => [],
+    ]);
+
+    $response->assertOk();
+    expect($response->json('end_call'))->toBeTrue()
+        ->and($response->json('text'))->toBe($announcement->message);
+
+    expect($announcement->refresh()->status)->toBe('spoken')
+        ->and($announcement->spoken_at)->not->toBeNull();
+});
+
+test('byom screening without a pending notice just allows the call', function () {
+    voicebipTestSetup();
+
+    $response = voicebipSignedPost([
+        'event' => 'call.screening',
+        'agent_id' => 'agt_test_123',
+        'call_id' => 'call_scr_none',
+        'from_number' => '+2348000000001',
+        'to_number' => '+2341000001111',
+        'messages' => [],
+    ]);
+
+    $response->assertOk();
+    expect($response->json('end_call'))->toBeFalse()
+        ->and($response->json('text'))->toBeNull();
+});
+
+test('byom turn delivers the announcement by number and hangs up', function () {
+    voicebipTestSetup();
+
+    $artisan = voicebipArtisan();
+    $announcement = byomAnnouncement($artisan, null, '+2348147177291');
+
+    $response = voicebipSignedPost([
+        'event' => 'turn',
+        'agent_id' => 'agt_test_123',
+        'call_id' => 'call_turn_1',
+        'from_number' => '+2348147177291',
+        'to_number' => '+2341000001111',
+        'transcription' => 'hello?',
+        'messages' => [],
+    ]);
+
+    $response->assertOk();
+    expect($response->json('text'))->toBe($announcement->message)
+        ->and($response->json('end_call'))->toBeTrue();
+
+    expect($announcement->refresh()->status)->toBe('spoken');
+});
+
+test('byom turn with no announcement speaks the generic notice and ends the call', function () {
+    voicebipTestSetup();
+
+    $response = voicebipSignedPost([
+        'event' => 'turn',
+        'agent_id' => 'agt_test_123',
+        'call_id' => 'call_turn_none',
+        'from_number' => '+2348000000002',
+        'to_number' => '+2341000001111',
+        'transcription' => 'yes?',
+        'messages' => [],
+    ]);
+
+    $response->assertOk();
+    expect($response->json('end_call'))->toBeTrue()
+        ->and($response->json('text'))->toContain('automated notice from Allsers');
+});
+
+test('byom messaging payloads are acknowledged with an empty object', function () {
+    voicebipTestSetup();
+
+    voicebipSignedPost([
+        'agent_id' => 'agt_test_123',
+        'conversation_id' => 'conv_1',
+        'channel' => 'whatsapp',
+        'from_number' => '+2348000000003',
+        'to_number' => '+2341000001111',
+        'inbound_message' => ['message_id' => 'msg_1', 'body' => 'hi', 'type' => 'text'],
+        'history' => [],
+    ])->assertOk()->assertExactJson([]);
+});
+
+test('byom turns are rejected without a valid signature', function () {
+    voicebipTestSetup();
+
+    voicebipSignedPost([
+        'event' => 'turn',
+        'call_id' => 'call_x',
+        'transcription' => 'hello',
+    ], ['signature' => 'sha256='.str_repeat('0', 64)])
+        ->assertStatus(401);
+});
+
+/*
+|--------------------------------------------------------------------------
 | Consent settings flow
 |--------------------------------------------------------------------------
 */
