@@ -103,6 +103,9 @@ class VoicebipClient
     /**
      * Fetch a call's current state (GET /v1/calls/{id}), or null on error.
      *
+     * The API is intermittently slow under load (observed 8s+ transfers),
+     * so the timeout is generous; callers poll and tolerate nulls.
+     *
      * @return array<string, mixed>|null
      */
     public static function getCall(string $callId): ?array
@@ -110,7 +113,7 @@ class VoicebipClient
         try {
             $response = Http::withToken(config('services.voicebip.api_key'))
                 ->acceptJson()
-                ->timeout(8)
+                ->timeout(12)
                 ->connectTimeout(3)
                 ->get(rtrim(config('services.voicebip.endpoint'), '/').'/calls/'.$callId);
 
@@ -121,26 +124,54 @@ class VoicebipClient
     }
 
     /**
-     * End an active call (POST /v1/calls/{id}/end). Returns false on
-     * failure — an already-completed call is not an error worth raising.
+     * End an active call — official route is DELETE /v1/calls/{call_id}
+     * (docs: "End a call"; a POST .../end does not exist and 404s).
+     *
+     * Retries up to 3 times because the API occasionally times out; a 404
+     * with a JSON envelope means the call is already gone (idempotent
+     * success — nothing left to hang up). Never throws.
      */
     public static function endCall(string $callId): bool
     {
-        try {
-            $response = Http::withToken(config('services.voicebip.api_key'))
-                ->acceptJson()
-                ->timeout(8)
-                ->connectTimeout(3)
-                ->post(rtrim(config('services.voicebip.endpoint'), '/').'/calls/'.$callId.'/end');
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            try {
+                $response = Http::withToken(config('services.voicebip.api_key'))
+                    ->acceptJson()
+                    ->timeout(12)
+                    ->connectTimeout(3)
+                    ->delete(rtrim(config('services.voicebip.endpoint'), '/').'/calls/'.$callId);
 
-            return $response->successful();
-        } catch (\Throwable $e) {
-            Log::warning('Voicebip end-call failed.', [
-                'call_id' => $callId,
-                'exception' => $e->getMessage(),
-            ]);
+                if ($response->successful()) {
+                    return true;
+                }
 
-            return false;
+                $isJson404 = $response->status() === 404
+                    && str_contains((string) $response->header('Content-Type'), 'json');
+
+                if ($isJson404) {
+                    // Call already ended/unknown — desired state reached.
+                    return true;
+                }
+
+                Log::warning('Voicebip end-call rejected.', [
+                    'call_id' => $callId,
+                    'attempt' => $attempt,
+                    'status' => $response->status(),
+                    'body' => \Illuminate\Support\Str::limit($response->body(), 300),
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Voicebip end-call errored.', [
+                    'call_id' => $callId,
+                    'attempt' => $attempt,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+
+            if ($attempt < 3) {
+                sleep(2);
+            }
         }
+
+        return false;
     }
 }

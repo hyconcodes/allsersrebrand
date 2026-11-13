@@ -4,6 +4,7 @@ use App\Mail\VoiceNoticeConsentMail;
 use App\Models\Engagement;
 use App\Models\User;
 use App\Models\VoiceAnnouncement;
+use App\Services\VoicebipClient;
 use App\Support\VoiceCallAlert;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -217,6 +218,42 @@ test('unconfigured keys mean no call attempts at all', function () {
     VoiceCallAlert::send($client, $artisan, $engagement);
 
     Http::assertNothingSent();
+});
+
+test('endCall hangs up through the official DELETE route', function () {
+    voicebipTestSetup();
+    Http::fake(['*' => Http::response(['status' => 'completed'], 200)]);
+
+    expect(VoicebipClient::endCall('call_x'))->toBeTrue();
+
+    Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+        && $request->url() === 'https://api.voicebip.com/v1/calls/call_x');
+});
+
+test('endCall retries a flaky failure', function () {
+    voicebipTestSetup();
+    Http::fake([
+        'https://api.voicebip.com/v1/calls/call_y' => Http::sequence()
+            ->push('temporary', 500)
+            ->push(['status' => 'completed'], 200),
+    ]);
+
+    expect(VoicebipClient::endCall('call_y'))->toBeTrue();
+    Http::assertSentCount(2);
+});
+
+test('endCall treats a JSON 404 as already ended', function () {
+    voicebipTestSetup();
+    Http::fake([
+        '*' => Http::response(
+            ['error_code' => 'NotFound', 'message' => 'call: not found'],
+            404,
+            ['Content-Type' => 'application/json'],
+        ),
+    ]);
+
+    expect(VoicebipClient::endCall('call_z'))->toBeTrue();
+    Http::assertSentCount(1);
 });
 
 /*

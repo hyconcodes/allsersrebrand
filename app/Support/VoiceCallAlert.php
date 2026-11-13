@@ -180,7 +180,7 @@ class VoiceCallAlert
         try {
             $answered = false;
             $terminal = null;
-            $deadline = microtime(true) + 55;
+            $deadline = microtime(true) + 60;
 
             while (microtime(true) < $deadline) {
                 $call = VoicebipClient::getCall($callId);
