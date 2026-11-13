@@ -267,6 +267,7 @@
         @endif
 
         <livewire:onesignal-handler />
+        <livewire:voice-consent-modal />
     @endauth
 
     @fluxScripts

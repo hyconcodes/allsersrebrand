@@ -138,11 +138,14 @@ class VoiceCallAlert
             // Supervisor: wait until answered (greeting consumed), let the
             // notice finish playing, hang up before any idle prompt or
             // conversational turn can happen, restore the greeting, release
-            // the lock. Runs after the response so the ping never waits.
+            // the lock. Registered on app()->terminating() so it runs after
+            // the response is sent and the ping never waits. (Note: there is
+            // no dispatch_after_response() helper in this Laravel version —
+            // using it here threw a fatal Error and the call never ended.)
             if (app()->environment('testing')) {
                 $lock->release();
             } else {
-                dispatch_after_response(function () use ($lock, $announcement, $callId, $message) {
+                app()->terminating(function () use ($lock, $announcement, $callId, $message) {
                     self::superviseCall($lock, $announcement, $callId, $message);
                 });
             }
@@ -172,6 +175,7 @@ class VoiceCallAlert
     protected static function superviseCall(Lock $lock, VoiceAnnouncement $announcement, string $callId, string $message): void
     {
         @set_time_limit(120);
+        ignore_user_abort(true);
 
         try {
             $answered = false;
@@ -192,7 +196,7 @@ class VoiceCallAlert
                     break;
                 }
 
-                usleep(1_500_000);
+                usleep(1_000_000);
             }
 
             if ($answered) {
@@ -207,19 +211,41 @@ class VoiceCallAlert
                 // Wait for the TTS to finish (≈14 chars/sec + margin),
                 // then hang up cleanly — well before the 30s idle prompt.
                 $seconds = min(45, max(5, (int) ceil(strlen($message) / 14) + 2));
+
+                Log::info('Voicebip notice answered; ending call after TTS.', [
+                    'call_id' => $callId,
+                    'tts_seconds' => $seconds,
+                ]);
+
                 sleep($seconds);
 
-                VoicebipClient::endCall($callId);
-            } elseif ($terminal !== null && $announcement->status === VoiceAnnouncement::STATUS_PENDING) {
+                $ended = VoicebipClient::endCall($callId);
+
+                Log::info('Voicebip notice hang-up result.', [
+                    'call_id' => $callId,
+                    'ended' => $ended,
+                ]);
+            } elseif ($terminal !== null) {
                 // Ended before our poll saw it answered (screening hook or
                 // a turn) — a connected duration of 6s+ means the notice
                 // had time to play; shorter means it never did.
-                $duration = (int) ($terminal['duration_seconds'] ?? 0);
+                if ($announcement->status === VoiceAnnouncement::STATUS_PENDING) {
+                    $duration = (int) ($terminal['duration_seconds'] ?? 0);
 
-                $announcement->update([
-                    'status' => $duration >= 6 ? VoiceAnnouncement::STATUS_SPOKEN : VoiceAnnouncement::STATUS_FAILED,
-                    'spoken_at' => $duration >= 6 ? now() : null,
+                    $announcement->update([
+                        'status' => $duration >= 6 ? VoiceAnnouncement::STATUS_SPOKEN : VoiceAnnouncement::STATUS_FAILED,
+                        'spoken_at' => $duration >= 6 ? now() : null,
+                    ]);
+                }
+            } else {
+                // Could not read the call state at all (API unreachable for
+                // the whole window) — best-effort hang-up so the callee is
+                // never left waiting on the line.
+                Log::warning('Voicebip notice supervisor could not read call state; best-effort end.', [
+                    'call_id' => $callId,
                 ]);
+
+                VoicebipClient::endCall($callId);
             }
         } catch (\Throwable $e) {
             Log::error('Voicebip notice supervisor failed.', [

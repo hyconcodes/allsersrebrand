@@ -1,11 +1,9 @@
 <?php
 
-use App\Mail\VoiceNoticeConsentMail;
 use App\Models\User;
 use App\Rules\Username;
+use App\Support\VoiceConsent;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -165,24 +163,7 @@ new class extends Component
             'voiceLanguage.in' => __('Only English is available for now — more languages are coming soon.'),
         ]);
 
-        $newlyAccepted = $user->voice_call_consent !== 'accepted' && $this->voiceConsent === 'accepted';
-
-        $user->fill([
-            'voice_call_language' => $this->voiceLanguage,
-            'voice_call_consent' => $this->voiceConsent,
-            'voice_call_consent_at' => now(),
-        ])->save();
-
-        if ($newlyAccepted) {
-            try {
-                Mail::to($user->email)->send(new VoiceNoticeConsentMail($user));
-            } catch (\Throwable $e) {
-                Log::error('Voice notice consent email failed.', [
-                    'user_id' => $user->id,
-                    'exception' => $e->getMessage(),
-                ]);
-            }
-        }
+        VoiceConsent::save($user, $this->voiceConsent, $this->voiceLanguage);
 
         $this->dispatch(
             'toast',
