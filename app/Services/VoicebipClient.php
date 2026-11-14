@@ -69,9 +69,10 @@ class VoicebipClient
      * End an active call — official route is DELETE /v1/calls/{call_id}
      * (docs: "End a call"; a POST .../end does not exist and 404s).
      *
-     * Retries up to 3 times because the API occasionally times out; a 404
-     * with a JSON envelope means the call is already gone (idempotent
-     * success — nothing left to hang up). Never throws.
+     * Retries up to 3 times because the API occasionally times out. A JSON
+     * 404 is NOT trusted blindly: Voicebip has returned "call: not found"
+     * for calls that were still very much alive — verify via GET that the
+     * call is actually terminal before treating it as ended. Never throws.
      */
     public static function endCall(string $callId): bool
     {
@@ -91,16 +92,22 @@ class VoicebipClient
                     && str_contains((string) $response->header('Content-Type'), 'json');
 
                 if ($isJson404) {
-                    // Call already ended/unknown — desired state reached.
-                    return true;
-                }
+                    if (self::callIsOver($callId)) {
+                        return true;
+                    }
 
-                Log::warning('Voicebip end-call rejected.', [
-                    'call_id' => $callId,
-                    'attempt' => $attempt,
-                    'status' => $response->status(),
-                    'body' => \Illuminate\Support\Str::limit($response->body(), 300),
-                ]);
+                    Log::warning('Voicebip end-call returned a phantom 404; call still active.', [
+                        'call_id' => $callId,
+                        'attempt' => $attempt,
+                    ]);
+                } else {
+                    Log::warning('Voicebip end-call rejected.', [
+                        'call_id' => $callId,
+                        'attempt' => $attempt,
+                        'status' => $response->status(),
+                        'body' => \Illuminate\Support\Str::limit($response->body(), 300),
+                    ]);
+                }
             } catch (\Throwable $e) {
                 Log::warning('Voicebip end-call errored.', [
                     'call_id' => $callId,
@@ -115,5 +122,29 @@ class VoicebipClient
         }
 
         return false;
+    }
+
+    /**
+     * Whether the call is in a terminal state (GET /v1/calls/{id}).
+     * Terminal statuses resolve reliably even though live-call status
+     * freezes at "initiated".
+     */
+    private static function callIsOver(string $callId): bool
+    {
+        try {
+            $response = Http::withToken(config('services.voicebip.api_key'))
+                ->acceptJson()
+                ->timeout(10)
+                ->connectTimeout(3)
+                ->get(rtrim(config('services.voicebip.endpoint'), '/').'/calls/'.$callId);
+
+            if (! $response->successful()) {
+                return false;
+            }
+
+            return in_array($response->json('status'), ['completed', 'failed', 'no_answer', 'busy'], true);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

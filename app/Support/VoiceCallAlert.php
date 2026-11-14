@@ -6,7 +6,6 @@ use App\Models\Engagement;
 use App\Models\User;
 use App\Models\VoiceAnnouncement;
 use App\Services\VoicebipClient;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class VoiceCallAlert
@@ -151,18 +150,24 @@ class VoiceCallAlert
             ignore_user_abort(true);
 
             $client = new \GuzzleHttp\Client([
-                'timeout' => 10,
+                // NO total transfer timeout: `timeout` is a whole-request
+                // cap and the SSE stream legitimately lives ~25s until the
+                // greeting frame — a 10s cap killed it on prod (cURL 28).
+                'timeout' => 0,
                 'connect_timeout' => 5,
             ]);
 
             $response = $client->request('GET', rtrim(config('services.voicebip.endpoint'), '/').'/calls/'.$callId.'/transcript/stream', [
                 'query' => ['token' => config('services.voicebip.api_key')],
                 'stream' => true,
+                // The stream is silent for the whole ring + greeting TTS
+                // (~35s+ worst case) before the first frame — a stall
+                // limit below that would abort mid-ring.
                 'read_timeout' => 60,
             ]);
 
             $stream = $response->getBody();
-            $deadline = microtime(true) + 55;
+            $deadline = microtime(true) + 90;
             $buffer = '';
 
             while (! $stream->eof() && microtime(true) < $deadline) {
@@ -189,10 +194,6 @@ class VoiceCallAlert
                     }
 
                     if (($frame['role'] ?? null) === 'agent') {
-                        // Flag turns so a failed hang-up still closes on the
-                        // callee's first word instead of lingering.
-                        Cache::put('voicebip:greeted:'.$callId, true, 600);
-
                         Log::info('Voicebip notice greeting finished; hanging up.', [
                             'call_id' => $callId,
                         ]);

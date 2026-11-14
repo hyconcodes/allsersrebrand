@@ -239,18 +239,42 @@ test('endCall retries a flaky failure', function () {
     Http::assertSentCount(2);
 });
 
-test('endCall treats a JSON 404 as already ended', function () {
+test('endCall verifies a JSON 404 against the real call state before believing it', function () {
     voicebipTestSetup();
-    Http::fake([
-        '*' => Http::response(
-            ['error_code' => 'NotFound', 'message' => 'call: not found'],
-            404,
-            ['Content-Type' => 'application/json'],
-        ),
-    ]);
+
+    Http::fake(function ($request) {
+        if ($request->method() === 'DELETE') {
+            return Http::response(
+                ['error_code' => 'NotFound', 'message' => 'call: not found'],
+                404,
+                ['Content-Type' => 'application/json'],
+            );
+        }
+
+        return Http::response(['call_id' => 'call_z', 'status' => 'completed'], 200);
+    });
 
     expect(VoicebipClient::endCall('call_z'))->toBeTrue();
-    Http::assertSentCount(1);
+    Http::assertSentCount(2); // DELETE -> 404, GET -> completed
+});
+
+test('endCall retries when a JSON 404 is a phantom and the call is still alive', function () {
+    voicebipTestSetup();
+
+    Http::fake(function ($request) {
+        if ($request->method() === 'DELETE') {
+            return Http::response(
+                ['error_code' => 'NotFound', 'message' => 'call: not found'],
+                404,
+                ['Content-Type' => 'application/json'],
+            );
+        }
+
+        return Http::response(['call_id' => 'call_alive', 'status' => 'initiated'], 200);
+    });
+
+    expect(VoicebipClient::endCall('call_alive'))->toBeFalse();
+    Http::assertSentCount(6); // 3 attempts x (DELETE + verifying GET)
 });
 
 /*
@@ -422,7 +446,7 @@ test('byom turn stays silent while the greeting plays so noise cannot cut or rep
     $response->assertOk()->assertExactJson(['text' => '', 'end_call' => false]);
 });
 
-test('byom turn after the greeting closes politely when the hang-up failed', function () {
+test('byom turn stays silent even when the supervisor flagged the greeting as done', function () {
     voicebipTestSetup();
 
     \Illuminate\Support\Facades\Cache::put('voicebip:greeted:call_turn_2', true, 600);
@@ -437,15 +461,12 @@ test('byom turn after the greeting closes politely when the hang-up failed', fun
         'messages' => [],
     ]);
 
-    $response->assertOk();
-    expect($response->json('text'))->toBe('Thank you. Goodbye.')
-        ->and($response->json('end_call'))->toBeTrue();
+    $response->assertOk()->assertExactJson(['text' => '', 'end_call' => false]);
 });
 
-test('byom turn closes from the greeting timestamp even when the supervisor never flagged it', function () {
+test('byom turn stays silent even when the greeting timestamp shows it finished long ago', function () {
     voicebipTestSetup();
 
-    // Greeting started 30s ago — the notice (≈14s) has definitely finished.
     $response = voicebipSignedPost([
         'event' => 'turn',
         'agent_id' => 'agt_test_123',
@@ -463,9 +484,7 @@ test('byom turn closes from the greeting timestamp even when the supervisor neve
         ],
     ]);
 
-    $response->assertOk();
-    expect($response->json('text'))->toBe('Thank you. Goodbye.')
-        ->and($response->json('end_call'))->toBeTrue();
+    $response->assertOk()->assertExactJson(['text' => '', 'end_call' => false]);
 });
 
 test('byom turn stays silent while the greeting is still being spoken', function () {

@@ -6,7 +6,6 @@ use App\Models\VoiceAnnouncement;
 use App\Services\VoicebipClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class VoicebipWebhookController extends Controller
@@ -17,10 +16,9 @@ class VoicebipWebhookController extends Controller
      * Three request shapes land here (distinguished by body fields):
      *  - {"event": "call.screening"}  -> allow the call; the agent's
      *    static greeting speaks the notice.
-     *  - {"event": "turn"}            -> stays silent while the greeting
-     *    plays (noise must never cut or repeat it); once the supervisor
-     *    has seen the greeting finish, a turn closes with goodbye +
-     *    end_call in case the hang-up failed.
+     *  - {"event": "turn"}            -> stays silent always; the agent
+     *    never speaks or hangs up from caller speech — hang-up comes only
+     *    from the supervisor and the idle-silence hook.
      *  - {"event_type": ...}          -> lifecycle events; call.completed
      *    settles the audit row (never-answered -> failed) and
      *    call.idle_silence hangs up notice calls (webhook-side backup
@@ -147,63 +145,17 @@ class VoicebipWebhookController extends Controller
     /**
      * BYOM turn: the callee (or transcribed noise) produced speech.
      *
-     * While the notice greeting is playing this must do nothing — no
-     * speech, no hang-up — so noise can never cut or repeat it. Once the
-     * greeting has finished (flagged by the supervisor, or inferred from
-     * the greeting's own timestamp in the history when the supervisor
-     * died), close politely and end the call — the webhook path works
-     * even if the in-request supervisor was killed by PHP-FPM.
+     * The agent NEVER speaks after the notice and never hangs up from a
+     * turn — the caller talking must have zero effect. Hang-up belongs
+     * solely to the supervisor (SSE frame → DELETE) with the idle-silence
+     * webhook as backup, so nothing here depends on the caller saying
+     * anything.
      *
      * @return array<string, mixed>
      */
     private function handleByomTurn(array $event): array
     {
-        $callId = $event['call_id'] ?? null;
-
-        if (filled($callId) && Cache::has('voicebip:greeted:'.$callId)) {
-            return ['text' => 'Thank you. Goodbye.', 'end_call' => true];
-        }
-
-        // The static notice takes ≈14s to speak; a turn at least that long
-        // after the FIRST agent entry (the greeting) means it has finished.
-        $greetingAt = $this->greetingStartedAt($event['messages'] ?? []);
-
-        if ($greetingAt !== null && (now()->timestamp - $greetingAt) >= 14) {
-            return ['text' => 'Thank you. Goodbye.', 'end_call' => true];
-        }
-
         return ['text' => '', 'end_call' => false];
-    }
-
-    /**
-     * Epoch seconds of the first agent utterance in the conversation
-     * history — always the notice greeting. Returns null when missing or
-     * unparseable (callers stay silent rather than risk cutting speech).
-     *
-     * @param  array<int, array<string, mixed>>  $messages
-     */
-    private function greetingStartedAt(array $messages): ?int
-    {
-        foreach ($messages as $message) {
-            if (($message['role'] ?? null) !== 'agent') {
-                continue;
-            }
-
-            $timestamp = (string) ($message['timestamp'] ?? '');
-
-            if ($timestamp === '') {
-                return null;
-            }
-
-            // Voicebip timestamps carry nanoseconds; strtotime accepts µs.
-            $normalized = preg_replace('/(\.\d{6})\d+/', '$1', $timestamp);
-
-            $epoch = $normalized !== null ? strtotime($normalized) : false;
-
-            return $epoch !== false && $epoch > 0 ? $epoch : null;
-        }
-
-        return null;
     }
 
     /**
