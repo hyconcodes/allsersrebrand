@@ -103,12 +103,14 @@ test('accepted artisan is called when pinged and the announcement is stored', fu
     });
 
     $announcement = VoiceAnnouncement::where('user_id', $artisan->id)->sole();
-    expect($announcement->status)->toBe('pending')
+    expect($announcement->status)->toBe('spoken')
+        ->and($announcement->spoken_at)->not->toBeNull()
         ->and($announcement->call_id)->toBe('call_abc123')
         ->and($announcement->to_number)->toBe('+2348012345678')
-        ->and($announcement->message)->toContain($client->name)
-        ->and($announcement->message)->toContain('Fix my leaky kitchen sink faucet')
-        ->and($announcement->message)->toContain('Log in to Allsers');
+        ->and($announcement->message)->toBe(VoiceCallAlert::NOTICE);
+
+    // Only the dial — the static greeting is never PATCHed per call.
+    Http::assertSentCount(1);
 });
 
 test('artisan without a consent decision or with a decline is never called', function () {
@@ -165,13 +167,13 @@ test('a fresh pending announcement debounces repeat dials to the same number', f
     VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
     VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
 
-    Http::assertSentCount(2); // greeting PATCH + calls POST, second dial debounced
+    Http::assertSentCount(1); // one dial; second is debounced
     expect(VoiceAnnouncement::count())->toBe(1);
 });
 
-test('the notice is baked into the agent greeting before dialing', function () {
+test('the agent greeting is never touched per call', function () {
     voicebipTestSetup();
-    Http::fake(['*' => Http::response(['call_id' => 'call_swap', 'status' => 'initiated'], 201)]);
+    Http::fake(['*' => Http::response(['call_id' => 'call_static', 'status' => 'initiated'], 201)]);
 
     $client = User::factory()->create();
     $artisan = voicebipArtisan();
@@ -180,15 +182,10 @@ test('the notice is baked into the agent greeting before dialing', function () {
     VoiceCallAlert::send($client, $artisan, $engagement);
 
     $recorded = Http::recorded();
-    expect($recorded)->toHaveCount(2);
+    expect($recorded)->toHaveCount(1);
 
-    $greeting = $recorded[0][0];
-    $dial = $recorded[1][0];
-
-    expect($greeting->method())->toBe('PATCH')
-        ->and($greeting->url())->toContain('/agents/agt_test_123')
-        ->and($greeting['greeting_text'])->toContain('has just requested your services')
-        ->and($dial->method())->toBe('POST')
+    $dial = $recorded[0][0];
+    expect($dial->method())->toBe('POST')
         ->and($dial->url())->toContain('/calls');
 });
 
@@ -280,53 +277,6 @@ function voicebipSignedPost(array $event, array $overrides = []): \Illuminate\Te
     ], $body);
 }
 
-test('tool.invocation answers with the pending announcement and marks it spoken', function () {
-    voicebipTestSetup();
-
-    $artisan = voicebipArtisan();
-    $announcement = VoiceAnnouncement::create([
-        'user_id' => $artisan->id,
-        'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
-        'to_number' => '+2348012345678',
-        'message' => 'Kola has requested your services on Allsers. Log in to Allsers now to view the request and accept the job. Thank you.',
-        'status' => 'pending',
-        'expires_at' => now()->addMinutes(30),
-    ]);
-
-    $response = voicebipSignedPost([
-        'event_type' => 'tool.invocation',
-        'call_id' => 'call_abc123',
-        'agent_id' => 'agt_test_123',
-        'from' => '+2348012345678',
-        'tool' => [
-            'tool_call_id' => 'tc_1',
-            'name' => 'get_ping_announcement',
-            'arguments' => ['to_number' => '+2348012345678'],
-        ],
-    ]);
-
-    $response->assertOk();
-    expect($response->json('message'))->toBe($announcement->message);
-
-    $announcement->refresh();
-    expect($announcement->status)->toBe('spoken')
-        ->and($announcement->spoken_at)->not->toBeNull()
-        ->and($announcement->call_id)->toBe('call_abc123');
-});
-
-test('unknown tools are rejected with an error result', function () {
-    voicebipTestSetup();
-
-    $response = voicebipSignedPost([
-        'event_type' => 'tool.invocation',
-        'call_id' => 'call_x',
-        'tool' => ['tool_call_id' => 'tc_1', 'name' => 'track_order', 'arguments' => []],
-    ]);
-
-    $response->assertOk();
-    expect($response->json('error'))->toBe('unknown_tool');
-});
-
 test('webhook rejects bad signatures and replayed timestamps', function () {
     voicebipTestSetup();
 
@@ -389,6 +339,32 @@ test('call.completed settles a pending announcement as spoken when the duration 
         ->and($announcement->spoken_at)->not->toBeNull();
 });
 
+test('call.completed downgrades a dial-marked announcement when the call was never answered', function () {
+    voicebipTestSetup();
+
+    $artisan = voicebipArtisan();
+    $announcement = VoiceAnnouncement::create([
+        'user_id' => $artisan->id,
+        'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
+        'to_number' => '+2348012345678',
+        'message' => 'Notice text.',
+        'status' => 'spoken',
+        'spoken_at' => now(),
+        'call_id' => 'call_never_answered',
+        'expires_at' => now()->addMinutes(30),
+    ]);
+
+    voicebipSignedPost([
+        'event_type' => 'call.completed',
+        'from' => '+2348012345678',
+        'payload' => ['call_id' => 'call_never_answered', 'status' => 'completed', 'duration_seconds' => 2],
+    ])->assertOk();
+
+    $announcement->refresh();
+    expect($announcement->status)->toBe('failed')
+        ->and($announcement->spoken_at)->toBeNull();
+});
+
 test('arbitrary events are acknowledged without side effects', function () {
     voicebipTestSetup();
 
@@ -415,24 +391,8 @@ test('without a configured webhook secret deliveries are acknowledged', function
 |--------------------------------------------------------------------------
 */
 
-function byomAnnouncement(User $artisan, ?string $callId, string $to = '+2348147177291'): VoiceAnnouncement
-{
-    return VoiceAnnouncement::create([
-        'user_id' => $artisan->id,
-        'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
-        'to_number' => $to,
-        'message' => 'Kola has just requested your services on Allsers. Log in to Allsers now and accept the job. Thank you.',
-        'status' => 'pending',
-        'call_id' => $callId,
-        'expires_at' => now()->addMinutes(30),
-    ]);
-}
-
-test('byom screening speaks the pending announcement and ends the call', function () {
+test('byom screening always allows the call through to the static greeting', function () {
     voicebipTestSetup();
-
-    $artisan = voicebipArtisan();
-    $announcement = byomAnnouncement($artisan, 'call_scr_1');
 
     $response = voicebipSignedPost([
         'event' => 'call.screening',
@@ -443,36 +403,11 @@ test('byom screening speaks the pending announcement and ends the call', functio
         'messages' => [],
     ]);
 
-    $response->assertOk();
-    expect($response->json('end_call'))->toBeTrue()
-        ->and($response->json('text'))->toBe($announcement->message);
-
-    expect($announcement->refresh()->status)->toBe('spoken')
-        ->and($announcement->spoken_at)->not->toBeNull();
+    $response->assertOk()->assertExactJson(['end_call' => false]);
 });
 
-test('byom screening without a pending notice just allows the call', function () {
+test('byom turn stays silent while the greeting plays so noise cannot cut or repeat it', function () {
     voicebipTestSetup();
-
-    $response = voicebipSignedPost([
-        'event' => 'call.screening',
-        'agent_id' => 'agt_test_123',
-        'call_id' => 'call_scr_none',
-        'from_number' => '+2348000000001',
-        'to_number' => '+2341000001111',
-        'messages' => [],
-    ]);
-
-    $response->assertOk();
-    expect($response->json('end_call'))->toBeFalse()
-        ->and($response->json('text'))->toBeNull();
-});
-
-test('byom turn delivers the announcement by number and hangs up', function () {
-    voicebipTestSetup();
-
-    $artisan = voicebipArtisan();
-    $announcement = byomAnnouncement($artisan, null, '+2348147177291');
 
     $response = voicebipSignedPost([
         'event' => 'turn',
@@ -484,42 +419,18 @@ test('byom turn delivers the announcement by number and hangs up', function () {
         'messages' => [],
     ]);
 
-    $response->assertOk();
-    expect($response->json('text'))->toBe($announcement->message)
-        ->and($response->json('end_call'))->toBeTrue();
-
-    expect($announcement->refresh()->status)->toBe('spoken');
+    $response->assertOk()->assertExactJson(['text' => '', 'end_call' => false]);
 });
 
-test('byom turn with no announcement speaks the generic notice and ends the call', function () {
+test('byom turn after the greeting closes politely when the hang-up failed', function () {
     voicebipTestSetup();
+
+    \Illuminate\Support\Facades\Cache::put('voicebip:greeted:call_turn_2', true, 600);
 
     $response = voicebipSignedPost([
         'event' => 'turn',
         'agent_id' => 'agt_test_123',
-        'call_id' => 'call_turn_none',
-        'from_number' => '+2348000000002',
-        'to_number' => '+2341000001111',
-        'transcription' => 'yes?',
-        'messages' => [],
-    ]);
-
-    $response->assertOk();
-    expect($response->json('end_call'))->toBeTrue()
-        ->and($response->json('text'))->toContain('automated notice from Allsers');
-});
-
-test('byom turn after the greeting already spoke the notice closes politely', function () {
-    voicebipTestSetup();
-
-    $artisan = voicebipArtisan();
-    $announcement = byomAnnouncement($artisan, 'call_spoken_1');
-    $announcement->update(['status' => 'spoken', 'spoken_at' => now()]);
-
-    $response = voicebipSignedPost([
-        'event' => 'turn',
-        'agent_id' => 'agt_test_123',
-        'call_id' => 'call_spoken_1',
+        'call_id' => 'call_turn_2',
         'from_number' => '+2348147177291',
         'to_number' => '+2341000001111',
         'transcription' => 'yes?',

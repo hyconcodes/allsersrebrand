@@ -66,64 +66,6 @@ class VoicebipClient
     }
 
     /**
-     * Replace the agent's greeting (PATCH /v1/agents/{id}).
-     *
-     * Used to bake the dynamic notice into the greeting right before a
-     * dial, so the callee hears the announcement the moment they answer.
-     * Returns false on any failure — never throws.
-     */
-    public static function setGreeting(string $text): bool
-    {
-        try {
-            $response = Http::withToken(config('services.voicebip.api_key'))
-                ->acceptJson()
-                ->timeout(8)
-                ->connectTimeout(3)
-                ->patch(rtrim(config('services.voicebip.endpoint'), '/').'/agents/'.config('services.voicebip.agent_id'), [
-                    'greeting_text' => $text,
-                ]);
-
-            if ($response->failed()) {
-                Log::warning('Voicebip greeting update failed.', [
-                    'status' => $response->status(),
-                    'body' => \Illuminate\Support\Str::limit($response->body(), 300),
-                ]);
-
-                return false;
-            }
-
-            return true;
-        } catch (\Throwable $e) {
-            Log::error('Voicebip greeting update errored.', ['exception' => $e->getMessage()]);
-
-            return false;
-        }
-    }
-
-    /**
-     * Fetch a call's current state (GET /v1/calls/{id}), or null on error.
-     *
-     * The API is intermittently slow under load (observed 8s+ transfers),
-     * so the timeout is generous; callers poll and tolerate nulls.
-     *
-     * @return array<string, mixed>|null
-     */
-    public static function getCall(string $callId): ?array
-    {
-        try {
-            $response = Http::withToken(config('services.voicebip.api_key'))
-                ->acceptJson()
-                ->timeout(12)
-                ->connectTimeout(3)
-                ->get(rtrim(config('services.voicebip.endpoint'), '/').'/calls/'.$callId);
-
-            return $response->successful() ? ($response->json() ?: null) : null;
-        } catch (\Throwable) {
-            return null;
-        }
-    }
-
-    /**
      * End an active call — official route is DELETE /v1/calls/{call_id}
      * (docs: "End a call"; a POST .../end does not exist and 404s).
      *
