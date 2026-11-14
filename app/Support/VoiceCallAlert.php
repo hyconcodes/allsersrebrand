@@ -16,7 +16,7 @@ class VoiceCallAlert
      * call. Configured once on the agent (greeting_text) — the code never
      * swaps it, so concurrent calls can never cross-deliver.
      */
-    public const NOTICE = 'This is an automated notice from Allsers, someone has just requested your services on Allsers. Please Log in to Allsers now to view the request and accept the job. Thank you.';
+    public const NOTICE = 'This is an automated notice from Allsers.com, someone has just requested your services on Allsers.com. Please Log in to Allsers.com now to view the request and accept the job. Thank you.';
 
     /**
      * Place a one-way voice notice call to the artisan when someone pings
@@ -143,13 +143,13 @@ class VoiceCallAlert
      */
     protected static function superviseCall(string $callId): void
     {
-        @set_time_limit(120);
-        ignore_user_abort(true);
-
         $started = microtime(true);
         $ended = false;
 
         try {
+            @set_time_limit(120);
+            ignore_user_abort(true);
+
             $client = new \GuzzleHttp\Client([
                 'timeout' => 10,
                 'connect_timeout' => 5,

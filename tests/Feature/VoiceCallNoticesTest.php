@@ -442,6 +442,93 @@ test('byom turn after the greeting closes politely when the hang-up failed', fun
         ->and($response->json('end_call'))->toBeTrue();
 });
 
+test('byom turn closes from the greeting timestamp even when the supervisor never flagged it', function () {
+    voicebipTestSetup();
+
+    // Greeting started 30s ago — the notice (≈14s) has definitely finished.
+    $response = voicebipSignedPost([
+        'event' => 'turn',
+        'agent_id' => 'agt_test_123',
+        'call_id' => 'call_turn_stale',
+        'from_number' => '+2348147177291',
+        'to_number' => '+2341000001111',
+        'transcription' => 'hello?',
+        'messages' => [
+            [
+                'role' => 'agent',
+                'text' => VoiceCallAlert::NOTICE,
+                'timestamp' => now()->subSeconds(30)->toISOString(),
+            ],
+            ['role' => 'caller', 'text' => 'hello?', 'timestamp' => now()->toISOString()],
+        ],
+    ]);
+
+    $response->assertOk();
+    expect($response->json('text'))->toBe('Thank you. Goodbye.')
+        ->and($response->json('end_call'))->toBeTrue();
+});
+
+test('byom turn stays silent while the greeting is still being spoken', function () {
+    voicebipTestSetup();
+
+    // Greeting started 5s ago — still playing; do not cut it.
+    $response = voicebipSignedPost([
+        'event' => 'turn',
+        'agent_id' => 'agt_test_123',
+        'call_id' => 'call_turn_early',
+        'from_number' => '+2348147177291',
+        'to_number' => '+2341000001111',
+        'transcription' => 'hello?',
+        'messages' => [
+            [
+                'role' => 'agent',
+                'text' => VoiceCallAlert::NOTICE,
+                // Voicebip-style nanosecond precision.
+                'timestamp' => now()->subSeconds(5)->format('Y-m-d\TH:i:s.uuuuuuuuu\Z'),
+            ],
+        ],
+    ]);
+
+    $response->assertOk()->assertExactJson(['text' => '', 'end_call' => false]);
+});
+
+test('idle silence hangs up our notice calls from the webhook', function () {
+    voicebipTestSetup();
+    Http::fake(['*' => Http::response(['status' => 'completed'], 200)]);
+
+    $artisan = voicebipArtisan();
+    VoiceAnnouncement::create([
+        'user_id' => $artisan->id,
+        'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
+        'to_number' => '+2348147177291',
+        'message' => VoiceCallAlert::NOTICE,
+        'status' => 'spoken',
+        'spoken_at' => now(),
+        'call_id' => 'call_idle_notice',
+        'expires_at' => now()->addMinutes(30),
+    ]);
+
+    voicebipSignedPost([
+        'event_type' => 'call.idle_silence',
+        'payload' => ['call_id' => 'call_idle_notice', 'from_number' => '+2348147177291'],
+    ])->assertOk()->assertExactJson(['received' => true]);
+
+    Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+        && $request->url() === 'https://api.voicebip.com/v1/calls/call_idle_notice');
+});
+
+test('idle silence on calls that are not ours does nothing', function () {
+    voicebipTestSetup();
+    Http::fake();
+
+    voicebipSignedPost([
+        'event_type' => 'call.idle_silence',
+        'payload' => ['call_id' => 'call_someone_elses', 'from_number' => '+2348000000009'],
+    ])->assertOk()->assertExactJson(['received' => true]);
+
+    Http::assertNothingSent();
+});
+
 test('byom messaging payloads are acknowledged with an empty object', function () {
     voicebipTestSetup();
 
