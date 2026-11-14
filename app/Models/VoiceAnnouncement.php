@@ -27,6 +27,11 @@ class VoiceAnnouncement extends Model
         'call_id',
         'spoken_at',
         'expires_at',
+        'attempt',
+        'next_attempt_at',
+        'answered_at',
+        'pinger_notified',
+        'pinger_notified_at',
     ];
 
     /**
@@ -39,6 +44,10 @@ class VoiceAnnouncement extends Model
         return [
             'spoken_at' => 'datetime',
             'expires_at' => 'datetime',
+            'next_attempt_at' => 'datetime',
+            'answered_at' => 'datetime',
+            'pinger_notified_at' => 'datetime',
+            'attempt' => 'integer',
         ];
     }
 

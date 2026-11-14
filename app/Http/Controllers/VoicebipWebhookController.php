@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\VoiceAnnouncement;
 use App\Services\VoicebipClient;
+use App\Support\VoiceCallAlert;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -21,9 +22,11 @@ class VoicebipWebhookController extends Controller
      *    never speaks or hangs up from caller speech — hang-up comes only
      *    from the supervisor and the idle-silence hook.
      *  - {"event_type": ...}          -> lifecycle events; call.completed
-     *    settles the audit row (never-answered -> failed) and
-     *    call.idle_silence hangs up notice calls (webhook-side backup
-     *    for when the in-request supervisor dies).
+     *    (plus no_answer/busy/failed if delivered) settles the audit row
+     *    and drives the ping availability chain: 6s+ connected = answered
+     *    (pinger told "available"), else missed -> +3min callback, 3rd
+     *    miss -> pinger told "unavailable"; call.idle_silence hangs up
+     *    notice calls (webhook-side backup for the in-request supervisor).
      *
      * SMS/WhatsApp BYOM payloads are acknowledged with {}. Every other
      * event is acknowledged with {"received": true}, and no path 500s.
@@ -72,6 +75,12 @@ class VoicebipWebhookController extends Controller
         try {
             if ($eventType === 'call.completed') {
                 $this->handleCallCompleted($event);
+            }
+
+            if (in_array($eventType, ['call.no_answer', 'call.busy', 'call.failed'], true)) {
+                // Terminal no-pickup shapes (payload may carry
+                // duration_seconds when the call did connect briefly).
+                $this->handleCallUnanswered($event);
             }
 
             if ($eventType === 'call.idle_silence') {
@@ -170,8 +179,11 @@ class VoicebipWebhookController extends Controller
     /**
      * The call ended. Announcements are marked spoken at dial (the static
      * greeting guarantees delivery), so settle both directions: a connected
-     * duration of 6s+ means the notice had time to play; shorter means the
-     * call was never really answered — downgrade to failed for auditing.
+     * duration of 6s+ means the notice had time to play — also proof of
+     * pickup, so markAnswered() tells the pinger "available" (no-op if the
+     * WS supervisor already claimed it live); shorter means the call was
+     * never answered — downgrade to failed and recordMissed() advances the
+     * callback chain (3rd miss -> pinger told "unavailable").
      */
     private function handleCallCompleted(array $event): void
     {
@@ -196,5 +208,48 @@ class VoicebipWebhookController extends Controller
             'status' => $spoken ? VoiceAnnouncement::STATUS_SPOKEN : VoiceAnnouncement::STATUS_FAILED,
             'spoken_at' => $spoken ? ($announcement->spoken_at ?? now()) : null,
         ]);
+
+        if ($spoken) {
+            VoiceCallAlert::markAnswered($announcement);
+        } else {
+            VoiceCallAlert::recordMissed($announcement);
+        }
+    }
+
+    /**
+     * A terminal no-pickup event (no_answer / busy / failed). Settles the
+     * audit row and advances the callback chain exactly like a completed
+     * call with no connected time; a payload showing 6s+ connected time
+     * counts as answered instead.
+     */
+    private function handleCallUnanswered(array $event): void
+    {
+        $callId = $event['payload']['call_id'] ?? ($event['call_id'] ?? null);
+
+        if (blank($callId)) {
+            return;
+        }
+
+        $announcement = VoiceAnnouncement::where('call_id', $callId)
+            ->whereIn('status', [VoiceAnnouncement::STATUS_PENDING, VoiceAnnouncement::STATUS_SPOKEN])
+            ->first();
+
+        if (! $announcement) {
+            return;
+        }
+
+        $duration = (int) ($event['payload']['duration_seconds'] ?? 0);
+        $answered = $duration >= 6;
+
+        $announcement->update([
+            'status' => $answered ? VoiceAnnouncement::STATUS_SPOKEN : VoiceAnnouncement::STATUS_FAILED,
+            'spoken_at' => $answered ? ($announcement->spoken_at ?? now()) : null,
+        ]);
+
+        if ($answered) {
+            VoiceCallAlert::markAnswered($announcement);
+        } else {
+            VoiceCallAlert::recordMissed($announcement);
+        }
     }
 }

@@ -4,11 +4,14 @@ use App\Mail\VoiceNoticeConsentMail;
 use App\Models\Engagement;
 use App\Models\User;
 use App\Models\VoiceAnnouncement;
+use App\Notifications\PingAvailability;
 use App\Services\VoicebipClient;
 use App\Support\VoiceCallAlert;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Livewire\Volt\Volt;
+use NotificationChannels\WebPush\WebPushChannel;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -55,6 +58,25 @@ function voicebipEngagement(User $client, User $artisan): Engagement
         'status' => 'pending',
         'title' => 'Fix my leaky kitchen sink faucet',
     ]);
+}
+
+/**
+ * A dialed notice row mid-chain: attempt N placed, awaiting an outcome
+ * (answered / missed / due callback). Overrides inject chain states.
+ */
+function voicebipChainAnnouncement(User $artisan, array $overrides = []): VoiceAnnouncement
+{
+    return VoiceAnnouncement::create(array_merge([
+        'user_id' => $artisan->id,
+        'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
+        'to_number' => '+2348012345678',
+        'message' => VoiceCallAlert::NOTICE,
+        'status' => VoiceAnnouncement::STATUS_SPOKEN,
+        'spoken_at' => now(),
+        'call_id' => 'call_chain_1',
+        'attempt' => 1,
+        'expires_at' => now()->addMinutes(30),
+    ], $overrides));
 }
 
 afterEach(function () {
@@ -378,12 +400,13 @@ test('webhook rejects bad signatures and replayed timestamps', function () {
 
 test('call.completed fails an announcement that never got spoken', function () {
     voicebipTestSetup();
+    Notification::fake();
 
     $artisan = voicebipArtisan();
     $announcement = VoiceAnnouncement::create([
         'user_id' => $artisan->id,
         'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
-        'to_number' => '+2348012345678',
+        'to_number' => '+2348147177291',
         'message' => 'Notice text.',
         'status' => 'pending',
         'call_id' => 'call_never_spoke',
@@ -392,21 +415,23 @@ test('call.completed fails an announcement that never got spoken', function () {
 
     voicebipSignedPost([
         'event_type' => 'call.completed',
-        'from' => '+2348012345678',
+        'from' => '+2348147177291',
         'payload' => ['call_id' => 'call_never_spoke', 'status' => 'completed', 'duration_seconds' => 2],
     ])->assertOk();
 
     expect($announcement->refresh()->status)->toBe('failed');
+    Notification::assertNothingSent();
 });
 
 test('call.completed settles a pending announcement as spoken when the duration shows it played', function () {
     voicebipTestSetup();
+    Notification::fake();
 
     $artisan = voicebipArtisan();
     $announcement = VoiceAnnouncement::create([
         'user_id' => $artisan->id,
         'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
-        'to_number' => '+2348012345678',
+        'to_number' => '+2348147177291',
         'message' => 'Notice text.',
         'status' => 'pending',
         'call_id' => 'call_did_speak',
@@ -415,23 +440,31 @@ test('call.completed settles a pending announcement as spoken when the duration 
 
     voicebipSignedPost([
         'event_type' => 'call.completed',
-        'from' => '+2348012345678',
+        'from' => '+2348147177291',
         'payload' => ['call_id' => 'call_did_speak', 'status' => 'completed', 'duration_seconds' => 14],
     ])->assertOk();
 
     $announcement->refresh();
     expect($announcement->status)->toBe('spoken')
-        ->and($announcement->spoken_at)->not->toBeNull();
+        ->and($announcement->spoken_at)->not->toBeNull()
+        ->and($announcement->answered_at)->not->toBeNull();
+
+    Notification::assertSentTo(
+        $announcement->engagement->user,
+        PingAvailability::class,
+        fn (PingAvailability $notification) => $notification->mode === PingAvailability::AVAILABLE,
+    );
 });
 
 test('call.completed downgrades a dial-marked announcement when the call was never answered', function () {
     voicebipTestSetup();
+    Notification::fake();
 
     $artisan = voicebipArtisan();
     $announcement = VoiceAnnouncement::create([
         'user_id' => $artisan->id,
         'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
-        'to_number' => '+2348012345678',
+        'to_number' => '+2348147177291',
         'message' => 'Notice text.',
         'status' => 'spoken',
         'spoken_at' => now(),
@@ -441,13 +474,16 @@ test('call.completed downgrades a dial-marked announcement when the call was nev
 
     voicebipSignedPost([
         'event_type' => 'call.completed',
-        'from' => '+2348012345678',
+        'from' => '+2348147177291',
         'payload' => ['call_id' => 'call_never_answered', 'status' => 'completed', 'duration_seconds' => 2],
     ])->assertOk();
 
     $announcement->refresh();
     expect($announcement->status)->toBe('failed')
-        ->and($announcement->spoken_at)->toBeNull();
+        ->and($announcement->spoken_at)->toBeNull()
+        ->and($announcement->next_attempt_at)->not->toBeNull();
+
+    Notification::assertNothingSent();
 });
 
 test('arbitrary events are acknowledged without side effects', function () {
@@ -633,6 +669,284 @@ test('idle silence on calls that are not ours does nothing', function () {
     ])->assertOk()->assertExactJson(['received' => true]);
 
     Http::assertNothingSent();
+});
+
+/*
+|--------------------------------------------------------------------------
+| Ping availability chain (answer detection / 3-min callbacks / outcomes)
+|--------------------------------------------------------------------------
+*/
+
+test('a connected call tells the pinger the artisan is available and cancels callbacks', function () {
+    voicebipTestSetup();
+    Notification::fake();
+
+    $artisan = voicebipArtisan();
+    $announcement = voicebipChainAnnouncement($artisan, ['next_attempt_at' => now()->addMinutes(2)]);
+
+    voicebipSignedPost([
+        'event_type' => 'call.completed',
+        'payload' => ['call_id' => 'call_chain_1', 'status' => 'completed', 'duration_seconds' => 14],
+    ])->assertOk();
+
+    $announcement->refresh();
+    expect($announcement->answered_at)->not->toBeNull()
+        ->and($announcement->next_attempt_at)->toBeNull()
+        ->and($announcement->status)->toBe('spoken');
+
+    Notification::assertSentTo(
+        $announcement->engagement->user,
+        PingAvailability::class,
+        fn (PingAvailability $notification) => $notification->mode === PingAvailability::AVAILABLE,
+    );
+});
+
+test('the available notification fires exactly once under duplicate webhook deliveries', function () {
+    voicebipTestSetup();
+    Notification::fake();
+
+    $artisan = voicebipArtisan();
+    $announcement = voicebipChainAnnouncement($artisan);
+
+    $delivery = [
+        'event_type' => 'call.completed',
+        'payload' => ['call_id' => 'call_chain_1', 'status' => 'completed', 'duration_seconds' => 14],
+    ];
+
+    voicebipSignedPost($delivery)->assertOk();
+    voicebipSignedPost($delivery)->assertOk();
+
+    Notification::assertSentToTimes($announcement->engagement->user, PingAvailability::class, 1);
+});
+
+test('a missed call schedules the next callback in 3 minutes without notifying yet', function () {
+    voicebipTestSetup();
+    Notification::fake();
+
+    $artisan = voicebipArtisan();
+    $announcement = voicebipChainAnnouncement($artisan);
+
+    voicebipSignedPost([
+        'event_type' => 'call.completed',
+        'payload' => ['call_id' => 'call_chain_1', 'status' => 'completed', 'duration_seconds' => 2],
+    ])->assertOk();
+
+    $announcement->refresh();
+    expect($announcement->answered_at)->toBeNull()
+        ->and($announcement->pinger_notified)->toBeNull()
+        ->and($announcement->status)->toBe('failed')
+        // Wall-clock comparison: test time is frozen in Africa/Lagos while
+        // the app timezone is UTC, so round-tripped datetimes must be
+        // compared as formatted local strings, not as instants.
+        ->and($announcement->next_attempt_at->format('Y-m-d H:i:s'))->toBe(now()->addMinutes(3)->format('Y-m-d H:i:s'));
+
+    Notification::assertNothingSent();
+});
+
+test('a no_answer terminal event also advances the callback chain', function () {
+    voicebipTestSetup();
+    Notification::fake();
+
+    $artisan = voicebipArtisan();
+    $announcement = voicebipChainAnnouncement($artisan);
+
+    voicebipSignedPost([
+        'event_type' => 'call.no_answer',
+        'payload' => ['call_id' => 'call_chain_1', 'status' => 'no_answer'],
+    ])->assertOk();
+
+    $announcement->refresh();
+    expect($announcement->status)->toBe('failed')
+        ->and($announcement->next_attempt_at)->not->toBeNull();
+
+    Notification::assertNothingSent();
+});
+
+test('the third missed call tells the pinger the artisan is unavailable exactly once', function () {
+    voicebipTestSetup();
+    Notification::fake();
+
+    $artisan = voicebipArtisan();
+    $announcement = voicebipChainAnnouncement($artisan, ['attempt' => 3]);
+
+    $delivery = [
+        'event_type' => 'call.completed',
+        'payload' => ['call_id' => 'call_chain_1', 'status' => 'completed', 'duration_seconds' => 1],
+    ];
+
+    voicebipSignedPost($delivery)->assertOk();
+    voicebipSignedPost($delivery)->assertOk();
+
+    $announcement->refresh();
+    expect($announcement->pinger_notified)->toBe(PingAvailability::UNAVAILABLE)
+        ->and($announcement->pinger_notified_at)->not->toBeNull()
+        ->and($announcement->next_attempt_at)->toBeNull()
+        ->and($announcement->status)->toBe('failed');
+
+    Notification::assertSentToTimes($announcement->engagement->user, PingAvailability::class, 1);
+    Notification::assertSentTo(
+        $announcement->engagement->user,
+        PingAvailability::class,
+        fn (PingAvailability $notification) => $notification->mode === PingAvailability::UNAVAILABLE,
+    );
+});
+
+test('the scheduler dials a due callback and bumps the attempt', function () {
+    voicebipTestSetup();
+    Http::fake(['*' => Http::response(['call_id' => 'call_cb_2', 'status' => 'initiated'], 201)]);
+    Notification::fake();
+
+    $due = voicebipChainAnnouncement(voicebipArtisan(), [
+        'call_id' => 'call_cb_1',
+        'next_attempt_at' => now()->subMinute(),
+    ]);
+
+    $this->artisan('voice:dispatch-retries')->assertSuccessful();
+
+    Http::assertSentCount(2); // greeting PATCH + callback dial
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && $request->url() === 'https://api.voicebip.com/v1/calls');
+
+    $due->refresh();
+    expect($due->attempt)->toBe(2)
+        ->and($due->call_id)->toBe('call_cb_2')
+        ->and($due->next_attempt_at)->toBeNull()
+        ->and($due->status)->toBe('spoken');
+});
+
+test('the scheduler skips answered and not-yet-due chains', function () {
+    voicebipTestSetup();
+    Http::fake();
+    Notification::fake();
+
+    $artisan = voicebipArtisan();
+    $answered = voicebipChainAnnouncement($artisan, [
+        'answered_at' => now(),
+        'pinger_notified' => PingAvailability::AVAILABLE,
+        'next_attempt_at' => now()->subMinute(),
+    ]);
+    $waiting = voicebipChainAnnouncement($artisan, ['next_attempt_at' => now()->addMinutes(2)]);
+
+    $this->artisan('voice:dispatch-retries')->assertSuccessful();
+
+    Http::assertNothingSent();
+    expect($answered->refresh()->attempt)->toBe(1)
+        ->and($waiting->refresh()->attempt)->toBe(1);
+});
+
+test('a live callback chain debounces a new ping to the same artisan', function () {
+    voicebipTestSetup();
+    Http::fake(['*' => Http::response(['call_id' => 'call_new_ping', 'status' => 'initiated'], 201)]);
+    Notification::fake();
+
+    $client = User::factory()->create();
+    $artisan = voicebipArtisan();
+
+    voicebipChainAnnouncement($artisan, [
+        'status' => VoiceAnnouncement::STATUS_FAILED,
+        'next_attempt_at' => now()->addMinutes(2),
+    ]);
+
+    VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
+
+    Http::assertNothingSent();
+    expect(VoiceAnnouncement::count())->toBe(1);
+});
+
+test('a callback that would fall outside the call window ends the chain with unavailable', function () {
+    voicebipTestSetup('2026-01-05 20:30:00');
+    Http::fake();
+    Notification::fake();
+
+    $due = voicebipChainAnnouncement(voicebipArtisan(), ['next_attempt_at' => now()->subMinute()]);
+
+    $this->artisan('voice:dispatch-retries')->assertSuccessful();
+
+    Http::assertNothingSent();
+
+    $due->refresh();
+    expect($due->pinger_notified)->toBe(PingAvailability::UNAVAILABLE)
+        ->and($due->next_attempt_at)->toBeNull();
+
+    Notification::assertSentTo(
+        $due->engagement->user,
+        PingAvailability::class,
+        fn (PingAvailability $notification) => $notification->mode === PingAvailability::UNAVAILABLE,
+    );
+});
+
+test('consent withdrawn mid-chain ends the callback without dialing', function () {
+    voicebipTestSetup();
+    Http::fake();
+    Notification::fake();
+
+    $due = voicebipChainAnnouncement(voicebipArtisan(['voice_call_consent' => 'declined']), [
+        'next_attempt_at' => now()->subMinute(),
+    ]);
+
+    $this->artisan('voice:dispatch-retries')->assertSuccessful();
+
+    Http::assertNothingSent();
+    expect($due->refresh()->pinger_notified)->toBe(PingAvailability::UNAVAILABLE);
+});
+
+test('expired unresolved chains notify unavailable, but only recent dialed ones', function () {
+    voicebipTestSetup();
+    Http::fake();
+    Notification::fake();
+
+    $freshPinger = User::factory()->create();
+    $oldPinger = User::factory()->create();
+    $undialedPinger = User::factory()->create();
+
+    $expired = voicebipChainAnnouncement(voicebipArtisan(), [
+        'engagement_id' => voicebipEngagement($freshPinger, voicebipArtisan())->id,
+        'expires_at' => now()->subMinutes(10),
+    ]);
+    $old = voicebipChainAnnouncement(voicebipArtisan(), [
+        'engagement_id' => voicebipEngagement($oldPinger, voicebipArtisan())->id,
+        'expires_at' => now()->subDays(3),
+    ]);
+    $undialed = voicebipChainAnnouncement(voicebipArtisan(), [
+        'engagement_id' => voicebipEngagement($undialedPinger, voicebipArtisan())->id,
+        'expires_at' => now()->subMinutes(5),
+        'call_id' => null,
+        'attempt' => 0,
+        'status' => VoiceAnnouncement::STATUS_FAILED,
+    ]);
+
+    $this->artisan('voice:dispatch-retries')->assertSuccessful();
+
+    Http::assertNothingSent();
+
+    expect($expired->refresh()->pinger_notified)->toBe(PingAvailability::UNAVAILABLE)
+        ->and($old->refresh()->pinger_notified)->toBeNull()
+        ->and($undialed->refresh()->pinger_notified)->toBeNull();
+
+    Notification::assertSentToTimes($expired->engagement->user, PingAvailability::class, 1);
+    Notification::assertNotSentTo($old->engagement->user, PingAvailability::class);
+    Notification::assertNotSentTo($undialed->engagement->user, PingAvailability::class);
+});
+
+test('the ping availability notification reaches in-app, push and email with the right copy', function () {
+    voicebipTestSetup();
+
+    $artisan = voicebipArtisan(['name' => 'Chidi the Plumber']);
+    $pinger = User::factory()->create();
+    $engagement = voicebipEngagement($pinger, $artisan);
+
+    $available = new PingAvailability($artisan, $engagement, PingAvailability::AVAILABLE);
+
+    expect($available->via($pinger))->toBe(['database', 'mail', WebPushChannel::class])
+        ->and($available->toMail($pinger)->subject)->toContain('Chidi the Plumber is available')
+        ->and($available->toArray($pinger)['mode'])->toBe('available')
+        ->and($available->toArray($pinger)['url'])->toContain('/chat')
+        ->and($available->toWebPush($pinger, $available))->toBeInstanceOf(\NotificationChannels\WebPush\WebPushMessage::class);
+
+    $unavailable = new PingAvailability($artisan, $engagement, PingAvailability::UNAVAILABLE);
+
+    expect($unavailable->toMail($pinger)->subject)->toContain('did not answer')
+        ->and($unavailable->toArray($pinger)['message'])->toContain('3 call attempts');
 });
 
 test('byom messaging payloads are acknowledged with an empty object', function () {

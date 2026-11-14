@@ -10,3 +10,7 @@ Artisan::command('inspire', function () {
 
 // Schedule sitemap generation daily
 Schedule::command('sitemap:generate')->daily();
+
+// Ping availability chain: 3-minute voice callbacks for unanswered pings
+// (+ the expiry sweep that tells the pinger the artisan is unavailable).
+Schedule::command('voice:dispatch-retries')->everyMinute()->withoutOverlapping();
