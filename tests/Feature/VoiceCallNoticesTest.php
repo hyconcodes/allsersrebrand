@@ -198,6 +198,38 @@ test('the dynamic notice is patched into the greeting before dialing', function 
         ->and($dial->url())->toContain('/calls');
 });
 
+test('the greeting patch also applies the 2s idle timeout and the silent idle prompt', function () {
+    voicebipTestSetup();
+    Http::fake(['*' => Http::response(['call_id' => 'call_notice_cfg', 'status' => 'initiated'], 201)]);
+
+    $client = User::factory()->create();
+    $artisan = voicebipArtisan();
+    VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
+
+    $recorded = Http::recorded();
+    $greeting = $recorded[0][0];
+
+    expect($greeting->method())->toBe('PATCH')
+        ->and($greeting['idle_timeout_seconds'])->toBe(2)
+        ->and($greeting['idle_prompt'])->toBe('.');
+});
+
+test('dials carry a max_duration hard cap so the default 20s cap cannot clip a long notice', function () {
+    voicebipTestSetup();
+    Http::fake(['*' => Http::response(['call_id' => 'call_capped', 'status' => 'initiated'], 201)]);
+
+    $client = User::factory()->create();
+    $artisan = voicebipArtisan();
+    VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
+
+    $recorded = Http::recorded();
+    $dial = $recorded[1][0];
+
+    expect($dial->method())->toBe('POST')
+        ->and($dial->url())->toContain('/calls')
+        ->and($dial['max_duration'])->toBe(60);
+});
+
 test('a failed greeting patch never dials', function () {
     voicebipTestSetup();
     Http::fake([
@@ -540,7 +572,7 @@ test('byom turn stays silent while the greeting is still being spoken', function
     $response->assertOk()->assertExactJson(['text' => '', 'end_call' => false]);
 });
 
-test('idle silence hangs up our notice calls from the webhook', function () {
+test('idle silence hangs up our notice calls from the webhook once the greeting played', function () {
     voicebipTestSetup();
     Http::fake(['*' => Http::response(['status' => 'completed'], 200)]);
 
@@ -556,6 +588,8 @@ test('idle silence hangs up our notice calls from the webhook', function () {
         'expires_at' => now()->addMinutes(30),
     ]);
 
+    \Illuminate\Support\Facades\Cache::put('voicebip:greeted:call_idle_notice', true, 600);
+
     voicebipSignedPost([
         'event_type' => 'call.idle_silence',
         'payload' => ['call_id' => 'call_idle_notice', 'from_number' => '+2348147177291'],
@@ -563,6 +597,30 @@ test('idle silence hangs up our notice calls from the webhook', function () {
 
     Http::assertSent(fn ($request) => $request->method() === 'DELETE'
         && $request->url() === 'https://api.voicebip.com/v1/calls/call_idle_notice');
+});
+
+test('idle silence before the greeting frame never kills the notice', function () {
+    voicebipTestSetup();
+    Http::fake();
+
+    $artisan = voicebipArtisan();
+    VoiceAnnouncement::create([
+        'user_id' => $artisan->id,
+        'engagement_id' => voicebipEngagement(User::factory()->create(), $artisan)->id,
+        'to_number' => '+2348147177291',
+        'message' => VoiceCallAlert::NOTICE,
+        'status' => 'spoken',
+        'spoken_at' => now(),
+        'call_id' => 'call_pre_greeting',
+        'expires_at' => now()->addMinutes(30),
+    ]);
+
+    voicebipSignedPost([
+        'event_type' => 'call.idle_silence',
+        'payload' => ['call_id' => 'call_pre_greeting', 'from_number' => '+2348147177291'],
+    ])->assertOk()->assertExactJson(['received' => true]);
+
+    Http::assertNothingSent();
 });
 
 test('idle silence on calls that are not ours does nothing', function () {

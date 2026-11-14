@@ -6,6 +6,7 @@ use App\Models\Engagement;
 use App\Models\User;
 use App\Models\VoiceAnnouncement;
 use App\Services\VoicebipClient;
+use App\Services\VoicebipEventStream;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -26,11 +27,13 @@ class VoiceCallAlert
      * them for services. The per-call dynamic message (pinger + task) is
      * PATCHed into the agent's greeting right before dialing — Voicebip
      * reads greeting_text when the call CONNECTS, so the callee hears the
-     * dynamic notice as the greeting itself. A dial lock serializes
-     * concurrent notices so one ping's artisan can never hear another's
-     * name/task. A background supervisor watches the SSE transcript
-     * stream, hangs up when the greeting finishes, restores the default
-     * greeting and releases the lock — no turns, no idle prompts.
+     * dynamic notice as the greeting itself (that PATCH also applies the
+     * 2s idle timeout + silent "." idle prompt, and the dial carries a
+     * 60s max_duration hard cap). A dial lock serializes concurrent
+     * notices so one ping's artisan can never hear another's name/task. A
+     * background supervisor watches the live WebSocket event stream and
+     * hangs up when call.idle_silence proves the notice finished — no
+     * turns, no audible idle prompts, no caller dependence.
      *
      * Fully isolated like PingAlert::send(): every guard failure or API
      * error is swallowed and logged so the ping flow is never affected.
@@ -148,12 +151,13 @@ class VoiceCallAlert
                 'spoken_at' => now(),
             ]);
 
-            // Supervisor: watch the SSE transcript for the agent frame (the
-            // greeting TTS finishing), hang up, restore the default
-            // greeting, release the lock. Registered on app()->terminating()
-            // so it runs after the response is sent and the ping never
-            // waits. (There is no dispatch_after_response() helper in this
-            // Laravel version — using it throws a fatal Error.)
+            // Supervisor: watch the live WS event stream, hang up when
+            // call.idle_silence proves the notice finished, restore the
+            // default greeting, release the lock. Registered on
+            // app()->terminating() so it runs after the response is sent
+            // and the ping never waits. (There is no
+            // dispatch_after_response() helper in this Laravel version —
+            // using it throws a fatal Error.)
             if (app()->environment('testing')) {
                 $lock->release();
             } else {
@@ -179,17 +183,21 @@ class VoiceCallAlert
     }
 
     /**
-     * Background supervisor for one notice call: open the SSE transcript
-     * stream, wait for the agent frame (the greeting just finished), then
-     * hang up — so the call drops ~1s after "Thank you." instead of the
-     * callee pressing end. Fallbacks: deadline hang-up for unanswered
-     * calls, timed hang-up when the stream is unavailable. Always restores
-     * the default greeting and releases the dial lock. Never throws.
+     * Background supervisor for one notice call: open the live WebSocket
+     * event stream (GET /v1/calls/{id}/stream — the SSE transcript stream
+     * flushes nothing until call end, so it cannot drive a live hang-up),
+     * then end the call the moment call.idle_silence proves the callee
+     * has been silent since the notice (+2s, before any idle-prompt cycle
+     * matters). Also marks the call "greeted" in cache so the webhook's
+     * idle backup may hang up if this supervisor dies mid-call.
      *
-     * Why SSE: GET /v1/calls/{id} status freezes at "initiated" during
-     * live calls (never rings/in_progress), call.initiated fires at dial
-     * (not answer), and there is no answer event — the agent transcript
-     * frame is the only reliable "greeting finished" signal.
+     * Layers, outermost first: WS idle -> verified DELETE (teardown ~5s,
+     * callee hears nothing because the prompt text is "."), webhook idle
+     * backup, never-cut safety deadline (greeting frame + len/10 + 8s —
+     * bounds a caller who keeps talking), max_duration 60s hard cap.
+     * Unanswered calls settle via the call.completed frame (no DELETE
+     * needed). Always restores the default greeting and releases the
+     * dial lock. Never throws.
      */
     protected static function superviseCall(Lock $lock, string $callId, string $message): void
     {
@@ -200,56 +208,44 @@ class VoiceCallAlert
             @set_time_limit(120);
             ignore_user_abort(true);
 
-            $client = new \GuzzleHttp\Client([
-                // NO total transfer timeout: `timeout` is a whole-request
-                // cap and the SSE stream legitimately lives ~25s until the
-                // greeting frame — a 10s cap killed it on prod (cURL 28).
-                'timeout' => 0,
-                'connect_timeout' => 5,
-            ]);
+            $stream = VoicebipEventStream::open($callId);
 
-            $response = $client->request('GET', rtrim(config('services.voicebip.endpoint'), '/').'/calls/'.$callId.'/transcript/stream', [
-                'query' => ['token' => config('services.voicebip.api_key')],
-                'stream' => true,
-                // The stream is silent for the whole ring + greeting TTS
-                // (~35s+ worst case) before the first frame — a stall
-                // limit below that would abort mid-ring.
-                'read_timeout' => 60,
-            ]);
+            if ($stream === null) {
+                // No live frames: timed hang-up from dial (ring allowance
+                // + TTS schedule). The webhook idle hook may beat us to it
+                // — endCall is idempotent for a call already dead.
+                $wait = (20 + (int) ceil(strlen($message) / 14) + 3) - (microtime(true) - $started);
 
-            $stream = $response->getBody();
-            $deadline = microtime(true) + 90;
-            $buffer = '';
-
-            while (! $stream->eof() && microtime(true) < $deadline) {
-                $chunk = $stream->read(1024);
-
-                if ($chunk === '' || $chunk === null) {
-                    continue;
+                if ($wait > 0) {
+                    sleep((int) ceil($wait));
                 }
 
-                $buffer .= $chunk;
+                $ended = VoicebipClient::endCall($callId);
 
-                while (($pos = strpos($buffer, "\n")) !== false) {
-                    $line = trim(substr($buffer, 0, $pos));
-                    $buffer = substr($buffer, $pos + 1);
+                Log::info('Voicebip notice hang-up result (no stream).', [
+                    'call_id' => $callId,
+                    'ended' => $ended,
+                ]);
+            } else {
+                $deadline = $started + 75;
+                $greetedAt = null;
 
-                    if (! str_starts_with($line, 'data:')) {
-                        continue;
-                    }
+                while (($event = $stream->read($deadline)) !== null) {
+                    $type = (string) ($event['event_type'] ?? '');
 
-                    $frame = json_decode(trim(substr($line, 5)), true);
+                    if ($type === 'call.agent_response' && $greetedAt === null) {
+                        // First agent frame = the greeting TTS starting.
+                        $greetedAt = microtime(true);
+                        Cache::put('voicebip:greeted:'.$callId, true, 300);
 
-                    if (! is_array($frame)) {
-                        continue;
-                    }
-
-                    if (($frame['role'] ?? null) === 'agent') {
-                        Log::info('Voicebip notice greeting finished; hanging up.', [
+                        // Never-cut safety deadline: 10 chars/sec (observed
+                        // ~15) + 8s buffer, so even an endlessly talking
+                        // callee cannot keep the call open past the notice.
+                        $deadline = min($deadline, $greetedAt + (int) ceil(strlen($message) / 10) + 8);
+                    } elseif ($type === 'call.idle_silence' && $greetedAt !== null && ! $ended) {
+                        Log::info('Voicebip notice finished; hanging up.', [
                             'call_id' => $callId,
                         ]);
-
-                        sleep(1);
 
                         $ended = VoicebipClient::endCall($callId);
 
@@ -258,37 +254,32 @@ class VoiceCallAlert
                             'ended' => $ended,
                         ]);
 
-                        break 2;
+                        // Linger briefly for the call.completed frame.
+                        $deadline = microtime(true) + 12;
+                    } elseif ($type === 'call.completed') {
+                        $ended = true;
+
+                        break;
                     }
                 }
+
+                $stream->close();
+
+                if (! $ended) {
+                    // Deadline, closed stream, or failed DELETE — best-
+                    // effort hang-up; idempotent when already dead.
+                    Log::warning('Voicebip notice supervisor ended without a hang-up frame; best-effort hang-up.', [
+                        'call_id' => $callId,
+                    ]);
+
+                    VoicebipClient::endCall($callId);
+                }
             }
-
-            if (! $ended) {
-                // Stream closed (call already over) or deadline hit (never
-                // answered / no frame) — best-effort end; idempotent when
-                // the call is already gone.
-                Log::warning('Voicebip notice supervisor ended without greeting frame; best-effort hang-up.', [
-                    'call_id' => $callId,
-                ]);
-
-                VoicebipClient::endCall($callId);
-            }
-
-            $stream->close();
         } catch (\Throwable $e) {
-            Log::error('Voicebip notice supervisor failed; timed fallback hang-up.', [
+            Log::error('Voicebip notice supervisor failed; best-effort hang-up.', [
                 'call_id' => $callId,
                 'exception' => $e->getMessage(),
             ]);
-
-            // Stream unavailable: ring allowance + TTS schedule from dial,
-            // so the call still ends shortly after the notice would have.
-            $fallbackAt = $started + 20 + (int) ceil(strlen($message) / 14) + 3;
-            $wait = $fallbackAt - microtime(true);
-
-            if ($wait > 0) {
-                sleep((int) ceil($wait));
-            }
 
             VoicebipClient::endCall($callId);
         } finally {

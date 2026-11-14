@@ -8,6 +8,22 @@ use Illuminate\Support\Facades\Log;
 class VoicebipClient
 {
     /**
+     * Seconds of callee silence (post-notice) before Voicebip emits
+     * call.idle_silence. 2s = auto-hang-up ~2s after "Thank you." via the
+     * WS supervisor / webhook backup. Proven ring-safe: idle never fires
+     * while the phone is still ringing, so unanswered calls ring normally.
+     */
+    public const IDLE_TIMEOUT_SECONDS = 2;
+
+    /**
+     * Idle-prompt text. Voicebip's built-in default ("Are you still
+     * there?") is agent speech after the notice, which is forbidden; a
+     * lone "." synthesises to silence, so the callee hears nothing while
+     * the idle event still fires. Set on every greeting PATCH.
+     */
+    public const IDLE_PROMPT = '.';
+
+    /**
      * Whether the Voicebip integration has its credentials configured.
      */
     public static function configured(): bool
@@ -19,6 +35,9 @@ class VoicebipClient
 
     /**
      * Place a one-way outbound notice call via POST /v1/calls.
+     *
+     * max_duration hard-caps connected seconds: without it Voicebip
+     * defaults to ~20s, which can clip a long notice mid-sentence.
      *
      * Returns the Voicebip call_id on success, or null on any failure —
      * never throws, so callers' user flows are never affected.
@@ -34,6 +53,7 @@ class VoicebipClient
                     'agent_id' => config('services.voicebip.agent_id'),
                     'from_number' => config('services.voicebip.from_number'),
                     'to_number' => $toE164,
+                    'max_duration' => (int) config('services.voicebip.call_max_duration', 60),
                 ]);
 
             if ($response->failed()) {
@@ -66,11 +86,15 @@ class VoicebipClient
     }
 
     /**
-     * Replace the agent's greeting (PATCH /v1/agents/{id}).
+     * Apply the notice-call agent config in one PATCH
+     * (PATCH /v1/agents/{id}): the (dynamic or default) greeting plus the
+     * 2s idle timeout and the silent idle prompt.
      *
      * Voicebip reads greeting_text when a call CONNECTS, so patching it
      * right before a dial injects per-call dynamic text into the spoken
-     * greeting. Returns false on any failure — never throws.
+     * greeting. Every dial re-applies idle fields too, so the config
+     * self-heals even if a previous restore was skipped. Returns false on
+     * any failure — never throws.
      */
     public static function setGreeting(string $text): bool
     {
@@ -81,6 +105,8 @@ class VoicebipClient
                 ->connectTimeout(3)
                 ->patch(rtrim(config('services.voicebip.endpoint'), '/').'/agents/'.config('services.voicebip.agent_id'), [
                     'greeting_text' => $text,
+                    'idle_timeout_seconds' => self::IDLE_TIMEOUT_SECONDS,
+                    'idle_prompt' => self::IDLE_PROMPT,
                 ]);
 
             if ($response->failed()) {

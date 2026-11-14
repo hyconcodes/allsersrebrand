@@ -6,6 +6,7 @@ use App\Models\VoiceAnnouncement;
 use App\Services\VoicebipClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class VoicebipWebhookController extends Controller
@@ -92,8 +93,12 @@ class VoicebipWebhookController extends Controller
     /**
      * Hang up a notice call from inside a webhook request (fast, does not
      * depend on the caller's request lifecycle). Idempotent: an already-
-     * ended call answers with a JSON 404, treated as success. Calls with
-     * no audit row (manual/inbound) are left alone.
+     * ended call answers with a JSON 404, treated as success.
+     *
+     * Guards: the call must be one of ours (audit row) AND must have been
+     * marked "greeted" by the WS supervisor's first agent frame — idle
+     * silence before the greeting TTS starts would otherwise kill the
+     * call before the notice is ever spoken.
      */
     private function endNoticeCall(mixed $callId): void
     {
@@ -102,6 +107,10 @@ class VoicebipWebhookController extends Controller
         }
 
         if (! VoiceAnnouncement::where('call_id', $callId)->exists()) {
+            return;
+        }
+
+        if (! Cache::get('voicebip:greeted:'.$callId)) {
             return;
         }
 
@@ -147,9 +156,9 @@ class VoicebipWebhookController extends Controller
      *
      * The agent NEVER speaks after the notice and never hangs up from a
      * turn — the caller talking must have zero effect. Hang-up belongs
-     * solely to the supervisor (SSE frame → DELETE) with the idle-silence
-     * webhook as backup, so nothing here depends on the caller saying
-     * anything.
+     * solely to the supervisor (WS idle_silence frame -> DELETE) with the
+     * idle-silence webhook as backup, so nothing here depends on the
+     * caller saying anything.
      *
      * @return array<string, mixed>
      */

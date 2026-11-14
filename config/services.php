@@ -70,6 +70,10 @@ return [
         'call_window_start' => (int) env('VOICEBIP_CALL_WINDOW_START', 8),
         'call_window_end' => (int) env('VOICEBIP_CALL_WINDOW_END', 20),
         'timezone' => env('VOICEBIP_CALL_TIMEZONE', 'Africa/Lagos'),
+        // Hard cap on connected call seconds (POST /calls max_duration).
+        // Without it Voicebip defaults to ~20s, which can clip long notices;
+        // 60s bounds failure modes without ever racing a normal notice.
+        'call_max_duration' => (int) env('VOICEBIP_MAX_DURATION', 60),
     ],
 
 ];
