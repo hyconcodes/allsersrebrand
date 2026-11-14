@@ -6,23 +6,31 @@ use App\Models\Engagement;
 use App\Models\User;
 use App\Models\VoiceAnnouncement;
 use App\Services\VoicebipClient;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class VoiceCallAlert
 {
     /**
-     * The static notice spoken as the agent's greeting on every notice
-     * call. Configured once on the agent (greeting_text) — the code never
-     * swaps it, so concurrent calls can never cross-deliver.
+     * Default greeting: the static generic notice. Configured on the
+     * agent, restored after every notice call (Voicebip reads it at call
+     * connect), and what inbound callers hear between notices.
      */
     public const NOTICE = 'This is an automated notice from Allsers.com, someone has just requested your services on Allsers.com. Please Log in to Allsers.com now to view the request and accept the job. Thank you.';
 
     /**
      * Place a one-way voice notice call to the artisan when someone pings
-     * them for services. The agent's static greeting IS the announcement;
-     * a background supervisor watches the SSE transcript stream and hangs
-     * up the moment the greeting finishes — no turns, no idle prompts, no
-     * conversational anything.
+     * them for services. The per-call dynamic message (pinger + task) is
+     * PATCHed into the agent's greeting right before dialing — Voicebip
+     * reads greeting_text when the call CONNECTS, so the callee hears the
+     * dynamic notice as the greeting itself. A dial lock serializes
+     * concurrent notices so one ping's artisan can never hear another's
+     * name/task. A background supervisor watches the SSE transcript
+     * stream, hangs up when the greeting finishes, restores the default
+     * greeting and releases the lock — no turns, no idle prompts.
      *
      * Fully isolated like PingAlert::send(): every guard failure or API
      * error is swallowed and logged so the ping flow is never affected.
@@ -31,6 +39,8 @@ class VoiceCallAlert
      */
     public static function send(User $pinger, User $artisan, Engagement $engagement): void
     {
+        $lock = null;
+
         try {
             if (! VoicebipClient::configured()) {
                 return;
@@ -82,25 +92,54 @@ class VoiceCallAlert
                 return;
             }
 
-            // Audit row first (closes the double-ping race), then dial.
+            $message = self::announcementText($pinger, $engagement);
+
+            // The greeting is swapped per call, so only one notice may be
+            // in flight: Voicebip reads greeting_text at answer, and the
+            // lock is held until the supervisor finishes (or the TTL kicks
+            // in if the process dies). A contended ping skips the voice
+            // call (logged) — its email notification still goes out.
+            $lock = Cache::lock('voicebip:notice-dial', 150);
+
+            try {
+                $lock->block(3);
+            } catch (LockTimeoutException) {
+                Log::info('Voicebip notice skipped (another notice dial in flight).', [
+                    'artisan_id' => $artisan->id,
+                ]);
+
+                return;
+            }
+
+            // Audit row first, then bake the dynamic message into the
+            // greeting, then dial.
             $announcement = VoiceAnnouncement::create([
                 'user_id' => $artisan->id,
                 'engagement_id' => $engagement->id,
                 'to_number' => $to,
-                'message' => self::NOTICE,
+                'message' => $message,
                 'status' => VoiceAnnouncement::STATUS_PENDING,
                 'expires_at' => now()->addMinutes(30),
             ]);
+
+            if (! VoicebipClient::setGreeting($message)) {
+                $announcement->update(['status' => VoiceAnnouncement::STATUS_FAILED]);
+                $lock->release();
+
+                return;
+            }
 
             $callId = VoicebipClient::initiateCall($to);
 
             if (! $callId) {
                 $announcement->update(['status' => VoiceAnnouncement::STATUS_FAILED]);
+                VoicebipClient::setGreeting(self::NOTICE);
+                $lock->release();
 
                 return;
             }
 
-            // The static greeting guarantees delivery at answer, so mark it
+            // The greeting guarantees delivery at answer, so mark it
             // spoken now; the call.completed webhook downgrades never-
             // answered calls (duration < 6s) back to failed.
             $announcement->update([
@@ -110,16 +149,27 @@ class VoiceCallAlert
             ]);
 
             // Supervisor: watch the SSE transcript for the agent frame (the
-            // greeting TTS finishing) and hang up. Registered on
-            // app()->terminating() so it runs after the response is sent
-            // and the ping never waits. (There is no dispatch_after_response()
-            // helper in this Laravel version — using it throws a fatal Error.)
-            if (! app()->environment('testing')) {
-                app()->terminating(function () use ($callId) {
-                    self::superviseCall($callId);
+            // greeting TTS finishing), hang up, restore the default
+            // greeting, release the lock. Registered on app()->terminating()
+            // so it runs after the response is sent and the ping never
+            // waits. (There is no dispatch_after_response() helper in this
+            // Laravel version — using it throws a fatal Error.)
+            if (app()->environment('testing')) {
+                $lock->release();
+            } else {
+                app()->terminating(function () use ($lock, $callId, $message) {
+                    self::superviseCall($lock, $callId, $message);
                 });
             }
         } catch (\Throwable $e) {
+            if ($lock instanceof Lock) {
+                try {
+                    $lock->release();
+                } catch (\Throwable) {
+                    // Lock may already be released or expired — TTL covers it.
+                }
+            }
+
             Log::error('Voicebip notice call failed.', [
                 'artisan_id' => $artisan->id,
                 'engagement_id' => $engagement->id,
@@ -133,14 +183,15 @@ class VoiceCallAlert
      * stream, wait for the agent frame (the greeting just finished), then
      * hang up — so the call drops ~1s after "Thank you." instead of the
      * callee pressing end. Fallbacks: deadline hang-up for unanswered
-     * calls, timed hang-up when the stream is unavailable. Never throws.
+     * calls, timed hang-up when the stream is unavailable. Always restores
+     * the default greeting and releases the dial lock. Never throws.
      *
      * Why SSE: GET /v1/calls/{id} status freezes at "initiated" during
      * live calls (never rings/in_progress), call.initiated fires at dial
      * (not answer), and there is no answer event — the agent transcript
      * frame is the only reliable "greeting finished" signal.
      */
-    protected static function superviseCall(string $callId): void
+    protected static function superviseCall(Lock $lock, string $callId, string $message): void
     {
         $started = microtime(true);
         $ended = false;
@@ -232,7 +283,7 @@ class VoiceCallAlert
 
             // Stream unavailable: ring allowance + TTS schedule from dial,
             // so the call still ends shortly after the notice would have.
-            $fallbackAt = $started + 20 + (int) ceil(strlen(self::NOTICE) / 14) + 3;
+            $fallbackAt = $started + 20 + (int) ceil(strlen($message) / 14) + 3;
             $wait = $fallbackAt - microtime(true);
 
             if ($wait > 0) {
@@ -240,7 +291,41 @@ class VoiceCallAlert
             }
 
             VoicebipClient::endCall($callId);
+        } finally {
+            try {
+                VoicebipClient::setGreeting(self::NOTICE);
+            } catch (\Throwable) {
+                // Best effort; a stale dynamic greeting only affects
+                // inbound calls until the next notice re-patches it.
+            }
+
+            try {
+                $lock->release();
+            } catch (\Throwable) {
+                // Already released or expired — TTL covers it.
+            }
         }
+    }
+
+    /**
+     * The exact sentence the agent reads out during the call — pinger
+     * name + task, spoken as the greeting.
+     */
+    public static function announcementText(User $pinger, Engagement $engagement): string
+    {
+        $task = Str::limit(trim((string) ($engagement->title ?? '')), 80, '');
+
+        $line = sprintf(
+            '%s has just requested your services on Allsers.com',
+            trim($pinger->name) ?: 'Someone',
+        );
+
+        if ($task !== '') {
+            $line .= ' for: '.$task;
+        }
+
+        return $line
+            .'. Please Log in to Allsers.com now to view the request and accept the job. Thank you.';
     }
 
     /**

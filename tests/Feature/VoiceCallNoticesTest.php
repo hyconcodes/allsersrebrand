@@ -107,10 +107,12 @@ test('accepted artisan is called when pinged and the announcement is stored', fu
         ->and($announcement->spoken_at)->not->toBeNull()
         ->and($announcement->call_id)->toBe('call_abc123')
         ->and($announcement->to_number)->toBe('+2348012345678')
-        ->and($announcement->message)->toBe(VoiceCallAlert::NOTICE);
+        ->and($announcement->message)->toContain($client->name)
+        ->and($announcement->message)->toContain('Allsers.com')
+        ->and($announcement->message)->toContain('Log in to Allsers.com');
 
-    // Only the dial — the static greeting is never PATCHed per call.
-    Http::assertSentCount(1);
+    // Greeting PATCH + dial.
+    Http::assertSentCount(2);
 });
 
 test('artisan without a consent decision or with a decline is never called', function () {
@@ -167,13 +169,13 @@ test('a fresh pending announcement debounces repeat dials to the same number', f
     VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
     VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
 
-    Http::assertSentCount(1); // one dial; second is debounced
+    Http::assertSentCount(2); // greeting PATCH + dial; second send debounced
     expect(VoiceAnnouncement::count())->toBe(1);
 });
 
-test('the agent greeting is never touched per call', function () {
+test('the dynamic notice is patched into the greeting before dialing', function () {
     voicebipTestSetup();
-    Http::fake(['*' => Http::response(['call_id' => 'call_static', 'status' => 'initiated'], 201)]);
+    Http::fake(['*' => Http::response(['call_id' => 'call_dynamic', 'status' => 'initiated'], 201)]);
 
     $client = User::factory()->create();
     $artisan = voicebipArtisan();
@@ -182,11 +184,38 @@ test('the agent greeting is never touched per call', function () {
     VoiceCallAlert::send($client, $artisan, $engagement);
 
     $recorded = Http::recorded();
-    expect($recorded)->toHaveCount(1);
+    expect($recorded)->toHaveCount(2);
 
-    $dial = $recorded[0][0];
-    expect($dial->method())->toBe('POST')
+    $greeting = $recorded[0][0];
+    $dial = $recorded[1][0];
+
+    expect($greeting->method())->toBe('PATCH')
+        ->and($greeting->url())->toContain('/agents/agt_test_123')
+        ->and($greeting['greeting_text'])->toContain($client->name)
+        ->and($greeting['greeting_text'])->toContain('Fix my leaky kitchen sink faucet')
+        ->and($greeting['greeting_text'])->toContain('Allsers.com')
+        ->and($dial->method())->toBe('POST')
         ->and($dial->url())->toContain('/calls');
+});
+
+test('a failed greeting patch never dials', function () {
+    voicebipTestSetup();
+    Http::fake([
+        'https://api.voicebip.com/v1/agents/agt_test_123' => Http::response('nope', 500),
+        'https://api.voicebip.com/v1/calls' => Http::response(['call_id' => 'call_never', 'status' => 'initiated'], 201),
+    ]);
+
+    $client = User::factory()->create();
+    $artisan = voicebipArtisan();
+    $engagement = voicebipEngagement($client, $artisan);
+
+    VoiceCallAlert::send($client, $artisan, $engagement);
+
+    $announcement = VoiceAnnouncement::sole();
+    expect($announcement->status)->toBe('failed')
+        ->and($announcement->call_id)->toBeNull();
+
+    Http::assertSentCount(1); // PATCH only — the dial never fired
 });
 
 test('voice call api failures never break the send path', function () {

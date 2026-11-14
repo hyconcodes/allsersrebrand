@@ -66,6 +66,41 @@ class VoicebipClient
     }
 
     /**
+     * Replace the agent's greeting (PATCH /v1/agents/{id}).
+     *
+     * Voicebip reads greeting_text when a call CONNECTS, so patching it
+     * right before a dial injects per-call dynamic text into the spoken
+     * greeting. Returns false on any failure — never throws.
+     */
+    public static function setGreeting(string $text): bool
+    {
+        try {
+            $response = Http::withToken(config('services.voicebip.api_key'))
+                ->acceptJson()
+                ->timeout(8)
+                ->connectTimeout(3)
+                ->patch(rtrim(config('services.voicebip.endpoint'), '/').'/agents/'.config('services.voicebip.agent_id'), [
+                    'greeting_text' => $text,
+                ]);
+
+            if ($response->failed()) {
+                Log::warning('Voicebip greeting update failed.', [
+                    'status' => $response->status(),
+                    'body' => \Illuminate\Support\Str::limit($response->body(), 300),
+                ]);
+
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Voicebip greeting update errored.', ['exception' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
+    /**
      * End an active call — official route is DELETE /v1/calls/{call_id}
      * (docs: "End a call"; a POST .../end does not exist and 404s).
      *
