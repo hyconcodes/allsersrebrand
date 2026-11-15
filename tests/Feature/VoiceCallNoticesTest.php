@@ -834,6 +834,31 @@ test('the scheduler skips answered and not-yet-due chains', function () {
         ->and($waiting->refresh()->attempt)->toBe(1);
 });
 
+test('the dispatch command skips a tick while a previous run is still active', function () {
+    voicebipTestSetup();
+    Http::fake(['*' => Http::response(['call_id' => 'call_overlap', 'status' => 'initiated'], 201)]);
+    Notification::fake();
+
+    $due = voicebipChainAnnouncement(voicebipArtisan(), ['next_attempt_at' => now()->subMinute()]);
+
+    $lock = \Illuminate\Support\Facades\Cache::lock('voice:dispatch-retries', 300);
+    $lock->get();
+
+    $this->artisan('voice:dispatch-retries')
+        ->expectsOutputToContain('Skipped')
+        ->assertSuccessful();
+
+    Http::assertNothingSent();
+    expect($due->refresh()->attempt)->toBe(1);
+
+    $lock->release();
+
+    $this->artisan('voice:dispatch-retries')->assertSuccessful();
+
+    Http::assertSentCount(2); // greeting PATCH + callback dial
+    expect($due->refresh()->attempt)->toBe(2);
+});
+
 test('a live callback chain debounces a new ping to the same artisan', function () {
     voicebipTestSetup();
     Http::fake(['*' => Http::response(['call_id' => 'call_new_ping', 'status' => 'initiated'], 201)]);

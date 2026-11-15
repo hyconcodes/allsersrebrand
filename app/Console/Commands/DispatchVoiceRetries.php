@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\VoiceAnnouncement;
 use App\Support\VoiceCallAlert;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Drives the ping availability chain between ping-time call 1 and the
@@ -31,31 +32,48 @@ class DispatchVoiceRetries extends Command
 
     public function handle(): int
     {
-        $due = VoiceAnnouncement::query()
-            ->whereNotNull('next_attempt_at')
-            ->where('next_attempt_at', '<=', now())
-            ->whereNull('answered_at')
-            ->whereNull('pinger_notified')
-            ->where('expires_at', '>', now())
-            ->orderBy('next_attempt_at')
-            ->limit(3)
-            ->get();
+        // Overlap guard: this command is cron'd directly every minute, so
+        // a long run (up to 3 sequential dials + supervisors) can outlive
+        // its tick. If a previous run is still active, skip this tick —
+        // due rows simply wait for the next one. Also protects if the
+        // command is ever triggered through schedule:run simultaneously.
+        $lock = Cache::lock('voice:dispatch-retries', 300);
 
-        foreach ($due as $announcement) {
-            VoiceCallAlert::retry($announcement);
+        if (! $lock->get()) {
+            $this->info('Skipped: a previous dispatch run is still active.');
+
+            return self::SUCCESS;
         }
 
-        VoiceAnnouncement::query()
-            ->whereNotNull('call_id')
-            ->whereNull('answered_at')
-            ->whereNull('pinger_notified')
-            ->where('expires_at', '<=', now())
-            ->where('expires_at', '>=', now()->subHour())
-            ->orderBy('expires_at')
-            ->limit(20)
-            ->get()
-            ->each(fn (VoiceAnnouncement $announcement) => VoiceCallAlert::finalizeUnavailable($announcement));
+        try {
+            $due = VoiceAnnouncement::query()
+                ->whereNotNull('next_attempt_at')
+                ->where('next_attempt_at', '<=', now())
+                ->whereNull('answered_at')
+                ->whereNull('pinger_notified')
+                ->where('expires_at', '>', now())
+                ->orderBy('next_attempt_at')
+                ->limit(3)
+                ->get();
 
-        return self::SUCCESS;
+            foreach ($due as $announcement) {
+                VoiceCallAlert::retry($announcement);
+            }
+
+            VoiceAnnouncement::query()
+                ->whereNotNull('call_id')
+                ->whereNull('answered_at')
+                ->whereNull('pinger_notified')
+                ->where('expires_at', '<=', now())
+                ->where('expires_at', '>=', now()->subHour())
+                ->orderBy('expires_at')
+                ->limit(20)
+                ->get()
+                ->each(fn (VoiceAnnouncement $announcement) => VoiceCallAlert::finalizeUnavailable($announcement));
+
+            return self::SUCCESS;
+        } finally {
+            $lock->release();
+        }
     }
 }
