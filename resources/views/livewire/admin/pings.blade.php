@@ -663,7 +663,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 ['label' => __('Received'), 'value' => $voiceStats['answered'], 'class' => 'text-green-500'],
                 ['label' => __('Failed / missed'), 'value' => $voiceStats['missed'], 'class' => 'text-red-500'],
                 ['label' => __('Avg talk time'), 'value' => $voiceStats['avg_duration'] > 0 ? $voiceStats['avg_duration'].'s' : '—', 'class' => 'text-zinc-900 dark:text-zinc-100'],
-            ] as $stat) }}
+            ] as $stat)
                 <div class="rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2.5 min-w-0">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-500 truncate">{{ $stat['label'] }}</p>
                     <p class="text-xl font-black {{ $stat['class'] }}">{{ is_int($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</p>

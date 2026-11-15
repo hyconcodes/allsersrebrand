@@ -394,7 +394,22 @@ test('voice outcome stats and doughnut data reflect the filtered pings', functio
         ->assertSet('voiceChartData.data.0', 1) // answered
         ->assertSet('voiceChartData.data.1', 1) // missed
         ->assertSet('voiceChartData.data.2', 1) // in progress
-        ->assertSet('voiceChartData.data.3', 1); // no call (4 pings - 3 covered)
+        ->assertSet('voiceChartData.data.3', 1) // no call (4 pings - 3 covered)
+        ->assertSee('Calls placed')
+        ->assertSee('Avg talk time');
+});
+
+test('the call outcomes card renders without leaking blade braces', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $this->actingAs($admin);
+
+    $html = Volt::test('admin.pings')->html();
+
+    // A stray "}}" from a malformed @foreach shows up literally on the
+    // page — the chips grid must render clean Blade output only.
+    expect(preg_match('/as\s+\$stat\)\s*\}\}/', $html))->toBe(0)
+        ->and($html)->toContain('Calls placed')
+        ->and($html)->toContain('Call outcomes');
 });
 
 test('the dashboard polls silently while visible and never toasts on auto-refresh', function () {
