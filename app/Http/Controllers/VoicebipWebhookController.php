@@ -207,6 +207,7 @@ class VoicebipWebhookController extends Controller
         $announcement->update([
             'status' => $spoken ? VoiceAnnouncement::STATUS_SPOKEN : VoiceAnnouncement::STATUS_FAILED,
             'spoken_at' => $spoken ? ($announcement->spoken_at ?? now()) : null,
+            'duration_seconds' => $duration,
         ]);
 
         if ($spoken) {
@@ -244,6 +245,7 @@ class VoicebipWebhookController extends Controller
         $announcement->update([
             'status' => $answered ? VoiceAnnouncement::STATUS_SPOKEN : VoiceAnnouncement::STATUS_FAILED,
             'spoken_at' => $answered ? ($announcement->spoken_at ?? now()) : null,
+            'duration_seconds' => $duration,
         ]);
 
         if ($answered) {

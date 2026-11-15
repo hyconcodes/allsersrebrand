@@ -115,7 +115,9 @@ test('accepted artisan is called when pinged and the announcement is stored', fu
     $artisan = voicebipArtisan();
     $engagement = voicebipEngagement($client, $artisan);
 
-    VoiceCallAlert::send($client, $artisan, $engagement);
+    $result = VoiceCallAlert::send($client, $artisan, $engagement);
+
+    expect($result)->toBe(VoiceCallAlert::RESULT_INITIATED);
 
     Http::assertSent(function ($request) {
         return $request->url() === 'https://api.voicebip.com/v1/calls'
@@ -146,9 +148,10 @@ test('artisan without a consent decision or with a decline is never called', fun
 
     foreach ([null, 'declined', 'maybe'] as $consent) {
         $artisan = voicebipArtisan(['voice_call_consent' => $consent]);
-        VoiceCallAlert::send($client, $artisan, $engagementFixture($artisan));
+        $result = VoiceCallAlert::send($client, $artisan, $engagementFixture($artisan));
     }
 
+    expect($result)->toBe(VoiceCallAlert::RESULT_NO_CONSENT);
     Http::assertNothingSent();
     expect(VoiceAnnouncement::count())->toBe(0);
 });
@@ -161,8 +164,9 @@ test('calls are skipped outside the CBN call window', function () {
     $artisan = voicebipArtisan();
     $engagement = voicebipEngagement($client, $artisan);
 
-    VoiceCallAlert::send($client, $artisan, $engagement);
+    $result = VoiceCallAlert::send($client, $artisan, $engagement);
 
+    expect($result)->toBe(VoiceCallAlert::RESULT_OUT_OF_WINDOW);
     Http::assertNothingSent();
     expect(VoiceAnnouncement::count())->toBe(0);
 });
@@ -175,8 +179,9 @@ test('unusable phone numbers are skipped', function () {
     $artisan = voicebipArtisan(['phone_number' => '555-0101']);
     $engagement = voicebipEngagement($client, $artisan);
 
-    VoiceCallAlert::send($client, $artisan, $engagement);
+    $result = VoiceCallAlert::send($client, $artisan, $engagement);
 
+    expect($result)->toBe(VoiceCallAlert::RESULT_UNUSABLE_NUMBER);
     Http::assertNothingSent();
     expect(VoiceAnnouncement::count())->toBe(0);
 });
@@ -295,8 +300,9 @@ test('unconfigured keys mean no call attempts at all', function () {
     $artisan = voicebipArtisan();
     $engagement = voicebipEngagement($client, $artisan);
 
-    VoiceCallAlert::send($client, $artisan, $engagement);
+    $result = VoiceCallAlert::send($client, $artisan, $engagement);
 
+    expect($result)->toBe(VoiceCallAlert::RESULT_NOT_CONFIGURED);
     Http::assertNothingSent();
 });
 
@@ -447,7 +453,8 @@ test('call.completed settles a pending announcement as spoken when the duration 
     $announcement->refresh();
     expect($announcement->status)->toBe('spoken')
         ->and($announcement->spoken_at)->not->toBeNull()
-        ->and($announcement->answered_at)->not->toBeNull();
+        ->and($announcement->answered_at)->not->toBeNull()
+        ->and($announcement->duration_seconds)->toBe(14);
 
     Notification::assertSentTo(
         $announcement->engagement->user,
@@ -872,10 +879,38 @@ test('a live callback chain debounces a new ping to the same artisan', function 
         'next_attempt_at' => now()->addMinutes(2),
     ]);
 
-    VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
+    $result = VoiceCallAlert::send($client, $artisan, voicebipEngagement($client, $artisan));
 
+    expect($result)->toBe(VoiceCallAlert::RESULT_BUSY);
     Http::assertNothingSent();
     expect(VoiceAnnouncement::count())->toBe(1);
+});
+
+test('every send() result maps to a compact toast payload', function () {
+    voicebipTestSetup();
+
+    $artisan = voicebipArtisan(['name' => 'Chidi the Plumber']);
+
+    $initiated = VoiceCallAlert::toastFor(VoiceCallAlert::RESULT_INITIATED, $artisan);
+    expect($initiated['type'])->toBe('success')
+        ->and($initiated['title'])->toBe('Voice Call Initiated')
+        ->and($initiated['message'])->toContain('Chidi the Plumber');
+
+    $window = VoiceCallAlert::toastFor(VoiceCallAlert::RESULT_OUT_OF_WINDOW, $artisan);
+    expect($window['type'])->toBe('warning')
+        ->and($window['message'])->toContain('08:00-20:00');
+
+    $busy = VoiceCallAlert::toastFor(VoiceCallAlert::RESULT_BUSY, $artisan);
+    expect($busy['type'])->toBe('info')
+        ->and($busy['title'])->toBe('Call Already in Progress');
+
+    $noConsent = VoiceCallAlert::toastFor(VoiceCallAlert::RESULT_NO_CONSENT, $artisan);
+    expect($noConsent['title'])->toBe('Voice Call Not Placed');
+
+    // Unknown/deferred failures fall back to the safe generic toast.
+    $fallback = VoiceCallAlert::toastFor(VoiceCallAlert::RESULT_FAILED, $artisan);
+    expect($fallback['type'])->toBe('info')
+        ->and($fallback['message'])->toContain('temporarily unavailable');
 });
 
 test('a callback that would fall outside the call window ends the chain with unavailable', function () {

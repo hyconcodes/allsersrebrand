@@ -5,6 +5,8 @@ use App\Models\Conversation;
 use App\Models\Engagement;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Models\VoiceAnnouncement;
+use App\Notifications\PingAvailability;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Volt\Volt;
 
@@ -36,6 +38,24 @@ function createTestPing(User $pinger, User $artisan, array $overrides = []): Eng
     }
 
     return $engagement;
+}
+
+/**
+ * Attach a voice-notice row to a ping with the given chain state.
+ */
+function attachPingCall(Engagement $ping, User $artisan, array $overrides = []): VoiceAnnouncement
+{
+    return VoiceAnnouncement::create(array_merge([
+        'user_id' => $artisan->id,
+        'engagement_id' => $ping->id,
+        'to_number' => '+2348012345678',
+        'message' => 'Notice text.',
+        'status' => VoiceAnnouncement::STATUS_SPOKEN,
+        'spoken_at' => now(),
+        'call_id' => 'call_adm_1',
+        'attempt' => 1,
+        'expires_at' => now()->addMinutes(30),
+    ], $overrides));
 }
 
 test('the pings dashboard is forbidden for non-admin users', function () {
@@ -283,4 +303,110 @@ test('the ping alert subject includes both names', function () {
     $subject = (new AdminPingAlertMail($pinger, $artisan, $engagement))->envelope()->subject;
 
     expect($subject)->toContain('Alice Ping')->toContain('Bob Builder');
+});
+
+test('each ping row shows its voice call state, attempts and remaining retries', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $pinger = User::factory()->create();
+    $artisan = User::factory()->create(['role' => 'artisan']);
+
+    $answeredPing = createTestPing($pinger, $artisan);
+    attachPingCall($answeredPing, $artisan, [
+        'call_id' => 'call_adm_answered',
+        'answered_at' => now(),
+        'duration_seconds' => 14,
+    ]);
+
+    $retryPing = createTestPing($pinger, $artisan, ['title' => 'Awaiting callback']);
+    attachPingCall($retryPing, $artisan, [
+        'call_id' => 'call_adm_retry',
+        'status' => VoiceAnnouncement::STATUS_FAILED,
+        'next_attempt_at' => now()->addMinutes(3),
+    ]);
+
+    $this->actingAs($admin);
+
+    Volt::test('admin.pings')
+        ->call('setScope', 'all')
+        ->assertSee('✓ answered · 14s')
+        ->assertSee('↻ retry')
+        ->assertSee('retries left')
+        ->assertSee('Attempts')
+        ->assertSee('1/3')
+        ->assertSee('Job after call');
+});
+
+test('a terminal missed ping tells the admin the pinger was informed', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $pinger = User::factory()->create();
+    $artisan = User::factory()->create(['role' => 'artisan']);
+
+    $ping = createTestPing($pinger, $artisan);
+    attachPingCall($ping, $artisan, [
+        'call_id' => 'call_adm_missed',
+        'status' => VoiceAnnouncement::STATUS_FAILED,
+        'attempt' => 3,
+        'pinger_notified' => PingAvailability::UNAVAILABLE,
+        'pinger_notified_at' => now(),
+    ]);
+
+    $this->actingAs($admin);
+
+    Volt::test('admin.pings')
+        ->call('setScope', 'all')
+        ->assertSee('no answer — pinger told')
+        ->assertSee('Pinger told: unavailable');
+});
+
+test('voice outcome stats and doughnut data reflect the filtered pings', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $pinger = User::factory()->create();
+    $artisan = User::factory()->create(['role' => 'artisan']);
+
+    $answered = createTestPing($pinger, $artisan);
+    attachPingCall($answered, $artisan, ['call_id' => 'call_agg_ok', 'answered_at' => now(), 'duration_seconds' => 12]);
+
+    $missed = createTestPing($pinger, $artisan);
+    attachPingCall($missed, $artisan, [
+        'call_id' => 'call_agg_missed',
+        'status' => VoiceAnnouncement::STATUS_FAILED,
+        'attempt' => 3,
+        'pinger_notified' => PingAvailability::UNAVAILABLE,
+    ]);
+
+    $inChain = createTestPing($pinger, $artisan);
+    attachPingCall($inChain, $artisan, [
+        'call_id' => 'call_agg_chain',
+        'status' => VoiceAnnouncement::STATUS_FAILED,
+        'next_attempt_at' => now()->addMinutes(3),
+    ]);
+
+    createTestPing($pinger, $artisan, ['title' => 'Ping that was never called']); // no call row
+
+    $this->actingAs($admin);
+
+    Volt::test('admin.pings')
+        ->call('setScope', 'all')
+        ->assertSet('voiceStats.placed', 3)
+        ->assertSet('voiceStats.answered', 1)
+        ->assertSet('voiceStats.missed', 1)
+        ->assertSet('voiceStats.in_chain', 1)
+        ->assertSet('voiceChartData.data.0', 1) // answered
+        ->assertSet('voiceChartData.data.1', 1) // missed
+        ->assertSet('voiceChartData.data.2', 1) // in progress
+        ->assertSet('voiceChartData.data.3', 1); // no call (4 pings - 3 covered)
+});
+
+test('the dashboard polls silently while visible and never toasts on auto-refresh', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $this->actingAs($admin);
+
+    Volt::test('admin.pings')
+        ->call('autoRefresh')
+        ->assertDispatched('ping-charts-updated')
+        ->assertNotDispatched('toast');
+
+    $this->get(route('admin.pings'))
+        ->assertStatus(200)
+        ->assertSee('wire:poll.visible.30s="autoRefresh"', false);
 });

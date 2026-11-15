@@ -127,7 +127,13 @@ new class extends Component
         }
 
         \App\Support\PingAlert::send(auth()->user(), $artisan, $engagement);
-        \App\Support\VoiceCallAlert::send(auth()->user(), $artisan, $engagement);
+        $voiceResult = \App\Support\VoiceCallAlert::send(auth()->user(), $artisan, $engagement);
+
+        try {
+            $this->dispatch('toast', ...\App\Support\VoiceCallAlert::toastFor($voiceResult, $artisan));
+        } catch (\Throwable) {
+            // A toast failure must never break the ping flow.
+        }
     }
 
     public function sendQuote($price, $time)

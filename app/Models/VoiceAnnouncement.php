@@ -32,6 +32,7 @@ class VoiceAnnouncement extends Model
         'answered_at',
         'pinger_notified',
         'pinger_notified_at',
+        'duration_seconds',
     ];
 
     /**
@@ -48,6 +49,7 @@ class VoiceAnnouncement extends Model
             'answered_at' => 'datetime',
             'pinger_notified_at' => 'datetime',
             'attempt' => 'integer',
+            'duration_seconds' => 'integer',
         ];
     }
 

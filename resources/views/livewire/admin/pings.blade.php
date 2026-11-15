@@ -1,13 +1,17 @@
 <?php
 
 use App\Models\Engagement;
+use App\Models\VoiceAnnouncement;
+use App\Notifications\PingAvailability;
+use App\Support\VoiceCallAlert;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
-use Livewire\WithPagination;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
-new #[Layout('components.layouts.app')] class extends Component {
+new #[Layout('components.layouts.app')] class extends Component
+{
     use WithPagination;
 
     public string $scope = '24h';
@@ -29,6 +33,12 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     /** @var array{total: int, pending: int, high: int, pingers: int} */
     public array $stats = ['total' => 0, 'pending' => 0, 'high' => 0, 'pingers' => 0];
+
+    /** @var array{placed: int, answered: int, missed: int, in_chain: int, avg_duration: int} */
+    public array $voiceStats = ['placed' => 0, 'answered' => 0, 'missed' => 0, 'in_chain' => 0, 'avg_duration' => 0];
+
+    /** @var array{labels: string[], data: int[]} */
+    public array $voiceChartData = ['labels' => [], 'data' => []];
 
     /** @var array<int, int> */
     public array $availableYears = [];
@@ -86,6 +96,17 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->availableYears = $this->distinctYears();
         $this->dispatch('ping-charts-updated');
         $this->dispatch('toast', type: 'success', title: 'Pings Refreshed', message: 'Pings and chart data are up to date.');
+    }
+
+    /**
+     * Livewire poll target (wire:poll.visible.30s): re-render stats,
+     * table and chart data, then nudge the charts to re-init — with no
+     * toast, so auto-refresh is silent. Only runs while the tab is
+     * visible, keeping background cost at zero.
+     */
+    public function autoRefresh(): void
+    {
+        $this->dispatch('ping-charts-updated');
     }
 
     public function hasActiveFilters(): bool
@@ -360,10 +381,131 @@ new #[Layout('components.layouts.app')] class extends Component {
             ->toArray();
     }
 
+    /**
+     * Voice-call outcomes across the currently filtered pings — one
+     * grouped query over a subquery of the filtered ids. Never throws;
+     * stats stay zero on any driver/SQL problem so the dashboard page
+     * can't be broken by them.
+     *
+     * @return array{placed: int, answered: int, missed: int, in_chain: int, avg_duration: int}
+     */
+    protected function voiceAggregate(): array
+    {
+        $stats = ['placed' => 0, 'answered' => 0, 'missed' => 0, 'in_chain' => 0, 'avg_duration' => 0];
+
+        try {
+            $row = VoiceAnnouncement::whereIn('engagement_id', $this->filteredQuery()->select('id'))
+                ->selectRaw('COUNT(CASE WHEN call_id IS NOT NULL THEN 1 END) as placed')
+                ->selectRaw('COUNT(CASE WHEN answered_at IS NOT NULL THEN 1 END) as answered')
+                ->selectRaw('COUNT(CASE WHEN answered_at IS NULL AND pinger_notified = ? THEN 1 END) as missed', [PingAvailability::UNAVAILABLE])
+                ->selectRaw('COUNT(CASE WHEN answered_at IS NULL AND pinger_notified IS NULL AND call_id IS NOT NULL THEN 1 END) as in_chain')
+                ->selectRaw('AVG(CASE WHEN answered_at IS NOT NULL THEN duration_seconds END) as avg_duration')
+                ->first();
+
+            $stats = [
+                'placed' => (int) ($row->placed ?? 0),
+                'answered' => (int) ($row->answered ?? 0),
+                'missed' => (int) ($row->missed ?? 0),
+                'in_chain' => (int) ($row->in_chain ?? 0),
+                'avg_duration' => (int) round((float) ($row->avg_duration ?? 0)),
+            ];
+        } catch (\Throwable) {
+            // Keep zeros — live stats must never fail the page render.
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Compact call state for one ping row. Reads only the eager-loaded
+     * relation (zero extra queries) and is shared by the Calls column
+     * badge and its expandable detail row.
+     *
+     * @return array{announcement: ?VoiceAnnouncement, state: string, label: string, class: string, attempts: int, remaining: int}
+     */
+    public function voiceSummary(Engagement $ping): array
+    {
+        $announcement = $ping->voiceAnnouncements->sortByDesc('id')->first();
+
+        if (! $announcement || ! $announcement->call_id) {
+            return [
+                'announcement' => $announcement,
+                'state' => 'none',
+                'label' => '- not called',
+                'class' => 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
+                'attempts' => (int) ($announcement->attempt ?? 0),
+                'remaining' => 0,
+            ];
+        }
+
+        $attempts = (int) $announcement->attempt;
+        $remaining = $announcement->answered_at || $announcement->pinger_notified
+            ? 0
+            : max(0, VoiceCallAlert::MAX_ATTEMPTS - $attempts);
+
+        if ($announcement->answered_at) {
+            $label = '✓ answered';
+            if ($announcement->duration_seconds !== null) {
+                $label .= ' · '.$announcement->duration_seconds.'s';
+            }
+
+            return [
+                'announcement' => $announcement,
+                'state' => 'answered',
+                'label' => $label,
+                'class' => 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
+                'attempts' => $attempts,
+                'remaining' => 0,
+            ];
+        }
+
+        if ($announcement->pinger_notified === PingAvailability::UNAVAILABLE) {
+            return [
+                'announcement' => $announcement,
+                'state' => 'missed',
+                'label' => '✕ no answer — pinger told',
+                'class' => 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+                'attempts' => $attempts,
+                'remaining' => 0,
+            ];
+        }
+
+        if ($announcement->next_attempt_at) {
+            return [
+                'announcement' => $announcement,
+                'state' => 'retry',
+                'label' => '↻ retry '.$announcement->next_attempt_at->format('g:i A'),
+                'class' => 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+                'attempts' => $attempts,
+                'remaining' => $remaining,
+            ];
+        }
+
+        if ($announcement->status === VoiceAnnouncement::STATUS_FAILED) {
+            return [
+                'announcement' => $announcement,
+                'state' => 'failed',
+                'label' => '✕ call failed',
+                'class' => 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
+                'attempts' => $attempts,
+                'remaining' => $remaining,
+            ];
+        }
+
+        return [
+            'announcement' => $announcement,
+            'state' => 'active',
+            'label' => '… calling',
+            'class' => 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300',
+            'attempts' => $attempts,
+            'remaining' => $remaining,
+        ];
+    }
+
     public function render(): mixed
     {
         $pings = $this->filteredQuery()
-            ->with(['user', 'artisan'])
+            ->with(['user', 'artisan', 'voiceAnnouncements'])
             ->orderByDesc('created_at')
             ->paginate(15)
             ->withQueryString();
@@ -378,11 +520,25 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $this->pingChartData = $this->buildChartData();
 
+        $this->voiceStats = $this->voiceAggregate();
+        $this->voiceChartData = [
+            'labels' => ['Answered', 'Missed', 'In progress', 'No call'],
+            'data' => [
+                $this->voiceStats['answered'],
+                $this->voiceStats['missed'],
+                $this->voiceStats['in_chain'],
+                max(0, $this->stats['total']
+                    - $this->voiceStats['answered']
+                    - $this->voiceStats['missed']
+                    - $this->voiceStats['in_chain']),
+            ],
+        ];
+
         return view('livewire.admin.pings', ['pings' => $pings]);
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto" wire:poll.visible.30s="autoRefresh">
     <x-top-bar>
         <x-slot:left>@include('partials.admin-top-tabs')</x-slot:left>
     </x-top-bar>
@@ -495,8 +651,30 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
     </div>
 
+    <!-- Voice call stats + outcome doughnut (compact, plain Tailwind — no Flux) -->
+    <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 flex flex-col lg:flex-row gap-5 items-center">
+        <div class="w-full lg:w-56 shrink-0">
+            <h3 class="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2">{{ __('Call outcomes') }}</h3>
+            <div class="h-40"><canvas id="voiceChart"></canvas></div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-1 w-full">
+            @foreach ([
+                ['label' => __('Calls placed'), 'value' => $voiceStats['placed'], 'class' => 'text-purple-500'],
+                ['label' => __('Received'), 'value' => $voiceStats['answered'], 'class' => 'text-green-500'],
+                ['label' => __('Failed / missed'), 'value' => $voiceStats['missed'], 'class' => 'text-red-500'],
+                ['label' => __('Avg talk time'), 'value' => $voiceStats['avg_duration'] > 0 ? $voiceStats['avg_duration'].'s' : '—', 'class' => 'text-zinc-900 dark:text-zinc-100'],
+            ] as $stat) }}
+                <div class="rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2.5 min-w-0">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-500 truncate">{{ $stat['label'] }}</p>
+                    <p class="text-xl font-black {{ $stat['class'] }}">{{ is_int($stat['value']) ? number_format($stat['value']) : $stat['value'] }}</p>
+                </div>
+            @endforeach
+        </div>
+    </div>
+
     <!-- Chart data (morphs on every render — read fresh by initPingChart) -->
     <div id="ping-chart-data" class="hidden" data-chart="{{ json_encode($pingChartData ?: ['labels' => [], 'data' => []]) }}"></div>
+    <div id="voice-chart-data" class="hidden" data-chart="{{ json_encode($voiceChartData ?: ['labels' => [], 'data' => []]) }}"></div>
 
     <!-- Chart -->
     <div class="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800">
@@ -528,11 +706,13 @@ new #[Layout('components.layouts.app')] class extends Component {
                             <th class="px-5 py-3 font-bold">{{ __('Artisan') }}</th>
                             <th class="px-5 py-3 font-bold">{{ __('Task') }}</th>
                             <th class="px-5 py-3 font-bold">{{ __('Urgency') }}</th>
+                            <th class="px-5 py-3 font-bold">{{ __('Calls') }}</th>
                             <th class="px-5 py-3 font-bold">{{ __('Status') }}</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
-                        @foreach ($pings as $ping)
+                    @foreach ($pings as $ping)
+                        @php $call = $this->voiceSummary($ping); @endphp
+                        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800" x-data="{ open: false }">
                             <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                                 <td class="px-5 py-3.5 whitespace-nowrap text-zinc-500 dark:text-zinc-400">
                                     {{ $ping->created_at->format('M j, Y') }}
@@ -568,6 +748,25 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     </span>
                                 </td>
                                 <td class="px-5 py-3.5">
+                                    @if ($call['announcement'])
+                                        <button type="button" @click="open = !open"
+                                            class="inline-flex items-center gap-1.5 max-w-full text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40 rounded-lg">
+                                            <span class="inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full {{ $call['class'] }}">{{ $call['label'] }}</span>
+                                            @if ($call['attempts'] > 0)
+                                                <span class="text-[10px] font-bold text-zinc-400">{{ $call['attempts'] }}/3</span>
+                                            @endif
+                                            <svg class="size-3 shrink-0 text-zinc-400 transition-transform duration-150" :class="open ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                                            </svg>
+                                        </button>
+                                        @if ($call['remaining'] > 0)
+                                            <span class="block text-[10px] text-zinc-400 mt-0.5">{{ $call['remaining'] }} {{ __('retries left') }}</span>
+                                        @endif
+                                    @else
+                                        <span class="inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full {{ $call['class'] }}">{{ $call['label'] }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-5 py-3.5">
                                     <span class="inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full
                                         {{ $ping->status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
                                             : ($ping->status === 'accepted' || $ping->status === 'started' ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300'
@@ -577,8 +776,116 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     </span>
                                 </td>
                             </tr>
-                        @endforeach
-                    </tbody>
+                            @if ($call['announcement'])
+                                <tr x-show="open" x-transition.opacity.duration.150ms style="display: none"
+                                    class="bg-zinc-50/70 dark:bg-zinc-800/40">
+                                    <td colspan="7" class="px-5 py-4">
+                                        @php $detail = $call['announcement']; @endphp
+                                        <div class="flex flex-wrap items-start gap-x-6 gap-y-3 text-xs min-w-0">
+                                            <!-- Attempt timeline (3 slots) -->
+                                            <div class="min-w-[150px]">
+                                                <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">{{ __('Attempts') }}</p>
+                                                <div class="flex items-center gap-1.5">
+                                                    @for ($i = 1; $i <= 3; $i++)
+                                                        @php
+                                                            if ($i < $call['attempts']) {
+                                                                $slot = $detail->answered_at ? 'done' : 'missed';
+                                                            } elseif ($i === $call['attempts']) {
+                                                                $slot = $detail->answered_at ? 'done' : (($call['state'] === 'retry' || $call['state'] === 'active') ? 'current' : 'missed');
+                                                            } else {
+                                                                $slot = 'unused';
+                                                            }
+                                                        @endphp
+                                                        <span class="inline-block h-2.5 w-6 rounded-full {{ ['done' => 'bg-green-500', 'missed' => 'bg-red-400', 'current' => 'bg-amber-400 animate-pulse', 'unused' => 'bg-zinc-200 dark:bg-zinc-700'][$slot] }}"
+                                                            title="{{ ['done' => __('answered'), 'missed' => __('missed'), 'current' => __('in progress'), 'unused' => __('not used')][$slot] }}"></span>
+                                                    @endfor
+                                                    <span class="ml-1 font-bold text-zinc-600 dark:text-zinc-300">{{ $call['attempts'] }}/3</span>
+                                                </div>
+                                                @if ($call['remaining'] > 0)
+                                                    <p class="mt-1 text-[10px] text-zinc-400">{{ $call['remaining'] }} {{ __('retries left') }}</p>
+                                                @endif
+                                            </div>
+
+                                            <!-- Call facts -->
+                                            <div class="min-w-[190px]">
+                                                <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">{{ __('Call') }}</p>
+                                                <p class="text-zinc-700 dark:text-zinc-300">
+                                                    {{ $detail->created_at->format('M j, g:i A') }}
+                                                    @if ($detail->duration_seconds !== null)
+                                                        · {{ $detail->duration_seconds }}s {{ __('connected') }}
+                                                    @endif
+                                                </p>
+                                                <p class="text-zinc-500 mt-0.5">
+                                                    @if ($detail->answered_at)
+                                                        {{ __('Answered') }} {{ $detail->answered_at->format('g:i A') }}
+                                                    @elseif ($detail->next_attempt_at)
+                                                        {{ __('Next retry') }} {{ $detail->next_attempt_at->format('g:i A') }}
+                                                    @else
+                                                        {{ __('No answer') }}
+                                                    @endif
+                                                </p>
+                                                @if ($detail->pinger_notified)
+                                                    <p class="text-zinc-500 mt-0.5">
+                                                        {{ $detail->pinger_notified === PingAvailability::UNAVAILABLE ? __('Pinger told: unavailable') : __('Pinger told: available') }}
+                                                        @if ($detail->pinger_notified_at)
+                                                            · {{ $detail->pinger_notified_at->format('g:i A') }}
+                                                        @endif
+                                                    </p>
+                                                @endif
+                                            </div>
+
+                                            <!-- Job outcome after the call -->
+                                            <div class="min-w-[180px]">
+                                                <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">{{ __('Job after call') }}</p>
+                                                @if ($ping->completed_at && $detail->answered_at)
+                                                    <span class="inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">
+                                                        ✓ {{ __('Completed') }} {{ $detail->answered_at->diffForHumans($ping->completed_at, ['short' => true, 'parts' => 2, 'absolute' => true]) }} {{ __('after the call') }}
+                                                    </span>
+                                                @elseif ($ping->status === 'completed')
+                                                    <span class="inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                                                        {{ __('Completed without an answered call') }}
+                                                    </span>
+                                                @elseif ($detail->answered_at && $ping->confirmed_at)
+                                                    <span class="inline-flex items-center text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">
+                                                        ✓ {{ __('Accepted') }} {{ $detail->answered_at->diffForHumans($ping->confirmed_at, ['short' => true, 'parts' => 2, 'absolute' => true]) }} {{ __('after the call') }}
+                                                    </span>
+                                                @else
+                                                    <span class="text-zinc-400">—</span>
+                                                @endif
+                                            </div>
+
+                                            <!-- Pure-CSS outcome bar -->
+                                            <div class="min-w-[150px]">
+                                                <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">{{ __('Outcome') }}</p>
+                                                @php
+                                                    $slotCounts = ['done' => 0, 'current' => 0, 'missed' => 0, 'unused' => 0];
+                                                    for ($i = 1; $i <= 3; $i++) {
+                                                        if ($i < $call['attempts']) {
+                                                            $slotCounts[$detail->answered_at ? 'done' : 'missed']++;
+                                                        } elseif ($i === $call['attempts']) {
+                                                            if ($detail->answered_at) {
+                                                                $slotCounts['done']++;
+                                                            } else {
+                                                                $slotCounts[($call['state'] === 'retry' || $call['state'] === 'active') ? 'current' : 'missed']++;
+                                                            }
+                                                        } else {
+                                                            $slotCounts['unused']++;
+                                                        }
+                                                    }
+                                                @endphp
+                                                <div class="flex h-2 w-32 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700 gap-px">
+                                                    <span class="bg-green-500" style="width: {{ round($slotCounts['done'] / 3 * 100) }}%"></span>
+                                                    <span class="bg-amber-400" style="width: {{ round($slotCounts['current'] / 3 * 100) }}%"></span>
+                                                    <span class="bg-red-400" style="width: {{ round($slotCounts['missed'] / 3 * 100) }}%"></span>
+                                                </div>
+                                                <p class="mt-1 text-[10px] text-zinc-400">{{ $call['label'] }}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
+                        </tbody>
+                    @endforeach
                 </table>
             </div>
 
@@ -599,6 +906,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     return;
                 }
                 initPingChart();
+                initVoiceChart();
             }
 
             // Bind immediately if Livewire already booted (script injected during SPA navigation),
@@ -659,6 +967,47 @@ new #[Layout('components.layouts.app')] class extends Component {
                             x: {
                                 grid: { display: false },
                                 ticks: { font: { size: 10 }, color: '#71717a', maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Compact call-outcomes doughnut — same data-in-hidden-div
+            // pattern as the line chart above.
+            function initVoiceChart() {
+                const ctx = document.getElementById('voiceChart');
+                if (!ctx) return;
+
+                const existing = Chart.getChart(ctx);
+                if (existing) existing.destroy();
+
+                let data = { labels: [], data: [] };
+                try {
+                    const dataEl = document.getElementById('voice-chart-data');
+                    data = JSON.parse(dataEl?.dataset.chart || '{}') || { labels: [], data: [] };
+                } catch (e) {
+                    data = { labels: [], data: [] };
+                }
+
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.labels || [],
+                        datasets: [{
+                            data: (data.data || []).map(Number),
+                            backgroundColor: ['#16a34a', '#ef4444', '#f59e0b', '#a1a1aa'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '68%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 }, color: '#71717a', padding: 8 }
                             }
                         }
                     }

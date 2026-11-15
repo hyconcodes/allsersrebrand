@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Engagement extends Model
 {
@@ -45,6 +46,15 @@ class Engagement extends Model
     public function conversation()
     {
         return $this->belongsTo(Conversation::class);
+    }
+
+    /**
+     * Voice notice calls placed for this ping (usually one row that
+     * carries the whole attempt chain).
+     */
+    public function voiceAnnouncements(): HasMany
+    {
+        return $this->hasMany(VoiceAnnouncement::class);
     }
 
     public function review()

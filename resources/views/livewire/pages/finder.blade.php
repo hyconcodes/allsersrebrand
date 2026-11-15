@@ -178,9 +178,15 @@ new #[Layout('components.layouts.app')] #[Title('Artisan Finder')] class extends
         }
 
         \App\Support\PingAlert::send($sender, $artisan, $engagement);
-        \App\Support\VoiceCallAlert::send($sender, $artisan, $engagement);
+        $voiceResult = \App\Support\VoiceCallAlert::send($sender, $artisan, $engagement);
 
         $this->dispatch('toast', type: 'success', title: 'Inquiry Sent!', message: 'Taking you to your conversation with '.$artisan->name);
+
+        try {
+            $this->dispatch('toast', ...\App\Support\VoiceCallAlert::toastFor($voiceResult, $artisan));
+        } catch (\Throwable) {
+            // A toast failure must never break the ping flow.
+        }
 
         return $this->redirect(route('chat', $conversation->id), navigate: true);
     }

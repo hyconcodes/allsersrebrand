@@ -35,48 +35,74 @@ class VoiceCallAlert
     public const MAX_ATTEMPTS = 3;
 
     /**
-     * Place a one-way voice notice call to the artisan when someone pings
-     * them for services. The per-call dynamic message (pinger + task) is
-     * PATCHed into the agent's greeting right before dialing — Voicebip
-     * reads greeting_text when the call CONNECTS, so the callee hears the
+     * Results returned by send() — each maps to a ping-site toast through
+     * toastFor(). The dial itself runs after the response (or inline
+     * under testing), so INITIATED means "guards passed, dial queued".
+     */
+    public const RESULT_INITIATED = 'initiated';
+
+    public const RESULT_OUT_OF_WINDOW = 'out_of_window';
+
+    public const RESULT_BUSY = 'busy';
+
+    public const RESULT_NO_CONSENT = 'no_consent';
+
+    public const RESULT_UNUSABLE_NUMBER = 'unusable_number';
+
+    public const RESULT_NOT_CONFIGURED = 'not_configured';
+
+    public const RESULT_FAILED = 'failed';
+
+    /**
+     * Queue a one-way voice notice call to the artisan when someone pings
+     * them for services. Split in two so ping pages stay instant and can
+     * never be broken by the telephony layer:
+     *
+     *  1. Inline (this method): local guards only — configured, consent,
+     *     phone, CBN window, debounce peek — then returns a RESULT_* for
+     *     the ping site's toast. Never throws; catches everything.
+     *  2. Deferred (place(), registered on app()->terminating()): the
+     *     Voicebip API work — re-check the debounce race, take the dial
+     *     lock, create the audit row, dial — runs AFTER the response is
+     *     sent. Failures are logged and visible on the admin pings page,
+     *     never surfaced to the user's page. Runs inline under testing so
+     *     synchronous expectations hold.
+     *
+     * The per-call dynamic message (pinger + task) is PATCHed into the
+     * agent's greeting right before dialing — Voicebip reads
+     * greeting_text when the call CONNECTS, so the callee hears the
      * dynamic notice as the greeting itself (that PATCH also applies the
      * 2s idle timeout + silent "." idle prompt, and the dial carries a
      * 60s max_duration hard cap). A dial lock serializes concurrent
      * notices so one ping's artisan can never hear another's name/task. A
-     * background supervisor watches the live WebSocket event stream, hangs
-     * up when call.idle_silence proves the notice finished, and marks the
-     * announcement answered the moment the greeting frame proves pickup —
-     * no turns, no audible idle prompts, no caller dependence.
+     * background supervisor watches the live WebSocket event stream,
+     * hangs up when call.idle_silence proves the notice finished, and
+     * marks the announcement answered the moment the greeting frame
+     * proves pickup — no turns, no audible idle prompts, no caller
+     * dependence.
      *
      * Missed attempts feed the callback chain via recordMissed() (webhook)
      * and the voice:dispatch-retries scheduler re-dials them; the pinger
      * hears back exactly once either way (PingAvailability).
      *
-     * Fully isolated like PingAlert::send(): every guard failure or API
-     * error is swallowed and logged so the ping flow is never affected.
      * Outside the CBN call window (08:00-20:00 Africa/Lagos) the call is
-     * skipped and logged — the ping still goes through by email/notification.
+     * skipped and logged — the ping still goes through by
+     * email/notification.
      */
-    public static function send(User $pinger, User $artisan, Engagement $engagement): void
+    public static function send(User $pinger, User $artisan, Engagement $engagement): string
     {
-        $lock = null;
-
         try {
             if (! VoicebipClient::configured()) {
-                return;
+                return self::RESULT_NOT_CONFIGURED;
             }
 
-            if (! $artisan->isArtisan()) {
-                return;
-            }
-
-            if ($artisan->isBanned() || ! $artisan->hasAcceptedVoiceCalls()) {
+            if (! $artisan->isArtisan() || $artisan->isBanned() || ! $artisan->hasAcceptedVoiceCalls()) {
                 Log::info('Voicebip notice skipped (consent/ban).', [
                     'artisan_id' => $artisan->id,
                     'consent' => $artisan->voice_call_consent,
                 ]);
 
-                return;
+                return self::RESULT_NO_CONSENT;
             }
 
             $to = self::normalizeToE164($artisan->phone_number, $artisan->country_code);
@@ -87,7 +113,7 @@ class VoiceCallAlert
                     'phone' => $artisan->phone_number,
                 ]);
 
-                return;
+                return self::RESULT_UNUSABLE_NUMBER;
             }
 
             if (! self::withinCallWindow()) {
@@ -97,23 +123,114 @@ class VoiceCallAlert
                     'window' => config('services.voicebip.call_window_start').'h-'.config('services.voicebip.call_window_end').'h '.config('services.voicebip.timezone'),
                 ]);
 
-                return;
+                return self::RESULT_OUT_OF_WINDOW;
             }
 
-            // Debounce: never re-dial the same number while a fresh
-            // announcement exists (spam pings in quick succession), nor
-            // while a callback chain for an earlier ping is still live
-            // (next_attempt_at pending). Rows are created before dialing,
-            // so both states count.
-            $hasFresh = VoiceAnnouncement::where('to_number', $to)
-                ->where('created_at', '>=', now()->subMinutes(15))
-                ->where(function ($query) {
-                    $query->whereIn('status', [VoiceAnnouncement::STATUS_PENDING, VoiceAnnouncement::STATUS_SPOKEN])
-                        ->orWhereNotNull('next_attempt_at');
-                })
-                ->exists();
+            if (self::freshChainExists($to)) {
+                return self::RESULT_BUSY;
+            }
 
-            if ($hasFresh) {
+            $place = fn () => self::place($pinger, $artisan, $engagement, $to);
+
+            if (app()->environment('testing')) {
+                $place();
+            } else {
+                app()->terminating($place);
+            }
+
+            return self::RESULT_INITIATED;
+        } catch (\Throwable $e) {
+            Log::error('Voicebip notice call failed.', [
+                'artisan_id' => $artisan->id,
+                'engagement_id' => $engagement->id,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return self::RESULT_FAILED;
+        }
+    }
+
+    /**
+     * Toast payload for a send() result. Centralized so every ping site
+     * is a one-liner and the copy never drifts.
+     *
+     * @return array{type: string, title: string, message: string}
+     */
+    public static function toastFor(string $result, User $artisan): array
+    {
+        $name = trim($artisan->name) ?: 'this artisan';
+
+        return match ($result) {
+            self::RESULT_INITIATED => [
+                'type' => 'success',
+                'title' => 'Voice Call Initiated',
+                'message' => "We're calling {$name} now.",
+            ],
+            self::RESULT_OUT_OF_WINDOW => [
+                'type' => 'warning',
+                'title' => 'Outside Call Hours',
+                'message' => "Ping sent - voice calls run 08:00-20:00, {$name} was notified in-app only.",
+            ],
+            self::RESULT_BUSY => [
+                'type' => 'info',
+                'title' => 'Call Already in Progress',
+                'message' => "Ping sent - a call to {$name} is already underway.",
+            ],
+            self::RESULT_NO_CONSENT => [
+                'type' => 'info',
+                'title' => 'Voice Call Not Placed',
+                'message' => "Ping sent - {$name} isn't set up for voice notices.",
+            ],
+            self::RESULT_UNUSABLE_NUMBER => [
+                'type' => 'info',
+                'title' => 'Voice Call Not Placed',
+                'message' => "Ping sent - {$name} has no reachable phone number on file.",
+            ],
+            default => [
+                'type' => 'info',
+                'title' => 'Voice Call Not Placed',
+                'message' => 'Ping sent - voice calling is temporarily unavailable.',
+            ],
+        };
+    }
+
+    /**
+     * Debounce: never re-dial the same number while a fresh announcement
+     * exists (spam pings in quick succession), nor while a callback chain
+     * for an earlier ping is still live (next_attempt_at pending). Rows
+     * are created before dialing, so both states count.
+     */
+    protected static function freshChainExists(string $to): bool
+    {
+        return VoiceAnnouncement::where('to_number', $to)
+            ->where('created_at', '>=', now()->subMinutes(15))
+            ->where(function ($query) {
+                $query->whereIn('status', [VoiceAnnouncement::STATUS_PENDING, VoiceAnnouncement::STATUS_SPOKEN])
+                    ->orWhereNotNull('next_attempt_at');
+            })
+            ->exists();
+    }
+
+    /**
+     * Deferred dial phase (after the response; inline under testing):
+     * re-check the debounce (two rapid pings can both pass the inline
+     * peek), take the dial lock, create the audit row, dial. Never
+     * throws — failures land in logs and on the admin pings page, never
+     * on the user's page.
+     */
+    protected static function place(User $pinger, User $artisan, Engagement $engagement, string $to): void
+    {
+        $lock = null;
+
+        try {
+            // Re-verify what the inline guards decided: config could be
+            // missing, the window can tick over between guard and here,
+            // and another ping may have raced the debounce peek.
+            if (! VoicebipClient::configured()
+                || $artisan->isBanned()
+                || ! $artisan->hasAcceptedVoiceCalls()
+                || ! self::withinCallWindow()
+                || self::freshChainExists($to)) {
                 return;
             }
 
@@ -159,7 +276,7 @@ class VoiceCallAlert
                 }
             }
 
-            Log::error('Voicebip notice call failed.', [
+            Log::error('Voicebip notice placement failed.', [
                 'artisan_id' => $artisan->id,
                 'engagement_id' => $engagement->id,
                 'exception' => $e->getMessage(),
